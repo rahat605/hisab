@@ -1,0 +1,11 @@
+Monthly Hisab: all-user dropdown fix
+
+Changes in src/main.jsx:
+- Added allActiveUsers containing every active profile, regardless of role.
+- Paid by, payment member, cash contribution, and bazar history filter dropdowns now show all active users, including admins.
+- Admin is labeled (Admin) in dropdowns.
+- Bazar submit validates and stores the selected active user's UUID rather than silently forcing the logged-in member.
+
+Install: backup your current src/main.jsx, then replace it with the src/main.jsx from this ZIP. Do not overwrite .env.
+
+Build could not be run in the authoring environment because the Vite executable was missing from node_modules. Run npm install if needed, then npm run build in your own project.
