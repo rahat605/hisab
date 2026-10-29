@@ -26,6 +26,7 @@ import {
   Bell,
   ImagePlus,
   Send,
+  Utensils,
 } from "lucide-react";
 import "./style.css";
 import { supabase, supabaseConfigured } from "./supabase";
@@ -68,10 +69,75 @@ function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [resetMode, setResetMode] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profileCurrentPassword, setProfileCurrentPassword] = useState("");
+  const [profilePassword, setProfilePassword] = useState("");
+  const [profileConfirmPassword, setProfileConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
+  const [profileError, setProfileError] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
+  async function updateProfileEmail(e) {
+    e.preventDefault(); setProfileBusy(true); setProfileError(""); setProfileMessage("");
+    try {
+      const { error } = await supabase.auth.updateUser({ email: profileEmail.trim() });
+      if (error) throw error;
+      setProfileMessage("Email change requested. Check your inbox and confirm it to finish updating your email.");
+    } catch (err) { setProfileError(err.message || "Could not update email."); }
+    finally { setProfileBusy(false); }
+  }
+  async function updateProfilePassword(e) {
+    e.preventDefault();
+    if (profileBusy) return;
+    setProfileBusy(true); setProfileError(""); setProfileMessage("");
+    try {
+      if (!profileCurrentPassword) throw new Error("Enter your current password.");
+      if (!profilePassword) throw new Error("Enter a new password.");
+      if (profilePassword !== profileConfirmPassword) throw new Error("New passwords do not match.");
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      const authEmail = authData?.user?.email;
+      if (!authEmail || !authData?.user?.id) throw new Error("Your session has expired. Please log in again.");
+      // Re-authenticate the currently signed-in member with their old password.
+      const { data: verified, error: verifyError } = await supabase.auth.signInWithPassword({ email: authEmail, password: profileCurrentPassword });
+      if (verifyError) throw new Error("Current password is incorrect.");
+      if (verified?.user?.id !== authData.user.id) throw new Error("Could not verify your account. Please sign in again.");
+      const { data: updated, error: updateError } = await supabase.auth.updateUser({ password: profilePassword });
+      if (updateError) throw updateError;
+      if (updated?.user?.id !== authData.user.id) throw new Error("Password update was not confirmed. Please try again.");
+      setProfileCurrentPassword(""); setProfilePassword(""); setProfileConfirmPassword("");
+      setProfileMessage("Password changed successfully!");
+    } catch (err) {
+      setProfileError(err?.message || "Could not change password.");
+    } finally { setProfileBusy(false); }
+  }
+  async function uploadProfilePhoto(e) {
+    const file = e.target.files?.[0]; if (!file) return;
+    setProfileBusy(true); setProfileError(""); setProfileMessage("");
+    try {
+      if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
+      if (file.size > 5 * 1024 * 1024) throw new Error("Image must be 5 MB or smaller.");
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("profile-photos").upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from("profile-photos").getPublicUrl(path);
+      const photoUrl = data.publicUrl;
+      const { error: dbError } = await supabase.from("profiles").update({ photo_url: photoUrl }).eq("id", user.id);
+      if (dbError) throw dbError;
+      setProfilePhoto(photoUrl); setProfileMessage("Profile photo updated.");
+    } catch (err) { setProfileError(err.message || "Could not upload photo."); }
+    finally { setProfileBusy(false); e.target.value = ""; }
+  }
+
   const [cloudMonthId, setCloudMonthId] = useState(null);
   const [cloudBusy, setCloudBusy] = useState(false);
   const [expenseForm, setExpenseForm] = useState({
-      name: "Bazar",
+      name: "",
       amount: "",
       shared: true,
     }),
@@ -105,6 +171,10 @@ function App() {
     [adminOpen, setAdminOpen] = useState(false);
   const [count, setCount] = useState(db.currentCount),
     [selected, setSelected] = useState(db.currentMembers);
+  const [mealMemberDraft, setMealMemberDraft] = useState("1");
+  const [mealActiveIds, setMealActiveIds] = useState([]);
+  const [mealMemberSaving, setMealMemberSaving] = useState(false);
+  const [mealMemberMessage, setMealMemberMessage] = useState("");
   const [notices, setNotices] = useState([]),
     [readNoticeIds, setReadNoticeIds] = useState([]),
     [noticeForm, setNoticeForm] = useState({ title: "", body: "" }),
@@ -191,6 +261,17 @@ function App() {
   );
   const monthBazar = (db.bazars || []).filter((b) => b.month === month);
   const bazarTotal = monthBazar.reduce((s, b) => s + Number(b.amount || 0), 0);
+  // Utilities are admin-configured expenses; bazar is tracked separately as meal cost.
+  const utilityCategories = db.categories.filter(
+    (c) => c.name.toLowerCase() !== "bazar",
+  );
+  const utilitiesTotal = utilityCategories.reduce(
+    (s, c) => s + Number(c.amount || 0),
+    0,
+  );
+  const utilitiesPerMember = selected.length ? utilitiesTotal / selected.length : 0;
+  const bazarMemberCount = mealActiveIds.length;
+  const individualMealCost = bazarMemberCount > 0 ? Math.ceil(bazarTotal / bazarMemberCount) : 0;
   const sharedTotal =
     db.categories
       .filter((c) => c.shared && c.name.toLowerCase() !== "bazar")
@@ -203,7 +284,7 @@ function App() {
         ));
   const memberCredits = (uid) =>
     monthBazar
-      .filter((b) => b.paidBy === uid)
+      .filter((b) => !b.paidFromCash && b.paidBy === uid)
       .reduce((s, b) => s + Number(b.amount || 0), 0) +
     (db.contributions || [])
       .filter((c) => c.month === month && c.paidBy === uid)
@@ -219,8 +300,9 @@ function App() {
     (db.payments || [])
       .filter((p) => p.userId === user?.id && p.month === month)
       .reduce((s, p) => s + Number(p.amount), 0) + memberCredits(user?.id);
-  const ownDue =
-    ownRent + (selected.includes(user?.id) ? perMember : 0) - ownPayments;
+  // Member due is room rent plus their share of utilities and bazar, less credits/payments.
+  const ownTotalRent = ownRent + (selected.includes(user?.id) ? utilitiesPerMember : 0);
+  const ownDue = Math.ceil(ownTotalRent + (mealActiveIds.includes(user?.id) ? individualMealCost : 0) - ownPayments);
   const allDue = db.users
     .filter((u) => u.active)
     .map((u) => ({
@@ -243,6 +325,37 @@ function App() {
         .includes("rent"),
     )
     .reduce((s, p) => s + Number(p.amount), 0);
+  // Split recorded credits into rent payments and meal/household credits so the
+  // member balance table shows how each member's due is being covered.
+  const memberRentPaid = (uid) =>
+    monthPayments
+      .filter(
+        (p) =>
+          p.userId === uid &&
+          String(p.note || "")
+            .toLowerCase()
+            .includes("rent"),
+      )
+      .reduce((s, p) => s + Number(p.amount || 0), 0);
+  const memberMealPaid = (uid) =>
+    monthPayments
+      .filter(
+        (p) =>
+          p.userId === uid &&
+          !String(p.note || "")
+            .toLowerCase()
+            .includes("rent"),
+      )
+      .reduce((s, p) => s + Number(p.amount || 0), 0) +
+    memberCredits(uid);
+  const memberRentShare = (u) =>
+    Number(u.rent || 0) + (selected.includes(u.id) ? utilitiesPerMember : 0);
+  // Meal charges apply only to members explicitly active in the meal roster.
+  // Being selected for the rent/overview table does not make a member a meal member.
+  const memberMealShare = (u) =>
+    mealActiveIds.includes(u.id) ? individualMealCost : 0;
+  const memberDue = (u) =>
+    memberRentShare(u) + memberMealShare(u) - memberRentPaid(u.id) - memberMealPaid(u.id);
   const expensesPaid =
     monthPayments
       .filter(
@@ -357,6 +470,28 @@ function App() {
   async function toggleNoticePanel() {
     setNoticePanelOpen((open) => !open);
   }
+  function exportMyAccountPdf() {
+    const popup = window.open("", "_blank", "width=900,height=700");
+    if (!popup) { alert("Please allow pop-ups to export your account PDF."); return; }
+    const rows = utilityCategories.filter((c) => c.shared).map((c) => `<tr><td>${String(c.name).replace(/[&<>]/g, x => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[x]))}</td><td>${money(c.amount)}</td><td>${money(selected.length ? Math.ceil(Number(c.amount || 0) / selected.length) : 0)}</td></tr>`).join("");
+    popup.document.write(`<!doctype html><html><head><title>My Monthly Hisab - ${month}</title><style>body{font:14px Arial,sans-serif;color:#172033;padding:32px}h1{margin-bottom:4px}p{color:#64748b}.cards{display:flex;gap:12px;flex-wrap:wrap;margin:24px 0}.card{border:1px solid #e2e8f0;border-radius:12px;padding:16px;min-width:145px}.label{color:#64748b;font-size:12px}.value{font-size:22px;font-weight:700;margin-top:8px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:10px;border-bottom:1px solid #e2e8f0}th{color:#64748b}.print{margin-bottom:20px;padding:8px 14px;border:0;border-radius:8px;background:#4f5ff0;color:white;cursor:pointer}@media print{.print{display:none}body{padding:0}}</style></head><body><button class="print" onclick="window.print()">Save as PDF / Print</button><h1>My Monthly Hisab</h1><p>${month} · ${user.name}</p><div class="cards"><div class="card"><div class="label">Total rent</div><div class="value">${money(ownTotalRent)}</div></div><div class="card"><div class="label">Individual meal cost</div><div class="value">${money(mealActiveIds.includes(user.id) ? individualMealCost : 0)}</div></div><div class="card"><div class="label">Paid</div><div class="value">${money(ownPayments)}</div></div><div class="card"><div class="label">Remaining due</div><div class="value">${money(Math.ceil(ownDue))}</div></div></div><h2>Utilities breakdown</h2><table><thead><tr><th>Utility</th><th>Total</th><th>Your share</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No utilities</td></tr>'}</tbody></table><p>Individual meal cost = total bazar divided by ${bazarMemberCount} meal members.</p><script>window.onafterprint=()=>window.close();</script></body></html>`);
+    popup.document.close();
+  }
+  async function saveMealMemberCount() {
+    if (!supabaseConfigured) { setMealMemberMessage("Connect Supabase to save this setting."); return; }
+    setMealMemberSaving(true); setMealMemberMessage("");
+    try {
+      const { error } = await supabase.from("app_settings").upsert(
+        { key: `meal_active_members_${month}`, value: JSON.stringify(mealActiveIds), updated_at: new Date().toISOString() },
+        { onConflict: "key" },
+      );
+      if (error) throw error;
+      setMealMemberMessage(`Saved. ${mealActiveIds.length} active meal members; meal cost updated.`);
+    } catch (error) {
+      setMealMemberMessage(error.message || "Could not save active meal members.");
+    } finally { setMealMemberSaving(false); }
+  }
+
   async function loadCloudData(profileId, label = month) {
     if (!supabaseConfigured) return;
     setCloudBusy(true);
@@ -373,6 +508,12 @@ function App() {
         throw new Error("Your profile is inactive or unavailable.");
       const monthRow = await ensureCloudMonth(label);
       if (!monthRow) throw new Error("Could not load monthly setup.");
+      const { data: mealSetting, error: mealSettingError } = await supabase
+        .from("app_settings").select("value").eq("key", `meal_active_members_${label}`).maybeSingle();
+      if (mealSettingError) throw mealSettingError;
+      let savedMealIds = [];
+      try { savedMealIds = JSON.parse(mealSetting?.value || "[]"); } catch { savedMealIds = []; }
+      if (Array.isArray(savedMealIds)) setMealActiveIds(savedMealIds);
       const [catsRes, payRes, bazRes, cashRes] = await Promise.all([
         supabase
           .from("expense_categories")
@@ -424,6 +565,7 @@ function App() {
         date: x.entry_date,
         amount: Number(x.amount),
         paidBy: x.paid_by,
+        paidFromCash: Boolean(x.paid_from_cash),
         createdBy: x.created_by,
         items: String(x.items || "")
           .split(/[,\n]/)
@@ -511,8 +653,15 @@ function App() {
         "username-login",
         { body: { username: login.username.trim(), password: login.password } },
       );
-      if (fnError || !data?.access_token || !data?.refresh_token)
-        throw new Error(data?.error || fnError?.message || "Login failed.");
+      if (fnError || !data?.access_token || !data?.refresh_token) {
+        let message = data?.error;
+        if (!message && fnError) {
+          try { message = (await fnError.context?.json?.())?.error; } catch {}
+          if (!message && /invalid|credentials|password|401/i.test(fnError.message || ""))
+            message = "Invalid username or password.";
+        }
+        throw new Error(message || "Unable to sign in. Please try again.");
+      }
       const { error: sessionError } = await supabase.auth.setSession({
         access_token: data.access_token,
         refresh_token: data.refresh_token,
@@ -539,10 +688,14 @@ function App() {
       setSession({ id: mapped.id });
       await loadCloudData(mapped.id, month);
       setPage(mapped.role === "admin" ? "overview" : "my-account");
-      await loadNotices(true, mapped.id).catch((err) =>
+      // Non-critical extras should not keep the login button in its loading state.
+      // The app is already routed to the user's page; load these in the background.
+      void loadNotices(true, mapped.id).catch((err) =>
         console.warn("Notices are not configured yet:", err?.message),
       );
-      await loadPaymentOptions();
+      void loadPaymentOptions().catch((err) =>
+        console.warn("Payment options could not be loaded:", err?.message),
+      );
     } catch (err) {
       setError(
         err.message || "Unable to sign in. Check your username and password.",
@@ -699,9 +852,21 @@ function App() {
     e.preventDefault();
     if (Number(bazarForm.amount) <= 0 || !bazarForm.items.trim()) return;
     try {
-      const paidBy = admin ? bazarForm.paidBy : user.id;
+      const paidFromCash = admin && bazarForm.paidBy === "cash-in-hand";
+      const paidBy = paidFromCash ? user.id : admin ? bazarForm.paidBy : user.id;
       if (!paidBy || !allActiveUsers.some((u) => u.id === paidBy && u.active)) {
         throw new Error("Please select an active user in Paid by.");
+      }
+      if (paidFromCash) {
+        const cashBalance = (db.contributions || [])
+          .filter((c) => c.month === month)
+          .reduce((sum, c) => sum + Number(c.amount || 0), 0) -
+          (db.bazars || [])
+            .filter((b) => b.month === month && b.paidFromCash)
+            .reduce((sum, b) => sum + Number(b.amount || 0), 0);
+        if (Number(bazarForm.amount) > cashBalance) {
+          throw new Error(`Not enough cash in hand. Available balance: ${money(Math.max(0, cashBalance))}.`);
+        }
       }
       const mid = await monthIdFor();
       const { data: inserted, error } = await supabase
@@ -711,6 +876,7 @@ function App() {
           entry_date: bazarForm.date,
           amount: Number(bazarForm.amount),
           paid_by: paidBy,
+          paid_from_cash: paidFromCash,
           items: bazarForm.items
             .split(/[,\n]/)
             .map((x) => x.trim())
@@ -718,10 +884,10 @@ function App() {
             .join(", "),
           created_by: user.id,
         })
-        .select("id,month_id,entry_date,amount,paid_by,items,created_by")
+        .select("id,month_id,entry_date,amount,paid_by,paid_from_cash,items,created_by")
         .single();
       if (error) throw error;
-      if (!inserted || inserted.paid_by !== paidBy)
+      if (!inserted || inserted.paid_by !== paidBy || Boolean(inserted.paid_from_cash) !== paidFromCash)
         throw new Error(
           "Saved entry could not be verified. Refresh and check the bazar history.",
         );
@@ -741,30 +907,27 @@ function App() {
       alert("You can edit only entries you created.");
       return;
     }
+    const date = prompt("Update bazar date (YYYY-MM-DD):", String(b.date || ""));
+    if (date === null) return;
+    const items = prompt("Update bazar items:", Array.isArray(b.items) ? b.items.join(", ") : String(b.items || ""));
+    if (items === null) return;
     const amount = prompt("Update total amount (৳):", String(b.amount));
     if (amount === null) return;
-    const items = prompt(
-      "Update bazar items:",
-      Array.isArray(b.items) ? b.items.join(", ") : b.items,
-    );
-    if (items === null) return;
-    if (Number(amount) <= 0 || !items.trim()) {
-      alert("Enter a valid amount and items.");
+    const paidBy = admin ? prompt("Update paid by (member ID or Cash in Hand):", String(b.paid_by || b.paidBy || "")) : null;
+    if (admin && paidBy === null) return;
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || Number(amount) <= 0 || !items.trim() || (admin && !paidBy.trim())) {
+      alert("Please enter a valid date, items, amount, and payer.");
       return;
     }
     try {
-      const { error } = await supabase
-        .from("bazar_entries")
-        .update({
-          amount: Number(amount),
-          items: items
-            .split(/[,\n]/)
-            .map((v) => v.trim())
-            .filter(Boolean)
-            .join(", "),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", b.id);
+      const update = {
+        date,
+        amount: Number(amount),
+        items: items.split(/[,\\n]/).map((v) => v.trim()).filter(Boolean).join(", "),
+        updated_at: new Date().toISOString(),
+      };
+      if (admin) update.paid_by = paidBy.trim();
+      const { error } = await supabase.from("bazar_entries").update(update).eq("id", b.id);
       if (error) throw error;
       await loadCloudData(user.id, month);
     } catch (e) {
@@ -1161,18 +1324,14 @@ function App() {
             "'": "&#39;",
           })[c],
       );
-    const totalDue = allDue.reduce(
-      (s, x) =>
-        s + Number(x.u.rent || 0) + Number(x.shared || 0) - Number(x.paid || 0),
-      0,
-    );
+    const totalDue = allDue.reduce((s, x) => s + memberDue(x.u), 0);
     const cashTotal = (db.contributions || [])
       .filter((c) => c.month === month)
       .reduce((s, c) => s + Number(c.amount || 0), 0);
     const memberRows = allDue
       .map(
         (x) =>
-          `<tr><td><strong>${esc(x.u.name)}</strong><small>${esc(x.u.username || "House member")}</small></td><td>${money(x.u.rent)}</td><td>${money(x.shared)}</td><td class="green">${money(x.paid)}</td><td class="due">${money(Number(x.u.rent) + Number(x.shared) - Number(x.paid))}</td></tr>`,
+          `<tr><td><strong>${esc(x.u.name)}</strong><small>${esc(x.u.username || "House member")}</small></td><td>${money(memberRentShare(x.u))}</td><td>${money(memberMealShare(x.u))}</td><td class="green">${money(memberRentPaid(x.u.id))}</td><td class="green">${money(memberMealPaid(x.u.id))}</td><td class="due">${money(memberDue(x.u))}</td></tr>`,
       )
       .join("");
     const expenseRows = db.categories
@@ -1200,7 +1359,7 @@ function App() {
     w.document
       .write(`<!doctype html><html><head><meta charset="utf-8"><title>Monthly Hisab · ${esc(month)} Report</title><style>
    @page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;color:#18233b;font:12px/1.5 Inter,"Segoe UI",Arial,sans-serif;background:#f4f7fc;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{max-width:900px;margin:0 auto;background:white;min-height:100vh}.hero{padding:30px 32px 26px;color:#fff;background:linear-gradient(125deg,#283b91,#4f46e5 55%,#8b5cf6);position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;right:-45px;top:-100px;background:#ffffff20}.brand{font-size:11px;text-transform:uppercase;letter-spacing:2px;font-weight:800;opacity:.85}.hero h1{font-size:29px;line-height:1.15;margin:10px 0 5px}.hero p{margin:0;color:#e4e9ff;font-size:13px}.hero .tag{display:inline-block;margin-top:17px;padding:5px 10px;border:1px solid #ffffff55;border-radius:99px;font-size:10px;font-weight:700}.content{padding:24px 30px 30px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}.stat{border:1px solid #e4e9f4;border-radius:12px;padding:13px;background:linear-gradient(145deg,#fff,#f7f8ff);border-top:3px solid #6366f1}.stat:nth-child(2){border-top-color:#8b5cf6}.stat:nth-child(3){border-top-color:#10b981}.stat:nth-child(4){border-top-color:#f59e0b}.stat span{display:block;color:#66728a;font-size:10px;margin-bottom:7px}.stat strong{font-size:17px;color:#17213a;letter-spacing:-.3px}.section{margin-top:21px;break-inside:avoid}.section h2{font-size:15px;margin:0 0 3px;color:#1e2b49}.section .sub{margin:0 0 10px;color:#77839a;font-size:10px}.section-title{display:flex;align-items:center;gap:9px}.section-title i{display:inline-block;width:4px;height:19px;border-radius:4px;background:linear-gradient(#6366f1,#a78bfa)}table{width:100%;border-collapse:collapse;font-size:10px}th{text-align:left;color:#fff;background:#27356f;padding:9px 8px;font-weight:700}td{padding:8px;border-bottom:1px solid #e8edf5;color:#27344d;vertical-align:top}tbody tr:nth-child(even){background:#f7f9fd}td small{display:block;color:#8a95a8;font-size:9px}.green{color:#059669;font-weight:700}.due{color:#d97706;font-weight:700}.empty{text-align:center;color:#8993a5;padding:14px}.footer{margin-top:26px;padding-top:12px;border-top:1px solid #e8edf5;display:flex;justify-content:space-between;color:#8b95a7;font-size:9px}.footer strong{color:#4f46e5}.printbar{display:flex;justify-content:flex-end;gap:8px;padding:12px 30px;background:#eef2ff}.printbar button{border:0;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer}.printbtn{background:#4f46e5;color:#fff}.closebtn{background:#fff;color:#334155;border:1px solid #dbe2ef!important}@media print{body{background:white}.sheet{max-width:none}.printbar{display:none}.hero{padding:24px 28px}.content{padding:20px 28px}.section{break-inside:avoid}.stats{gap:8px}.stat{padding:10px}.stat strong{font-size:15px}}
-   </style></head><body><div class="sheet"><div class="printbar"><button class="closebtn" onclick="window.close()">Close report</button><button class="printbtn" onclick="window.print()">Save as PDF / Print</button></div><header class="hero"><div class="brand">Monthly Hisab · Household finance</div><h1>Monthly Financial Report</h1><p>${esc(month)} · A clear snapshot of your shared home expenses</p><span class="tag">PREPARED BY RAHAT · ${esc(new Date().toLocaleDateString())}</span></header><main class="content"><div class="stats"><div class="stat"><span>Monthly bazar</span><strong>${money(bazarTotal)}</strong></div><div class="stat"><span>Total rent</span><strong>${money(totalRent)}</strong></div><div class="stat"><span>Rent paid</span><strong>${money(rentPaid)}</strong></div><div class="stat"><span>Cash contributions</span><strong>${money(cashTotal)}</strong></div></div><section class="section"><div class="section-title"><i></i><h2>Member balances</h2></div><p class="sub">Rent, shared expenses, recorded payments and estimated remaining due</p><table><thead><tr><th>Member</th><th>Rent</th><th>Shared expense</th><th>Paid / credited</th><th>Estimated due</th></tr></thead><tbody>${memberRows || tableEmpty}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Expense breakdown</h2></div><p class="sub">Expenses configured for ${esc(month)}</p><table><thead><tr><th>Expense</th><th>Type</th><th>Amount</th></tr></thead><tbody>${expenseRows || '<tr><td colspan="3" class="empty">No expenses configured</td></tr>'}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Monthly bazar history</h2></div><p class="sub">Recorded purchases for ${esc(month)} · total ${money(bazarTotal)}</p><table><thead><tr><th>Date</th><th>Items</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${bazarRows || '<tr><td colspan="4" class="empty">No bazar entries for this month</td></tr>'}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Member payment history</h2></div><p class="sub">Payments recorded by admin</p><table><thead><tr><th>Date</th><th>Member</th><th>Note</th><th>Amount</th></tr></thead><tbody>${paymentRows || '<tr><td colspan="4" class="empty">No payments recorded for this month</td></tr>'}</tbody></table></section><div class="footer"><span>Designed &amp; developed by <strong>Rahat</strong> · Monthly Hisab</span><span>Private household report · ${esc(month)}</span></div></main></div><script>window.addEventListener('load',()=>{document.title='Monthly-Hisab-${esc(month).replace(/[^a-zA-Z0-9-]/g, "-")}-Report'});</script></body></html>`);
+   </style></head><body><div class="sheet"><div class="printbar"><button class="closebtn" onclick="window.close()">Close report</button><button class="printbtn" onclick="window.print()">Save as PDF / Print</button></div><header class="hero"><div class="brand">Monthly Hisab · Household finance</div><h1>Monthly Financial Report</h1><p>${esc(month)} · A clear snapshot of your shared home expenses</p><span class="tag">PREPARED BY RAHAT · ${esc(new Date().toLocaleDateString())}</span></header><main class="content"><div class="stats"><div class="stat"><span>Monthly bazar</span><strong>${money(bazarTotal)}</strong></div><div class="stat"><span>Total rent</span><strong>${money(totalRent)}</strong></div><div class="stat"><span>Rent paid</span><strong>${money(rentPaid)}</strong></div><div class="stat"><span>Cash contributions</span><strong>${money(cashTotal)}</strong></div></div><section class="section"><div class="section-title"><i></i><h2>Member balances</h2></div><p class="sub">Rent, shared expenses, recorded payments and estimated remaining due</p><table><thead><tr><th>Member</th><th>Rent</th><th>Individual meal</th><th>Rent paid</th><th>Meal paid</th><th>Due</th></tr></thead><tbody>${memberRows || tableEmpty}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Expense breakdown</h2></div><p class="sub">Expenses configured for ${esc(month)}</p><table><thead><tr><th>Expense</th><th>Type</th><th>Amount</th></tr></thead><tbody>${expenseRows || '<tr><td colspan="3" class="empty">No expenses configured</td></tr>'}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Monthly bazar history</h2></div><p class="sub">Recorded purchases for ${esc(month)} · total ${money(bazarTotal)}</p><table><thead><tr><th>Date</th><th>Items</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${bazarRows || '<tr><td colspan="4" class="empty">No bazar entries for this month</td></tr>'}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Member payment history</h2></div><p class="sub">Payments recorded by admin</p><table><thead><tr><th>Date</th><th>Member</th><th>Note</th><th>Amount</th></tr></thead><tbody>${paymentRows || '<tr><td colspan="4" class="empty">No payments recorded for this month</td></tr>'}</tbody></table></section><div class="footer"><span>Designed &amp; developed by <strong>Rahat</strong> · Monthly Hisab</span><span>Private household report · ${esc(month)}</span></div></main></div><script>window.addEventListener('load',()=>{document.title='Monthly-Hisab-${esc(month).replace(/[^a-zA-Z0-9-]/g, "-")}-Report'});</script></body></html>`);
     w.document.close();
   }
   if (!session || !user)
@@ -1251,9 +1410,9 @@ function App() {
           )}
           {error && <div className="error">{error}</div>}
           {authMessage && <div className="success-message">{authMessage}</div>}
-          <button className="primary full" disabled={authBusy}>
+          <button className={`primary full login-submit${authBusy ? " is-loading" : ""}`} disabled={authBusy}>
             {authBusy
-              ? "Please wait…"
+              ? <><span className="login-spinner" aria-hidden="true" />{resetMode ? "Sending reset link…" : "Signing in…"}</>
               : resetMode
                 ? "Send reset link"
                 : "Login"}
@@ -1283,8 +1442,7 @@ function App() {
           ...(adminOpen
             ? [
                 ["members", "Members", Users],
-                ["monthly", "Monthly Setup", Settings],
-                ["expenses", "Expenses", Receipt],
+                ["expenses", "Utilities", Receipt],
                 ["payments", "Rent Payment", ArrowDownRight],
                 ["cash", "Cash Contributions", Wallet],
                 ["payment-options", "Payment Options", Wallet],
@@ -1302,8 +1460,8 @@ function App() {
             <Home size={20} />
           </div>
           <div>
-            <b>Bachelor Hisab</b>
-            <small>Home expense manager</small>
+            <b>MridhaBari 6B</b>
+            <small>Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</small>
           </div>
           <button
             className="icon-btn mobile-close"
@@ -1323,7 +1481,6 @@ function App() {
                 "members",
                 "expenses",
                 "payments",
-                "monthly",
                 "cash",
                 "notices",
                 "payment-options",
@@ -1349,19 +1506,52 @@ function App() {
           </button>
         ))}
         <div className="sidebar-bottom">
-          <div className="profile">
-            <div className="avatar">{user.name[0]}</div>
-            <div>
+          <button className="profile profile-trigger" type="button" onClick={() => { setProfileOpen(true); setProfileError(""); setProfileMessage(""); }}>
+            {profilePhoto ? <img className="avatar profile-avatar-image" src={profilePhoto} alt="" /> : <div className="avatar">{user.name[0]}</div>}
+            <span className="profile-trigger-info">
               <b>{user.name}</b>
               <small>{admin ? "Administrator" : "Member"}</small>
-            </div>
-          </div>
+            </span>
+            <Settings size={16} className="profile-trigger-icon" />
+          </button>
           <button className="nav-item" onClick={logout}>
             <LogOut size={18} />
             Logout
           </button>
         </div>
       </aside>
+      {profileOpen && (
+        <div className="profile-modal-backdrop" onClick={() => setProfileOpen(false)}>
+          <section className="profile-modal" role="dialog" aria-modal="true" aria-label="Profile settings" onClick={e => e.stopPropagation()}>
+            <header className="profile-modal-header">
+              <div><span className="eyebrow">YOUR ACCOUNT</span><h2>Profile settings</h2><p>Photo, email and password</p></div>
+              <button className="icon-btn" type="button" aria-label="Close profile settings" onClick={() => setProfileOpen(false)}><X size={18}/></button>
+            </header>
+            <section className="panel profile-settings-panel">
+              <PanelHead title="Profile settings" sub="Manage your photo, email, and password" />
+              <div className="profile-settings-photo">
+                {profilePhoto ? <img src={profilePhoto} alt="Profile" /> : <div className="avatar profile-large">{user.name?.[0] || "M"}</div>}
+                <label className="btn secondary profile-upload-label">
+                  <ImagePlus size={16} /> {profileBusy ? "Please wait…" : "Change photo"}
+                  <input type="file" accept="image/*" onChange={uploadProfilePhoto} disabled={profileBusy} />
+                </label>
+              </div>
+              <form className="profile-settings-form" onSubmit={updateProfileEmail}>
+                <label>Email address<input type="email" value={profileEmail} onChange={e => setProfileEmail(e.target.value)} placeholder="Enter new email" required /></label>
+                <button className="btn secondary" disabled={profileBusy || !profileEmail.trim()}>Update email</button>
+              </form>
+              <form className="profile-settings-form" onSubmit={updateProfilePassword}>
+                <label>Current password<div className="password-field-wrap"><input type={showCurrentPassword ? "text" : "password"} value={profileCurrentPassword} onChange={e => setProfileCurrentPassword(e.target.value)} placeholder="Enter current password" required /><button type="button" className="password-eye-btn" aria-label={showCurrentPassword ? "Hide current password" : "Show current password"} onClick={() => setShowCurrentPassword(v => !v)}>{showCurrentPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button></div></label>
+                <label>New password<div className="password-field-wrap"><input type={showNewPassword ? "text" : "password"} value={profilePassword} onChange={e => setProfilePassword(e.target.value)} placeholder="Enter new password" required /><button type="button" className="password-eye-btn" aria-label={showNewPassword ? "Hide new password" : "Show new password"} onClick={() => setShowNewPassword(v => !v)}>{showNewPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button></div></label>
+                <label>Confirm new password<div className="password-field-wrap"><input type={showConfirmPassword ? "text" : "password"} value={profileConfirmPassword} onChange={e => setProfileConfirmPassword(e.target.value)} placeholder="Repeat new password" required /><button type="button" className="password-eye-btn" aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"} onClick={() => setShowConfirmPassword(v => !v)}>{showConfirmPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button></div></label>
+                <button type="submit" className="btn secondary" disabled={profileBusy || !profileCurrentPassword || !profilePassword || !profileConfirmPassword}>{profileBusy ? "Updating password…" : "Change password"}</button>
+              </form>
+              {profileError && <div className="error">{profileError}</div>}
+              {profileMessage && <div className="success-message">{profileMessage}</div>}
+            </section>
+          </section>
+        </div>
+      )}
       <main className="main">
         <header className={page === "my-account" ? "account-header" : ""}>
           <button className="icon-btn menu-btn" onClick={() => setMenu(true)}>
@@ -1502,11 +1692,11 @@ function App() {
                 hint="Monthly bazar total"
               />
               <Stat
-                title="Rent"
-                value={money(totalRent)}
+                title="Total Rent"
+                value={money(totalRent + utilitiesTotal)}
                 icon={Home}
                 tone="purple"
-                hint="Monthly rent"
+                hint="Total rent for this month"
               />
               <Stat
                 title="Rent paid"
@@ -1527,18 +1717,21 @@ function App() {
                 value={money(
                   (db.contributions || [])
                     .filter((c) => c.month === month)
-                    .reduce((s, c) => s + Number(c.amount || 0), 0),
+                    .reduce((s, c) => s + Number(c.amount || 0), 0) -
+                  (db.bazars || [])
+                    .filter((b) => b.month === month && b.paidFromCash)
+                    .reduce((s, b) => s + Number(b.amount || 0), 0),
                 )}
                 icon={Wallet}
                 tone="purple"
-                hint="Cash contributions received"
+                hint="Contributions less cash purchases"
               />
             </div>
             <div className="grid-two">
               <section className="panel">
                 <PanelHead
                   title="Member balances"
-                  sub="Rent and shared expense by member"
+                  sub="Rent includes room rent + utilities; meal cost is shared separately"
                 />
                 <div className="table-wrap">
                   <table>
@@ -1546,8 +1739,9 @@ function App() {
                       <tr>
                         <th>Member</th>
                         <th>Rent</th>
-                        <th>Shared</th>
-                        <th>Paid</th>
+                        <th>Individual meal</th>
+                        <th>Rent paid</th>
+                        <th>Meal paid</th>
                         <th>Due</th>
                       </tr>
                     </thead>
@@ -1562,12 +1756,11 @@ function App() {
                               <b>{x.u.name}</b>
                             </div>
                           </td>
-                          <td>{money(x.u.rent)}</td>
-                          <td>{money(x.shared)}</td>
-                          <td className="green-text">{money(x.paid)}</td>
-                          <td className="due">
-                            {money(Number(x.u.rent) + x.shared - x.paid)}
-                          </td>
+                          <td>{money(memberRentShare(x.u))}</td>
+                          <td>{money(memberMealShare(x.u))}</td>
+                          <td className="green-text">{money(memberRentPaid(x.u.id))}</td>
+                          <td className="green-text">{money(memberMealPaid(x.u.id))}</td>
+                          <td className="due">{money(memberDue(x.u))}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1576,10 +1769,10 @@ function App() {
               </section>
               <section className="panel">
                 <PanelHead
-                  title="Shared expense breakdown"
-                  sub="Split equally among current members"
+                  title="Utilities breakdown"
+                  sub="Utilities are shared among current members"
                 />
-                {db.categories.map((c) => (
+                {utilityCategories.map((c) => (
                   <div className="break-row">
                     <span>{c.name}</span>
                     <b>
@@ -1593,12 +1786,12 @@ function App() {
                   </div>
                 ))}
                 <div className="total-row">
-                  <b>Total shared costs</b>
-                  <b>{money(sharedTotal)}</b>
+                  <b>Total utilities</b>
+                  <b>{money(utilitiesTotal)}</b>
                 </div>
                 <div className="total-row light">
-                  <span>Per member</span>
-                  <b>{money(perMember)}</b>
+                  <span>Utilities per member</span>
+                  <b>{money(utilitiesPerMember)}</b>
                 </div>
               </section>
             </div>
@@ -1610,22 +1803,24 @@ function App() {
               <div>
                 <span className="eyebrow">PERSONAL ACCOUNT</span>
                 <h1>Hello, {user.name}</h1>
-                <p>Your rent and shared home costs for {month}.</p>
+                <p>Your room rent, utilities, and meal cost for {month}.</p>
               </div>
+              <button className="btn secondary account-pdf-btn" type="button" onClick={exportMyAccountPdf}><Download size={16} /> Export PDF</button>
             </section>
-            <div className="stats">
+            <div className="stats account-stats">
               <Stat
-                title="Monthly rent"
-                value={money(ownRent)}
+                title="Total rent"
+                value={money(ownTotalRent)}
                 icon={Home}
                 tone="blue"
+                hint={`Room rent + utilities share`}
               />
               <Stat
-                title="Shared expenses"
-                value={money(selected.includes(user.id) ? perMember : 0)}
-                icon={Receipt}
-                tone="purple"
-                hint={`${selected.length} members this month`}
+                title="Individual meal cost"
+                value={money(mealActiveIds.includes(user.id) ? individualMealCost : 0)}
+                icon={Utensils}
+                tone="orange"
+                hint={`${bazarMemberCount} members sharing bazar`}
               />
               <Stat
                 title="Paid"
@@ -1641,9 +1836,9 @@ function App() {
               />
             </div>
             <section className="panel">
-              <PanelHead title="Your rent details" sub={month} />
-              {db.categories.filter((c) => c.shared).length > 0 ? (
-                db.categories
+              <PanelHead title="Your monthly breakdown" sub={month} />
+              {utilityCategories.filter((c) => c.shared).length > 0 ? (
+                utilityCategories
                   .filter((c) => c.shared)
                   .map((c) => (
                     <div
@@ -1668,12 +1863,11 @@ function App() {
                   ))
               ) : (
                 <p className="hint">
-                  No shared expenses have been added by the admin for this month
-                  yet.
+                  No utilities have been added by the admin for this month yet.
                 </p>
               )}
               <div className="break-row expense-detail-row">
-                <span>Monthly rent</span>
+                <span>Room rent</span>
                 <div className="expense-share">
                   <small>Amount</small>
                   <b>{money(ownRent)}</b>
@@ -1763,6 +1957,7 @@ function App() {
                       <th>Name</th>
                       <th>User ID</th>
                       <th>Rent</th>
+                      <th>Meal</th>
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
@@ -1776,6 +1971,16 @@ function App() {
                         </td>
                         <td>{u.username}</td>
                         <td>{money(u.rent)}</td>
+                        <td>
+                          <label className="meal-table-toggle" title={`Include ${u.name} in ${month} meal calculation`}>
+                            <input
+                              type="checkbox"
+                              checked={mealActiveIds.includes(u.id)}
+                              disabled={!u.active}
+                              onChange={(e) => setMealActiveIds((prev) => e.target.checked ? [...prev, u.id] : prev.filter((id) => id !== u.id))}
+                            />
+                          </label>
+                        </td>
                         <td>
                           <span
                             className={"status " + (u.active ? "on" : "off")}
@@ -1805,6 +2010,13 @@ function App() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="meal-table-footer">
+                <span>{mealActiveIds.length} meal members selected · {month}</span>
+                <button className="btn primary" type="button" onClick={saveMealMemberCount} disabled={mealMemberSaving}>
+                  {mealMemberSaving ? "Saving…" : "Save Changes"}
+                </button>
+                {mealMemberMessage && <small className={mealMemberMessage.startsWith("Saved") ? "meal-setting-success" : "meal-setting-message"}>{mealMemberMessage}</small>}
               </div>
             </section>
             <section className="panel form-panel">
@@ -1863,7 +2075,7 @@ function App() {
                   />
                 </label>
                 <label>
-                  Monthly rent (৳)
+                  Room rent (৳)
                   <input
                     type="number"
                     min="0"
@@ -1915,12 +2127,12 @@ function App() {
           <div className="grid-two">
             <section className="panel form-panel">
               <PanelHead
-                title="Add monthly expense"
-                sub="Shared costs are split by current member count"
+                title="Add utility"
+                sub="Add utilities such as WiFi, gas, electricity, and water"
               />
               <form onSubmit={addCategory}>
                 <label>
-                  Expense name
+                  Utility name
                   <input
                     value={expenseForm.name}
                     onChange={(e) =>
@@ -1955,16 +2167,16 @@ function App() {
                   Split among current members
                 </label>
                 <button className="primary full">
-                  <Plus size={16} /> Add expense
+                  <Plus size={16} /> Add utility
                 </button>
               </form>
             </section>
             <section className="panel">
               <PanelHead
-                title="Expense list"
+                title="Utilities list"
                 sub={`${month} · ${selected.length} current members`}
               />
-              {db.categories.map((c, i) => (
+              {utilityCategories.map((c, i) => (
                 <div className="break-row">
                   <span>
                     {c.name}
@@ -1983,7 +2195,7 @@ function App() {
                         if (error) throw error;
                         await loadCloudData(user.id, month);
                       } catch (e) {
-                        alert("Could not delete expense: " + e.message);
+                        alert("Could not delete utility: " + e.message);
                       }
                     }}
                   >
@@ -1992,8 +2204,8 @@ function App() {
                 </div>
               ))}
               <div className="total-row">
-                <b>Total shared expense</b>
-                <b>{money(sharedTotal)}</b>
+                <b>Total utilities</b>
+                <b>{money(utilitiesTotal)}</b>
               </div>
             </section>
           </div>
@@ -2353,6 +2565,7 @@ function App() {
                             {u.role === "admin" ? " (Admin)" : ""}
                           </option>
                         ))}
+                        <option value="cash-in-hand">Cash in Hand</option>
                       </select>
                     ) : (
                       <input value={user.name} readOnly aria-readonly="true" />
@@ -2396,6 +2609,7 @@ function App() {
                         {u.role === "admin" ? " (Admin)" : ""}
                       </option>
                     ))}
+                    <option value="cash-in-hand">Cash in Hand</option>
                   </select>
                 </label>
                 <div className="table-wrap">
@@ -2413,26 +2627,25 @@ function App() {
                       {monthBazar
                         .filter(
                           (b) =>
-                            bazarFilter === "all" || b.paidBy === bazarFilter,
+                            bazarFilter === "all" ||
+                            (bazarFilter === "cash-in-hand" ? b.paidFromCash : !b.paidFromCash && b.paidBy === bazarFilter),
                         )
                         .map((b) => (
                           <tr key={b.id}>
                             <td>{b.date}</td>
                             <td>
-                              <b>Bazar</b>
-                              <small className="role">
-                                {Array.isArray(b.items)
-                                  ? b.items.join(", ")
-                                  : b.items}
-                              </small>
+                              {Array.isArray(b.items)
+                                ? b.items.join(", ")
+                                : b.items}
                             </td>
                             <td>
-                              {db.users.find((u) => u.id === b.paidBy)?.name ||
-                                "Member"}
+                              {b.paidFromCash
+                                ? "Cash in Hand"
+                                : db.users.find((u) => u.id === b.paidBy)?.name || "Member"}
                             </td>
                             <td>{money(b.amount)}</td>
                             <td className="row-actions">
-                              {(admin || b.paidBy === user?.id) && (
+                              {(admin || (!b.paidFromCash && b.paidBy === user?.id)) && (
                                 <>
                                   <button
                                     className="icon-btn"

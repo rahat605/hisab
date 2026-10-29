@@ -1,0 +1,10 @@
+Member balances table update
+
+- Rent = member room rent + current member's share of utilities.
+- Individual meal = total monthly bazar / current selected member count.
+- Rent paid = payments for that member whose note contains "rent".
+- Meal paid = other recorded payments + the existing member credits (personal bazar purchases not paid from cash and cash contributions).
+- Due = Rent + Individual meal - Rent paid - Meal paid.
+- Updated both the admin overview table and premium PDF report table.
+
+Build note: source updated; production build could not be verified in this environment because the installed Vite/Rolldown native optional binding is unavailable.

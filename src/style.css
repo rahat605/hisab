@@ -557,3 +557,186 @@ a {
   .welcome-actions { width: 100%; justify-content: stretch; flex-wrap: wrap; }
   .welcome-actions > button { flex: 1 1 calc(50% - 8px); }
 }
+
+
+/* Premium Admin Management navigation: more breathing room, refined surfaces and hierarchy. */
+.nav-item.admin-parent {
+  margin-top: 12px;
+  margin-bottom: 8px;
+  min-height: 48px;
+  padding: 12px 13px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f5f7ff 0%, #eef2fb 100%);
+  border: 1px solid #dfe6f4;
+  box-shadow: 0 3px 10px rgba(35, 53, 92, 0.045);
+  letter-spacing: -0.01em;
+}
+.nav-item.admin-parent .nav-chevron {
+  width: 25px;
+  height: 25px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.nav-item.admin-subitem {
+  margin: 5px 0 5px 12px;
+  width: calc(100% - 12px);
+  min-height: 40px;
+  padding: 11px 10px 11px 19px;
+  border-radius: 10px;
+  border-left: 2px solid #dbe3f2;
+  background: #fbfcff;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+.nav-item.admin-subitem:hover {
+  background: #f0f4ff;
+  border-left-color: #9baaf8;
+  transform: translateX(1px);
+}
+.nav-item.admin-subitem.active {
+  background: linear-gradient(100deg, #e9eeff 0%, #f2f5ff 100%);
+  border: 1px solid #dbe3ff;
+  border-left: 3px solid #5368e8;
+  box-shadow: 0 3px 10px rgba(65, 88, 190, 0.07);
+  padding-left: 18px;
+}
+:root[data-theme="dark"] .nav-item.admin-parent {
+  background: linear-gradient(135deg, #202d45 0%, #1a263b 100%);
+  border-color: #35445f;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+:root[data-theme="dark"] .nav-item.admin-subitem {
+  margin-top: 5px;
+  margin-bottom: 5px;
+  background: #141f32;
+  border-color: #34435e;
+  color: #b8c5d9;
+}
+:root[data-theme="dark"] .nav-item.admin-subitem:hover {
+  background: #202d45;
+  border-left-color: #7185e8;
+}
+:root[data-theme="dark"] .nav-item.admin-subitem.active {
+  background: linear-gradient(100deg, #26366a 0%, #202f55 100%);
+  border-color: #3c4f86;
+  border-left: 3px solid #8094ff;
+  color: #e0e7ff;
+}
+
+
+/* My Account: keep all five personal finance cards aligned and balanced. */
+.stats.account-stats {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 1100px) {
+  .stats.account-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .stats.account-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+}
+
+/* Extra breathing room and a calmer premium rhythm in Admin Management. */
+.nav-item.admin-parent { margin-top: 15px; margin-bottom: 10px; }
+.nav-item.admin-subitem { margin-top: 7px; margin-bottom: 7px; min-height: 43px; }
+:root[data-theme="dark"] .nav-item.admin-subitem { margin-top: 7px; margin-bottom: 7px; }
+
+/* Admin-only meal sharing count setting */
+.meal-member-setting { display: grid; gap: 8px; margin: 14px 0 18px; padding: 14px; border: 1px solid var(--border, #e5e7eb); border-radius: 14px; background: var(--panel-soft, rgba(99,102,241,.035)); }
+.meal-member-setting input { width: 100%; max-width: 220px; }
+.meal-member-setting small { line-height: 1.5; }
+
+/* Shared database meal-member setting */
+.meal-member-control { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
+.meal-member-control input { flex: 1 1 180px; min-width: 0; max-width: 260px; }
+.meal-member-save { min-width: 96px; align-self: stretch; }
+.meal-setting-success { color: var(--success, #059669); line-height: 1.5; }
+.meal-setting-message { color: var(--danger, #dc2626); line-height: 1.5; }
+
+/* Premium member meal count input matching the app's form controls */
+.meal-member-control input { height: 44px; box-sizing: border-box; border: 1px solid var(--border, #dbe2ee); border-radius: 12px; padding: 0 14px; background: var(--input-bg, var(--panel, #fff)); color: var(--text, #172033); font: inherit; outline: none; transition: border-color .18s ease, box-shadow .18s ease; }
+.meal-member-control input:focus { border-color: var(--primary, #5865f2); box-shadow: 0 0 0 3px rgba(88,101,242,.14); }
+.meal-member-save { border-radius: 12px; min-height: 44px; padding: 0 22px; }
+.account-welcome { display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap; }
+.account-pdf-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; border-radius:11px; min-height:40px; padding:0 15px; white-space:nowrap; }
+
+/* Household identity */
+.brand b { display:block; }
+.brand small { display:block; max-width:180px; line-height:1.45; white-space:normal; overflow-wrap:anywhere; }
+.meal-active-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:14px 0}.meal-active-member{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--border,#dbe3ef);border-radius:12px;background:var(--surface-2,rgba(127,145,170,.06));cursor:pointer}.meal-active-member input{width:17px;height:17px;accent-color:#5364f5}.meal-active-member span{font-weight:600}.meal-active-member small{margin-left:auto;color:var(--muted,#8090a8)}.meal-active-count{font-weight:600;color:var(--muted,#8090a8)}
+
+/* Premium login progress animation */
+.login-submit{position:relative;min-height:42px;transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+.login-submit:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 7px 18px rgba(75,97,232,.2)}
+.login-submit.is-loading{opacity:1!important;background:linear-gradient(110deg,#4b61e8,#6879f4,#4b61e8);background-size:200% 100%;animation:login-button-shimmer 2.2s ease-in-out infinite;cursor:wait}
+.login-submit.is-loading{display:inline-flex;align-items:center;justify-content:center;gap:10px}
+.login-spinner{width:17px;height:17px;flex:0 0 17px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-right-color:#fff;position:relative;animation:login-spin .72s cubic-bezier(.55,.15,.35,.85) infinite;filter:drop-shadow(0 0 3px rgba(255,255,255,.25))}
+.login-spinner:after{content:"";position:absolute;inset:3px;border-radius:50%;border:1px solid rgba(255,255,255,.28);animation:login-spin .95s linear infinite reverse}
+@keyframes login-spin{to{transform:rotate(360deg)}}
+@keyframes login-button-shimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+@media(prefers-reduced-motion:reduce){.login-submit,.login-submit.is-loading,.login-spinner,.login-spinner:after{animation:none!important;transition:none!important}}
+
+
+/* Member accounts: inline month-specific meal participation */
+.meal-table-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 32px;
+  cursor: pointer;
+}
+.meal-table-toggle input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--primary, #5364f4);
+  cursor: pointer;
+}
+.meal-table-toggle input:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+.meal-table-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 4px 2px;
+  color: var(--muted, #718096);
+  font-size: 13px;
+}
+.meal-table-footer .btn {
+  margin-left: auto;
+}
+.meal-table-footer small {
+  flex-basis: 100%;
+}
+
+.profile-settings-panel { margin-bottom: 18px; }
+.profile-settings-photo { display:flex; align-items:center; gap:14px; margin: 8px 0 18px; }
+.profile-large { width:64px; height:64px; font-size:24px; }
+.profile-settings-photo img { width:64px; height:64px; border-radius:50%; object-fit:cover; }
+.profile-upload-label { position:relative; overflow:hidden; display:inline-flex; align-items:center; gap:8px; }
+.profile-upload-label input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; }
+.profile-settings-form { display:flex; align-items:flex-end; gap:12px; margin:14px 0; flex-wrap:wrap; }
+.profile-settings-form label { display:flex; flex-direction:column; gap:7px; flex:1; min-width:220px; font-size:13px; font-weight:600; }
+.profile-settings-form input { width:100%; min-height:42px; border:1px solid var(--border, #d9dee7); border-radius:10px; padding:0 12px; background:var(--surface, #fff); color:var(--text, #182230); font:inherit; }
+
+
+/* Profile settings opens from the sidebar account control, not My Account. */
+.profile-trigger { width:100%; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; display:flex; align-items:center; gap:10px; padding:8px; border-radius:12px; }
+.profile-trigger:hover { background:var(--hover, rgba(120,130,150,.10)); }
+.profile-trigger-info { min-width:0; flex:1; display:flex; flex-direction:column; gap:3px; }
+.profile-trigger-info b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.profile-trigger-info small { color:var(--muted, #7b8492); }
+.profile-trigger-icon { opacity:.65; flex-shrink:0; }
+.profile-avatar-image { object-fit:cover; }
+.profile-modal-backdrop { position:fixed; inset:0; z-index:1000; display:flex; justify-content:center; align-items:center; padding:18px; background:rgba(12,18,28,.52); backdrop-filter:blur(5px); }
+.profile-modal { width:min(620px,100%); max-height:min(90vh,780px); overflow:auto; background:var(--panel, #fff); color:var(--text, #182230); border:1px solid var(--border, #e1e5eb); border-radius:20px; box-shadow:0 24px 80px rgba(0,0,0,.24); padding:22px; }
+.profile-modal-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:18px; }
+.profile-modal-header h2 { margin:5px 0; font-size:22px; }
+.profile-modal-header p { margin:0; color:var(--muted, #7b8492); font-size:13px; }
+.profile-modal .profile-settings-panel { margin:0; padding:0; border:0; box-shadow:none; background:transparent; }
+@media(max-width:560px) { .profile-modal { padding:16px; border-radius:16px; } .profile-settings-form { align-items:stretch; } .profile-settings-form button { width:100%; } }
+.password-field-wrap{position:relative;display:flex;align-items:center;width:100%}.password-field-wrap input{width:100%;padding-right:44px}.password-eye-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:var(--muted,#777);cursor:pointer;padding:6px;border-radius:6px}.password-eye-btn:hover{background:var(--surface-2,#eee)}

@@ -1,0 +1,12 @@
+Monthly Hisab UI and summary update
+
+- My Account summary cards now show Room rent, Utilities per member, Individual meal cost, Paid, and Remaining due.
+- Utilities are calculated from admin-configured expense categories, excluding any legacy category named Bazar.
+- Individual meal cost is the month's recorded bazar total divided by the current selected member count.
+- Utilities detail list excludes legacy Bazar rows so bazar is tracked separately as meal cost.
+- Admin sidebar label Expenses is now Utilities; admin Utilities page labels are updated.
+- Monthly Setup is removed from the Admin Management navigation.
+- Room rent wording replaces Monthly rent in member summary and member creation form.
+- Admin Management dropdown items have more vertical spacing and a more refined appearance.
+
+No database migration is required for these display/calculation changes. Existing monthly member selection remains the source for the per-member split.
