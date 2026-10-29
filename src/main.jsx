@@ -60,6 +60,12 @@ function App() {
       return null;
     }
   });
+  useEffect(() => {
+    if (!session?.id) return;
+    supabase.from("member_contacts").select("*").order("category").then(({ data, error }) => {
+      if (!error && data) setContactRows(data);
+    });
+  }, [session?.id]);
   const [page, setPage] = useState("overview"),
     [month, setMonth] = useState(db.month),
     [menu, setMenu] = useState(false);
@@ -80,6 +86,10 @@ function App() {
   const [profileMessage, setProfileMessage] = useState("");
   const [profileError, setProfileError] = useState("");
   const [profilePhoto, setProfilePhoto] = useState("");
+  const [contactRows, setContactRows] = useState([]);
+  const [contactForm, setContactForm] = useState({ id: "", category: "Flatmate", name: "", phone: "" });
+  const [contactBusy, setContactBusy] = useState(false);
+
   const [profileOpen, setProfileOpen] = useState(false);
   async function updateProfileEmail(e) {
     e.preventDefault(); setProfileBusy(true); setProfileError(""); setProfileMessage("");
@@ -498,7 +508,7 @@ function App() {
     try {
       const { data: profiles, error: pe } = await supabase
         .from("profiles")
-        .select("id,full_name,username,role,active,rent")
+        .select("id,full_name,username,role,active,rent,photo_url")
         .order("full_name");
       if (pe) throw pe;
       const activeProfile = (profiles || []).find(
@@ -506,6 +516,8 @@ function App() {
       );
       if (!activeProfile)
         throw new Error("Your profile is inactive or unavailable.");
+      // Restore the signed-in member's persisted photo whenever cloud profile data loads.
+      setProfilePhoto(activeProfile.photo_url || "");
       const monthRow = await ensureCloudMonth(label);
       if (!monthRow) throw new Error("Could not load monthly setup.");
       const { data: mealSetting, error: mealSettingError } = await supabase
@@ -544,6 +556,7 @@ function App() {
         role: p.role,
         active: p.active,
         rent: Number(p.rent || 0),
+        photo_url: p.photo_url || "",
         paid: 0,
       }));
       const categories = (catsRes.data || []).map((c) => ({
@@ -669,7 +682,7 @@ function App() {
       if (sessionError) throw sessionError;
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("id,full_name,username,role,active,rent")
+        .select("id,full_name,username,role,active,rent,photo_url")
         .eq("id", data.user.id)
         .single();
       if (profileError || !profile || !profile.active)
@@ -1435,6 +1448,7 @@ function App() {
     ...(admin ? [["overview", "Overview", LayoutDashboard]] : []),
     ["my-account", "My Account", Wallet],
     ["bazar", "Monthly Bazar", Receipt],
+    ["contacts", "Contacts", Users],
     ...(!admin ? [["pay-rent", "Pay your rent", Wallet]] : []),
     ...(admin
       ? [
@@ -1447,6 +1461,7 @@ function App() {
                 ["cash", "Cash Contributions", Wallet],
                 ["payment-options", "Payment Options", Wallet],
                 ["notices", "Notices", Bell],
+                ["contact-management", "Contact Management", Users],
               ]
             : []),
         ]
@@ -1484,6 +1499,7 @@ function App() {
                 "cash",
                 "notices",
                 "payment-options",
+                "contact-management",
               ].includes(key)
                 ? " admin-subitem"
                 : "") +
@@ -2855,6 +2871,45 @@ function App() {
                 These details are shared with active household users. Never
                 enter a PIN, password, or OTP here.
               </p>
+            </section>
+          </div>
+        )}
+        {page === "contacts" && (
+          <section className="panel contacts-directory">
+            <PanelHead title="Member Contacts" sub="Flatmate, caretaker, maid and emergency contacts" />
+            {["Flatmate", "Caretaker", "Maid", "Emergency"].map(category => {
+              const rows = contactRows.filter(c => c.category === category);
+              return <section className="contact-section contact-category-card" key={category}>
+                <div className="contact-category-heading"><span className="contact-category-icon"><Users size={17}/></span><h3>{category}</h3><small>{rows.length} {rows.length === 1 ? "contact" : "contacts"}</small></div>
+                {rows.length ? rows.map(c => <div className="contact-person-card" key={c.id}><div className="contact-person-avatar"><Users size={16}/></div><div className="contact-person-info"><b>{c.name}</b><a href={"tel:" + c.phone}>{c.phone}</a></div><a className="contact-call-btn" href={"tel:" + c.phone}>Call</a></div>) : <p className="muted">No contacts added.</p>}
+              </section>;
+            })}
+          </section>
+        )}
+        {page === "contact-management" && admin && (
+          <div className="grid-two">
+            <section className="panel form-panel">
+              <PanelHead title="Contact Management" sub="Add or update contacts visible to all members" />
+              <form onSubmit={async e => {
+                e.preventDefault(); setContactBusy(true);
+                const payload = { category: contactForm.category, name: contactForm.name.trim(), phone: contactForm.phone.trim() };
+                const result = contactForm.id
+                  ? await supabase.from("member_contacts").update(payload).eq("id", contactForm.id).select().single()
+                  : await supabase.from("member_contacts").insert(payload).select().single();
+                setContactBusy(false);
+                if (result.error) { alert("Could not save contact: " + result.error.message); return; }
+                setContactRows(rows => contactForm.id ? rows.map(r => r.id === contactForm.id ? result.data : r) : [...rows, result.data]);
+                setContactForm({ id: "", category: "Flatmate", name: "", phone: "" });
+              }}>
+                <label>Section<select value={contactForm.category} onChange={e => setContactForm({...contactForm,category:e.target.value})}>{["Flatmate","Caretaker","Maid","Emergency"].map(x=><option key={x}>{x}</option>)}</select></label>
+                <label>Name<input value={contactForm.name} onChange={e=>setContactForm({...contactForm,name:e.target.value})} required /></label>
+                <label>Phone number<input type="tel" value={contactForm.phone} onChange={e=>setContactForm({...contactForm,phone:e.target.value})} required /></label>
+                <button className="primary" disabled={contactBusy}>{contactBusy ? "Saving…" : contactForm.id ? "Update contact" : "Add contact"}</button>
+                {contactForm.id && <button type="button" className="secondary" onClick={()=>setContactForm({id:"",category:"Flatmate",name:"",phone:""})}>Cancel edit</button>}
+              </form>
+            </section>
+            <section className="panel"><PanelHead title="Saved contacts" sub="Manage the contacts members can see" />
+              {contactRows.map(c=><div className="break-row" key={c.id}><span><b>{c.name}</b><small>{c.category} · {c.phone}</small></span><div className="row-actions"><button className="icon-btn" onClick={()=>setContactForm({id:c.id,category:c.category,name:c.name,phone:c.phone})}><Edit size={15}/></button><button className="icon-btn danger-text" onClick={async()=>{if(!confirm("Delete this contact?"))return;const {error}=await supabase.from("member_contacts").delete().eq("id",c.id);if(error)alert(error.message);else setContactRows(rows=>rows.filter(r=>r.id!==c.id));}}><Trash2 size={15}/></button></div></div>)}
             </section>
           </div>
         )}

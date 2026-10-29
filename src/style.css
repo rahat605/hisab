@@ -740,3 +740,119 @@ a {
 .profile-modal .profile-settings-panel { margin:0; padding:0; border:0; box-shadow:none; background:transparent; }
 @media(max-width:560px) { .profile-modal { padding:16px; border-radius:16px; } .profile-settings-form { align-items:stretch; } .profile-settings-form button { width:100%; } }
 .password-field-wrap{position:relative;display:flex;align-items:center;width:100%}.password-field-wrap input{width:100%;padding-right:44px}.password-eye-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:var(--muted,#777);cursor:pointer;padding:6px;border-radius:6px}.password-eye-btn:hover{background:var(--surface-2,#eee)}
+
+/* Premium contact directory layout */
+.contacts-directory { padding:24px; }
+.contacts-directory > .panel-head { margin-bottom:22px; }
+.contacts-directory .contact-section { margin:0; }
+.contacts-directory { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+.contacts-directory > .panel-head { grid-column:1/-1; }
+.contact-category-card { border:1px solid var(--border,#e4e8ef); border-radius:16px; padding:18px; background:var(--surface,#fff); box-shadow:0 5px 18px rgba(20,30,50,.035); min-width:0; }
+.contact-category-heading { display:flex; align-items:center; gap:10px; margin-bottom:15px; flex-wrap:wrap; }
+.contact-category-heading h3 { margin:0; font-size:15px; font-weight:750; }
+.contact-category-heading small { margin-left:auto; color:var(--muted,#7b8492); font-size:11px; }
+.contact-category-icon { display:grid; place-items:center; width:34px;height:34px;border-radius:10px;background:rgba(79,70,229,.09);color:#6366f1; }
+.contact-person-card { display:flex; align-items:center; gap:11px; padding:11px; border:1px solid var(--border,#e4e8ef); border-radius:12px; margin-top:9px; min-width:0; }
+.contact-person-avatar { display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:var(--hover,rgba(120,130,150,.1));color:var(--muted,#64748b);flex-shrink:0; }
+.contact-person-info { display:flex; flex-direction:column; gap:4px; min-width:0; flex:1; }
+.contact-person-info b { font-size:13px; overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.contact-person-info a { font-size:12px;color:var(--muted,#64748b);text-decoration:none; }
+.contact-call-btn { border-radius:9px;padding:8px 11px;background:rgba(79,70,229,.1);color:#6366f1;font-size:12px;font-weight:700;text-decoration:none; }
+.profile-modal { background:var(--surface,#fff); color:var(--text,#182230); border:1px solid var(--border,#d9dee7); }
+.profile-modal-header p { color:var(--muted,#7b8492); }
+.profile-settings-panel { background:var(--surface,#fff); color:var(--text,#182230); border-color:var(--border,#d9dee7); }
+.profile-settings-form label { color:var(--text,#182230); }
+.profile-settings-form input { background:var(--surface,#fff);color:var(--text,#182230);border-color:var(--border,#d9dee7); }
+.profile-modal .password-field-wrap { background:var(--surface,#fff);border-color:var(--border,#d9dee7); }
+:root[data-theme="dark"] .profile-modal,:root[data-theme="dark"] .profile-settings-panel { background:#1f2937!important;color:#e5e7eb!important;border-color:#374151!important; }
+:root[data-theme="dark"] .profile-modal-header p,:root[data-theme="dark"] .profile-settings-form label { color:#cbd5e1!important; }
+:root[data-theme="dark"] .profile-modal input,:root[data-theme="dark"] .profile-modal select,:root[data-theme="dark"] .profile-modal textarea,:root[data-theme="dark"] .profile-settings-form input { background:#111827!important;color:#f3f4f6!important;border-color:#4b5563!important; }
+:root[data-theme="dark"] .profile-modal .password-field-wrap { background:#111827!important;border-color:#4b5563!important; }
+:root[data-theme="dark"] .profile-modal .icon-btn,:root[data-theme="dark"] .profile-modal .btn { color:#e5e7eb; }
+@media(max-width:760px){.contacts-directory{grid-template-columns:1fr;padding:16px}.contacts-directory .panel-head{grid-column:1}.contact-category-card{padding:15px}}
+
+/* Contacts dark mode: explicit tokens and selectors override light card defaults */
+:root[data-theme="dark"] .contacts-directory,
+:root[data-theme="dark"] .contacts-directory .contact-category-card {
+  background: #1b2432 !important;
+  color: #f1f5f9 !important;
+  border-color: #354154 !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18) !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-category-card {
+  background: linear-gradient(145deg,#202b3b,#1a2330) !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-category-heading h3,
+:root[data-theme="dark"] .contacts-directory .contact-person-info b {
+  color: #f8fafc !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-category-heading small,
+:root[data-theme="dark"] .contacts-directory .contact-person-info a {
+  color: #aab8ca !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-person-card {
+  background: #141d2a !important;
+  border-color: #354154 !important;
+  color: #e5edf7 !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-person-avatar {
+  background: #29364a !important;
+  color: #cbd5e1 !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-category-icon {
+  background: #30345d !important;
+  color: #a5b4fc !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-call-btn {
+  background: #343765 !important;
+  color: #c7d2fe !important;
+  border: 1px solid #4b518b !important;
+}
+:root[data-theme="dark"] .contacts-directory .muted,
+:root[data-theme="dark"] .contacts-directory p {
+  color: #aab8ca !important;
+}
+:root[data-theme="dark"] .contacts-directory .panel-head,
+:root[data-theme="dark"] .contacts-directory .panel-head h2,
+:root[data-theme="dark"] .contacts-directory .panel-head p {
+  color: #e5edf7 !important;
+}
+
+/* Contacts: arrange each category's contact tiles in a 2x2 grid */
+.contacts-directory .contact-category-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 10px;
+}
+.contacts-directory .contact-category-heading {
+  grid-column: 1 / -1;
+  margin-bottom: 4px;
+}
+.contacts-directory .contact-person-card {
+  margin-top: 0;
+  min-width: 0;
+  padding: 10px;
+  gap: 8px;
+}
+.contacts-directory .contact-person-info {
+  min-width: 0;
+}
+.contacts-directory .contact-person-info b,
+.contacts-directory .contact-person-info a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.contacts-directory .contact-call-btn {
+  padding: 7px 9px;
+  align-self: center;
+}
+@media (max-width: 900px) {
+  .contacts-directory .contact-category-card {
+    grid-template-columns: 1fr;
+  }
+  .contacts-directory .contact-category-heading {
+    grid-column: 1;
+  }
+}
