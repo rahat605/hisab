@@ -1,0 +1,21 @@
+MONTHLY HISAB - START HERE
+
+1. Extract this ZIP to a normal local folder (not OneDrive if Vite watcher keeps locking files).
+2. The .env file is already filled with the Supabase URL and publishable key you supplied.
+3. Open this folder in VS Code.
+4. In the terminal run:
+   npm ci
+   npm run dev
+5. Open the localhost URL printed by Vite.
+
+If npm ci fails, run npm install and then npm run dev.
+
+Security:
+- The supplied sb_publishable key is intended for browser use. Do not add a service_role key or other secret key to .env.
+- .env is ignored by Git. Do not commit it.
+- Your account password was visible in earlier screenshots. Change it in your app/account.
+
+Status:
+- Supabase URL and publishable key are configured in .env.
+- This package has not been tested against your live Supabase project from this environment.
+- Edge Functions and SQL migrations may still need deployment/application in Supabase.

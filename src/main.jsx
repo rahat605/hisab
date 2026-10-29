@@ -83,6 +83,7 @@ function App() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [profileBusy, setProfileBusy] = useState(false);
+  const [profilePhotoBusy, setProfilePhotoBusy] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
   const [profileError, setProfileError] = useState("");
   const [profilePhoto, setProfilePhoto] = useState("");
@@ -127,7 +128,7 @@ function App() {
   }
   async function uploadProfilePhoto(e) {
     const file = e.target.files?.[0]; if (!file) return;
-    setProfileBusy(true); setProfileError(""); setProfileMessage("");
+    setProfilePhotoBusy(true); setProfileError(""); setProfileMessage("");
     try {
       if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
       if (file.size > 5 * 1024 * 1024) throw new Error("Image must be 5 MB or smaller.");
@@ -141,7 +142,7 @@ function App() {
       if (dbError) throw dbError;
       setProfilePhoto(photoUrl); setProfileMessage("Profile photo updated.");
     } catch (err) { setProfileError(err.message || "Could not upload photo."); }
-    finally { setProfileBusy(false); e.target.value = ""; }
+    finally { setProfilePhotoBusy(false); e.target.value = ""; }
   }
 
   const [cloudMonthId, setCloudMonthId] = useState(null);
@@ -700,7 +701,7 @@ function App() {
       };
       setSession({ id: mapped.id });
       await loadCloudData(mapped.id, month);
-      setPage(mapped.role === "admin" ? "overview" : "my-account");
+      setPage("overview");
       // Non-critical extras should not keep the login button in its loading state.
       // The app is already routed to the user's page; load these in the background.
       void loadNotices(true, mapped.id).catch((err) =>
@@ -1195,6 +1196,7 @@ function App() {
       await loadNotices(false);
       setNoticeForm({ title: "", body: "" });
       setNoticeImage(null);
+      setNoticePanelOpen(false);
       const fileInput = document.getElementById("notice-image-input");
       if (fileInput) fileInput.value = "";
       alert("Notice posted. It is now available to all members.");
@@ -1522,18 +1524,16 @@ function App() {
           </button>
         ))}
         <div className="sidebar-bottom">
-          <button className="profile profile-trigger" type="button" onClick={() => { setProfileOpen(true); setProfileError(""); setProfileMessage(""); }}>
-            {profilePhoto ? <img className="avatar profile-avatar-image" src={profilePhoto} alt="" /> : <div className="avatar">{user.name[0]}</div>}
-            <span className="profile-trigger-info">
-              <b>{user.name}</b>
-              <small>{admin ? "Administrator" : "Member"}</small>
-            </span>
-            <Settings size={16} className="profile-trigger-icon" />
-          </button>
-          <button className="nav-item" onClick={logout}>
-            <LogOut size={18} />
-            Logout
-          </button>
+          <div className="sidebar-account-row">
+            <button className="profile profile-trigger" type="button" onClick={() => { setProfileOpen(true); setProfileError(""); setProfileMessage(""); }}>
+              {profilePhoto ? <img className="avatar profile-avatar-image" src={profilePhoto} alt="" /> : <div className="avatar">{user.name[0]}</div>}
+              <span className="profile-trigger-info">
+                <b>{user.name}</b>
+                <small>{admin ? "Administrator" : "Member"}</small>
+              </span>
+              <Settings className="profile-trigger-icon" size={18} aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </aside>
       {profileOpen && (
@@ -1541,15 +1541,18 @@ function App() {
           <section className="profile-modal" role="dialog" aria-modal="true" aria-label="Profile settings" onClick={e => e.stopPropagation()}>
             <header className="profile-modal-header">
               <div><span className="eyebrow">YOUR ACCOUNT</span><h2>Profile settings</h2><p>Photo, email and password</p></div>
-              <button className="icon-btn" type="button" aria-label="Close profile settings" onClick={() => setProfileOpen(false)}><X size={18}/></button>
+              <div className="profile-modal-header-actions">
+                <button className="btn secondary profile-modal-logout" type="button" onClick={logout}><LogOut size={16}/> Logout</button>
+                <button className="icon-btn" type="button" aria-label="Close profile settings" onClick={() => setProfileOpen(false)}><X size={18}/></button>
+              </div>
             </header>
             <section className="panel profile-settings-panel">
               <PanelHead title="Profile settings" sub="Manage your photo, email, and password" />
               <div className="profile-settings-photo">
                 {profilePhoto ? <img src={profilePhoto} alt="Profile" /> : <div className="avatar profile-large">{user.name?.[0] || "M"}</div>}
                 <label className="btn secondary profile-upload-label">
-                  <ImagePlus size={16} /> {profileBusy ? "Please wait…" : "Change photo"}
-                  <input type="file" accept="image/*" onChange={uploadProfilePhoto} disabled={profileBusy} />
+                  <ImagePlus size={16} /> {profilePhotoBusy ? "Uploading photo…" : "Change photo"}
+                  <input type="file" accept="image/*" onChange={uploadProfilePhoto} disabled={profilePhotoBusy} />
                 </label>
               </div>
               <form className="profile-settings-form" onSubmit={updateProfileEmail}>
@@ -2917,10 +2920,18 @@ function App() {
           <div className="grid-two">
             <section className="panel form-panel">
               <PanelHead
-                title="Post a notice"
-                sub="Text and optional image will be visible to every member"
+                title="Preload Notice"
+                sub="Prepare a notice with text and an optional photo, then publish it for every member"
               />
-              <form onSubmit={postNotice}>
+              <button
+                type="button"
+                className="secondary full notice-compose-toggle"
+                onClick={() => setNoticePanelOpen((open) => !open)}
+                aria-expanded={noticePanelOpen}
+              >
+                {noticePanelOpen ? "Close notice composer" : "Preload Notice"}
+              </button>
+              {noticePanelOpen && <form onSubmit={postNotice}>
                 <label>
                   Notice title
                   <input
@@ -2943,7 +2954,7 @@ function App() {
                   />
                 </label>
                 <label>
-                  Image (optional)
+                  Photo (optional)
                   <input
                     id="notice-image-input"
                     type="file"
@@ -2961,9 +2972,9 @@ function App() {
                 {noticeError && <div className="error">{noticeError}</div>}
                 <button className="primary full" disabled={noticeBusy}>
                   <Send size={16} />
-                  {noticeBusy ? "Posting…" : "Post notice"}
+                  {noticeBusy ? "Publishing…" : "Publish notice"}
                 </button>
-              </form>
+              </form>}
             </section>
             <section className="panel">
               <PanelHead
