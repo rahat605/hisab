@@ -171,6 +171,19 @@ function App() {
     paidBy: "",
     items: "",
   });
+  const [bazarRows, setBazarRows] = useState([{ item: "", price: "" }, { item: "", price: "" }, { item: "", price: "" }]);
+  const [bazarDetailsEntry, setBazarDetailsEntry] = useState(null);
+  const [bazarEditEntry, setBazarEditEntry] = useState(null);
+  const [bazarSuccessToast, setBazarSuccessToast] = useState("");
+  const [pendingBazarDelete, setPendingBazarDelete] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const updateBazarRow = (index, field, value) => {
+    const next = bazarRows.map((row, i) => i === index ? { ...row, [field]: value } : row);
+    setBazarRows(next);
+    const filled = next.filter((row) => row.item.trim() && Number(row.price) > 0);
+    setBazarForm((form) => ({ ...form, amount: String(filled.reduce((sum, row) => sum + Number(row.price), 0)), items: filled.map((row) => row.item.trim()).join(", ") }));
+  };
+
   const [cashForm, setCashForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     amount: "",
@@ -408,6 +421,49 @@ function App() {
         .single();
       if (createError) throw createError;
       data = created;
+
+      // Step 2: initialize a new month with the latest earlier month's utilities.
+      // Monthly rows remain independent, so later edits do not rewrite past months.
+      try {
+        const { data: monthRows, error: monthRowsError } = await supabase
+          .from("months")
+          .select("id,label");
+        if (monthRowsError) throw monthRowsError;
+        const monthIndex = (value) => {
+          const parsed = new Date(`${value} 1`);
+          return Number.isNaN(parsed.getTime())
+            ? -1
+            : parsed.getFullYear() * 12 + parsed.getMonth();
+        };
+        const targetIndex = monthIndex(label);
+        const previousMonth = (monthRows || [])
+          .filter((row) => row.id !== data.id && monthIndex(row.label) >= 0 && monthIndex(row.label) < targetIndex)
+          .sort((a, b) => monthIndex(b.label) - monthIndex(a.label))[0];
+        if (previousMonth) {
+          const { data: previousUtilities, error: utilitiesError } = await supabase
+            .from("expense_categories")
+            .select("name,amount,shared,created_by")
+            .eq("month_id", previousMonth.id);
+          if (utilitiesError) throw utilitiesError;
+          const copiedUtilities = (previousUtilities || [])
+            .filter((category) => String(category.name).toLowerCase() !== "bazar")
+            .map((category) => ({
+              month_id: data.id,
+              name: category.name,
+              amount: Number(category.amount || 0),
+              shared: !!category.shared,
+              created_by: category.created_by || session.id,
+            }));
+          if (copiedUtilities.length) {
+            const { error: copyError } = await supabase
+              .from("expense_categories")
+              .upsert(copiedUtilities, { onConflict: "month_id,name" });
+            if (copyError) throw copyError;
+          }
+        }
+      } catch (copyError) {
+        console.warn("Could not copy previous month's utility defaults:", copyError);
+      }
     }
     return data;
   }
@@ -581,10 +637,13 @@ function App() {
         paidBy: x.paid_by,
         paidFromCash: Boolean(x.paid_from_cash),
         createdBy: x.created_by,
-        items: String(x.items || "")
-          .split(/[,\n]/)
-          .map((v) => v.trim())
-          .filter(Boolean),
+        items: (() => {
+          const raw = x.items;
+          if (Array.isArray(raw)) return raw;
+          const text = String(raw || "");
+          try { const parsed = JSON.parse(text); if (Array.isArray(parsed)) return parsed; } catch {}
+          return text.split(/[,\\n]/).map((v) => v.trim()).filter(Boolean);
+        })(),
         month: label,
       }));
       const contributions = (cashRes.data || []).map((x) => ({
@@ -701,7 +760,7 @@ function App() {
       };
       setSession({ id: mapped.id });
       await loadCloudData(mapped.id, month);
-      setPage("overview");
+      setPage(mapped.role === "member" ? "my-account" : "overview");
       // Non-critical extras should not keep the login button in its loading state.
       // The app is already routed to the user's page; load these in the background.
       void loadNotices(true, mapped.id).catch((err) =>
@@ -843,12 +902,13 @@ function App() {
       alert("Could not update payment: " + e.message);
     }
   }
+  function askConfirm(message, title = "Are you sure?") {
+    return new Promise((resolve) => setConfirmDialog({ message, title, resolve }));
+  }
   async function deletePayment(p) {
     if (!admin) return;
     if (
-      !confirm(
-        `Delete ${db.users.find((u) => u.id === p.userId)?.name || "member"}’s payment of ${money(p.amount)}? This cannot be undone.`,
-      )
+      !(await askConfirm(`Delete ${db.users.find((u) => u.id === p.userId)?.name || "member"}’s payment of ${money(p.amount)}? This cannot be undone.`, "Delete payment?"))
     )
       return;
     try {
@@ -864,7 +924,9 @@ function App() {
   }
   async function addBazar(e) {
     e.preventDefault();
-    if (Number(bazarForm.amount) <= 0 || !bazarForm.items.trim()) return;
+    const validItems = bazarRows.filter(row => row.item.trim() && Number(row.price) > 0).map(row => ({ item: row.item.trim(), price: Number(row.price) }));
+    const itemTotal = validItems.reduce((sum, row) => sum + row.price, 0);
+    if (itemTotal <= 0 || !validItems.length) return;
     try {
       const paidFromCash = admin && bazarForm.paidBy === "cash-in-hand";
       const paidBy = paidFromCash ? user.id : admin ? bazarForm.paidBy : user.id;
@@ -888,14 +950,10 @@ function App() {
         .insert({
           month_id: mid,
           entry_date: bazarForm.date,
-          amount: Number(bazarForm.amount),
+          amount: itemTotal,
           paid_by: paidBy,
           paid_from_cash: paidFromCash,
-          items: bazarForm.items
-            .split(/[,\n]/)
-            .map((x) => x.trim())
-            .filter(Boolean)
-            .join(", "),
+          items: JSON.stringify(validItems),
           created_by: user.id,
         })
         .select("id,month_id,entry_date,amount,paid_by,paid_from_cash,items,created_by")
@@ -906,71 +964,60 @@ function App() {
           "Saved entry could not be verified. Refresh and check the bazar history.",
         );
       await loadCloudData(user.id, month);
+      setBazarRows([{ item: "", price: "" }, { item: "", price: "" }, { item: "", price: "" }]);
       setBazarForm((f) => ({
         ...f,
         amount: "",
         items: "",
+        date: new Date().toISOString().slice(0, 10),
         paidBy: f.paidBy || user.id,
       }));
+      setBazarSuccessToast("Bazar saved successfully");
+      window.setTimeout(() => setBazarSuccessToast(""), 2600);
     } catch (e) {
       alert("Could not save bazar entry: " + e.message);
     }
   }
-  async function editBazar(b) {
-    if (!admin && b.createdBy !== user?.id) {
-      alert("You can edit only entries you created.");
-      return;
-    }
-    const date = prompt("Update bazar date (YYYY-MM-DD):", String(b.date || ""));
-    if (date === null) return;
-    const items = prompt("Update bazar items:", Array.isArray(b.items) ? b.items.join(", ") : String(b.items || ""));
-    if (items === null) return;
-    const amount = prompt("Update total amount (৳):", String(b.amount));
-    if (amount === null) return;
-    const paidBy = admin ? prompt("Update paid by (member ID or Cash in Hand):", String(b.paid_by || b.paidBy || "")) : null;
-    if (admin && paidBy === null) return;
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || Number(amount) <= 0 || !items.trim() || (admin && !paidBy.trim())) {
-      alert("Please enter a valid date, items, amount, and payer.");
-      return;
-    }
+  function editBazar(b) {
+    if (!admin && b.createdBy !== user?.id) { alert("You can edit only entries you created."); return; }
+    let raw = b.items;
+    if (typeof raw === "string") { try { raw = JSON.parse(raw); } catch {} }
+    let items = Array.isArray(raw) ? raw.map((row) => typeof row === "string"
+      ? { item: row.trim(), price: "" }
+      : { item: String(row?.item || ""), price: String(row?.price ?? "") })
+      : String(raw || "").split(",").map((item) => ({ item: item.trim(), price: "" })).filter((row) => row.item);
+    items = items.filter((row) => row.item || row.price);
+    if (!items.length) items = [{ item: "", price: "" }];
+    setBazarEditEntry({ ...b, editDate: String(b.date || ""), editItems: items, editPaidBy: String(b.paidBy || b.paid_by || "") });
+  }
+
+  async function saveBazarEdit() {
+    if (!bazarEditEntry) return;
+    const rows = (bazarEditEntry.editItems || []).map((row) => ({ item: String(row.item || "").trim(), price: Number(row.price) || 0 })).filter((row) => row.item && row.price > 0);
+    const amount = rows.reduce((sum, row) => sum + row.price, 0);
+    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(bazarEditEntry.editDate || "")) || !rows.length) { alert("Enter a valid date and at least one item with a price."); return; }
     try {
-      const update = {
-        date,
-        amount: Number(amount),
-        items: items.split(/[,\\n]/).map((v) => v.trim()).filter(Boolean).join(", "),
-        updated_at: new Date().toISOString(),
-      };
-      if (admin) update.paid_by = paidBy.trim();
-      const { error } = await supabase.from("bazar_entries").update(update).eq("id", b.id);
+      const update = { entry_date: bazarEditEntry.editDate, amount, items: JSON.stringify(rows), updated_at: new Date().toISOString() };
+      if (admin) update.paid_by = bazarEditEntry.editPaidBy.trim();
+      const { error } = await supabase.from("bazar_entries").update(update).eq("id", bazarEditEntry.id);
       if (error) throw error;
+      setBazarEditEntry(null);
       await loadCloudData(user.id, month);
-    } catch (e) {
-      alert("Could not update bazar: " + e.message);
-    }
+      setBazarSuccessToast("Bazar updated successfully");
+      window.setTimeout(() => setBazarSuccessToast(""), 2600);
+    } catch (e) { alert("Could not update bazar: " + e.message); }
   }
   async function deleteBazar(b) {
     if (!admin && b.createdBy !== user?.id) {
       alert("You can delete only entries you created.");
       return;
     }
-    if (!confirm("Are you sure you want to delete this bazar entry?")) return;
-    try {
-      const { error } = await supabase
-        .from("bazar_entries")
-        .delete()
-        .eq("id", b.id);
-      if (error) throw error;
-      await loadCloudData(user.id, month);
-    } catch (e) {
-      alert("Could not delete bazar: " + e.message);
-    }
+    setPendingBazarDelete(b);
   }
   async function resetMonth() {
     if (!admin) return;
     if (
-      !confirm(
-        `Are you sure you want to reset ${month}? This will clear its bazar entries, cash contributions, payments and expense amounts. This cannot be undone.`,
-      )
+      !(await askConfirm(`Are you sure you want to reset ${month}? This will clear its bazar entries, cash contributions, payments and expense amounts. This cannot be undone.`, "Reset month?"))
     )
       return;
     try {
@@ -1053,9 +1100,7 @@ function App() {
   async function deleteCash(c) {
     if (!admin) return;
     if (
-      !confirm(
-        `Delete ${db.users.find((u) => u.id === c.paidBy)?.name || "member"}’s cash contribution of ${money(c.amount)}? This cannot be undone.`,
-      )
+      !(await askConfirm(`Delete ${db.users.find((u) => u.id === c.paidBy)?.name || "member"}’s cash contribution of ${money(c.amount)}? This cannot be undone.`, "Delete contribution?"))
     )
       return;
     try {
@@ -1444,6 +1489,7 @@ function App() {
             {resetMode ? "Back to login" : "Forgot password?"}
           </button>
         </form>
+        <div className="login-footer-credit">Designed &amp; developed by <strong>Rahat</strong> · Monthly Hisab</div>
       </div>
     );
   const nav = [
@@ -1525,14 +1571,16 @@ function App() {
         ))}
         <div className="sidebar-bottom">
           <div className="sidebar-account-row">
-            <button className="profile profile-trigger" type="button" onClick={() => { setProfileOpen(true); setProfileError(""); setProfileMessage(""); }}>
-              {profilePhoto ? <img className="avatar profile-avatar-image" src={profilePhoto} alt="" /> : <div className="avatar">{user.name[0]}</div>}
-              <span className="profile-trigger-info">
-                <b>{user.name}</b>
-                <small>{admin ? "Administrator" : "Member"}</small>
-              </span>
-              <Settings className="profile-trigger-icon" size={18} aria-hidden="true" />
-            </button>
+            <div className="sidebar-account-card">
+              <button className="profile profile-trigger" type="button" onClick={() => { setProfileOpen(true); setProfileError(""); setProfileMessage(""); }}>
+                {profilePhoto ? <img className="avatar profile-avatar-image" src={profilePhoto} alt="" /> : <div className="avatar">{user.name[0]}</div>}
+                <span className="profile-trigger-info">
+                  <b>{user.name}</b>
+                  <small>{admin ? "Administrator" : "Member"}</small>
+                </span>
+              </button>
+              <button className="sidebar-logout-btn" type="button" aria-label="Logout" title="Logout" onClick={(e) => { e.stopPropagation(); logout(); }}><LogOut size={18}/></button>
+            </div>
           </div>
         </div>
       </aside>
@@ -1542,7 +1590,7 @@ function App() {
             <header className="profile-modal-header">
               <div><span className="eyebrow">YOUR ACCOUNT</span><h2>Profile settings</h2><p>Photo, email and password</p></div>
               <div className="profile-modal-header-actions">
-                <button className="btn secondary profile-modal-logout" type="button" onClick={logout}><LogOut size={16}/> Logout</button>
+                
                 <button className="icon-btn" type="button" aria-label="Close profile settings" onClick={() => setProfileOpen(false)}><X size={18}/></button>
               </div>
             </header>
@@ -1668,12 +1716,12 @@ function App() {
               }}
             >
               {[
-                "May 2026",
                 "June 2026",
                 "July 2026",
                 "August 2026",
                 "September 2026",
                 "October 2026",
+                "November 2026",
               ].map((m) => (
                 <option key={m}>{m}</option>
               ))}
@@ -1835,20 +1883,28 @@ function App() {
                 hint={`Room rent + utilities share`}
               />
               <Stat
-                title="Individual meal cost"
+                title="Rent Paid"
+                value={money(memberRentPaid(user.id))}
+                icon={ArrowDownRight}
+                tone="green"
+                hint="Rent payment"
+              />
+              <Stat
+                title="Meal Cost"
                 value={money(mealActiveIds.includes(user.id) ? individualMealCost : 0)}
                 icon={Utensils}
                 tone="orange"
                 hint={`${bazarMemberCount} members sharing bazar`}
               />
               <Stat
-                title="Paid"
-                value={money(ownPayments)}
-                icon={ArrowDownRight}
+                title="Meal Paid"
+                value={money(memberMealPaid(user.id))}
+                icon={Utensils}
                 tone="green"
+                hint="Bazar and meal credits"
               />
               <Stat
-                title="Remaining due"
+                title="Due"
                 value={money(ownDue)}
                 icon={Wallet}
                 tone="orange"
@@ -2334,12 +2390,12 @@ function App() {
                   }}
                 >
                   {[
-                    "May 2026",
                     "June 2026",
                     "July 2026",
                     "August 2026",
                     "September 2026",
                     "October 2026",
+                    "November 2026",
                   ].map((m) => (
                     <option>{m}</option>
                   ))}
@@ -2389,6 +2445,22 @@ function App() {
                   {money(selected.length ? sharedTotal / selected.length : 0)}
                 </b>
               </div>
+              <button
+                type="button"
+                className="secondary full"
+                onClick={async () => {
+                  try {
+                    const createdMonth = await ensureCloudMonth(month, true);
+                    await loadCloudData(session.id, month);
+                    setAuthMessage("");
+                    alert(`Monthly hisab is ready for ${month}.`);
+                  } catch (error) {
+                    alert(error.message || "Could not create monthly hisab.");
+                  }
+                }}
+              >
+                Create new month's hisab
+              </button>
               <button className="primary full" onClick={saveMonth}>
                 Save monthly setup
               </button>
@@ -2544,7 +2616,14 @@ function App() {
                   title="Add bazar"
                   sub="Date auto-fills today. Enter items and total paid."
                 />
-                <form onSubmit={addBazar}>
+                <form
+                  onSubmit={addBazar}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && e.target.tagName !== "BUTTON") {
+                      e.preventDefault();
+                    }
+                  }}
+                >
                   <label>
                     Date
                     <input
@@ -2556,50 +2635,30 @@ function App() {
                       required
                     />
                   </label>
-                  <label>
-                    Total amount (৳)
-                    <input
-                      type="number"
-                      min="1"
-                      value={bazarForm.amount}
-                      onChange={(e) =>
-                        setBazarForm({ ...bazarForm, amount: e.target.value })
-                      }
-                      required
-                    />
-                  </label>
+                  <div className="bazar-item-list">
+              <div className="bazar-item-heading"><span>Item</span><span>Price (৳)</span></div>
+              {bazarRows.map((row, index) => <div className="bazar-item-row" key={index}>
+                <input aria-label={`Item ${index+1}`} placeholder={`Item ${index + 1}`} value={row.item} onChange={(e)=>updateBazarRow(index,"item",e.target.value)}/>
+                <input aria-label={`Price ${index+1}`} type="number" min="0" step="0.01" placeholder="0.00" value={row.price} onChange={(e)=>updateBazarRow(index,"price",e.target.value)}/>
+              </div>)}
+              <button type="button" className="secondary full" onClick={()=>setBazarRows(rows=>[...rows,{item:"",price:""}])}><Plus size={15}/> Add item</button>
+              <div className="bazar-item-total"><span>Total</span><strong>{money(bazarRows.reduce((sum,row)=>sum+Number(row.price||0),0))}</strong></div>
+            </div>
+
                   <label>
                     Paid by
                     {admin ? (
                       <select
                         name="paidBy"
                         value={bazarForm.paidBy || user.id}
-                        onChange={(e) =>
-                          setBazarForm({ ...bazarForm, paidBy: e.target.value })
-                        }
+                        onChange={(e) => setBazarForm({ ...bazarForm, paidBy: e.target.value })}
                       >
-                        {allActiveUsers.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name}
-                            {u.role === "admin" ? " (Admin)" : ""}
-                          </option>
-                        ))}
+                        {allActiveUsers.map((u) => <option key={u.id} value={u.id}>{u.name}{u.role === "admin" ? " (Admin)" : ""}</option>)}
                         <option value="cash-in-hand">Cash in Hand</option>
                       </select>
                     ) : (
                       <input value={user.name} readOnly aria-readonly="true" />
                     )}
-                  </label>
-                  <label>
-                    Bazar items
-                    <input
-                      placeholder="Rice, fish, vegetables..."
-                      value={bazarForm.items}
-                      onChange={(e) =>
-                        setBazarForm({ ...bazarForm, items: e.target.value })
-                      }
-                      required
-                    />
                   </label>
                   <p className="hint">
                     The person who paid gets this amount credited against their
@@ -2653,9 +2712,20 @@ function App() {
                           <tr key={b.id}>
                             <td>{b.date}</td>
                             <td>
-                              {Array.isArray(b.items)
-                                ? b.items.join(", ")
-                                : b.items}
+                              {(() => {
+                                const raw = b.items;
+                                let entries = Array.isArray(raw) ? raw : null;
+                                if (!entries && typeof raw === "string") {
+                                  try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) entries = parsed; } catch {}
+                                }
+                                const getName = (entry) => {
+                                  if (typeof entry === "string") return entry.trim();
+                                  if (!entry || typeof entry !== "object") return "";
+                                  const value = entry.item ?? entry.name ?? entry.title;
+                                  return String(typeof value === "string" ? value : (value?.name ?? value?.item ?? "")).trim();
+                                };
+                                return entries ? entries.map(getName).filter(Boolean).join(", ") : String(raw || "");
+                              })()}
                             </td>
                             <td>
                               {b.paidFromCash
@@ -2664,6 +2734,14 @@ function App() {
                             </td>
                             <td>{money(b.amount)}</td>
                             <td className="row-actions">
+                              <button
+                                className="icon-btn"
+                                title="Details"
+                                aria-label="View bazar details"
+                                onClick={() => setBazarDetailsEntry(b)}
+                              >
+                                <Eye size={15} />
+                              </button>
                               {(admin || (!b.paidFromCash && b.paidBy === user?.id)) && (
                                 <>
                                   <button
@@ -2694,7 +2772,91 @@ function App() {
                 </div>
               </section>
             </div>
+            {bazarEditEntry && (
+              <div className="modal-backdrop" role="presentation" onClick={() => setBazarEditEntry(null)}>
+                <section className="modal panel bazar-edit-modal" role="dialog" aria-modal="true" aria-labelledby="bazar-edit-title" onClick={(e) => e.stopPropagation()}>
+                  <PanelHead title="Edit bazar entry" sub="Update date, items and prices" />
+                  <div className="bazar-edit-fields">
+                    <label>Date<input type="date" value={bazarEditEntry.editDate} onChange={(e) => setBazarEditEntry((old) => ({...old, editDate:e.target.value}))}/></label>
+                    {bazarEditEntry.editItems.map((row, index) => (
+                      <div className="bazar-edit-item-row" key={index}>
+                        <label>Item {index + 1}<input value={row.item} placeholder={`Item ${index + 1}`} onChange={(e) => setBazarEditEntry((old) => ({...old, editItems:old.editItems.map((it,i)=>i===index?{...it,item:e.target.value}:it)}))}/></label>
+                        <label>Price (৳)<input type="number" min="0" step="0.01" value={row.price} placeholder="0.00" onChange={(e) => setBazarEditEntry((old) => ({...old, editItems:old.editItems.map((it,i)=>i===index?{...it,price:e.target.value}:it)}))}/></label>
+                        <button type="button" className="danger-text icon-btn" aria-label={`Remove item ${index+1}`} disabled={bazarEditEntry.editItems.length===1} onClick={() => setBazarEditEntry((old) => ({...old,editItems:old.editItems.filter((_,i)=>i!==index)}))}><Trash2 size={15}/></button>
+                      </div>
+                    ))}
+                    <button type="button" className="secondary full" onClick={() => setBazarEditEntry((old) => ({...old,editItems:[...old.editItems,{item:"",price:""}]}))}>＋ Add item</button>
+                    {admin && <label>Paid by<select value={bazarEditEntry.editPaidBy} onChange={(e) => setBazarEditEntry((old) => ({...old, editPaidBy:e.target.value}))}><option value="Cash in Hand">Cash in Hand</option>{(db.users || []).filter((member) => member.active !== false).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>}
+                    <div className="bazar-edit-total"><span>Total</span><strong>{money((bazarEditEntry.editItems||[]).reduce((sum,row)=>sum+(Number(row.price)||0),0))}</strong></div>
+                  </div>
+                  <div className="bazar-edit-actions">
+                    <button type="button" className="secondary" onClick={() => setBazarEditEntry(null)}>Cancel</button>
+                    <button type="button" className="primary" onClick={saveBazarEdit}>Save changes</button>
+                  </div>
+                </section>
+              </div>
+            )}
+            {bazarDetailsEntry && (
+              <div className="modal-backdrop" role="presentation" onClick={() => setBazarDetailsEntry(null)}>
+                <section className="modal panel bazar-details-modal" role="dialog" aria-modal="true" aria-labelledby="bazar-details-title" onClick={(e) => e.stopPropagation()}>
+                  <PanelHead title="Bazar details" sub={bazarDetailsEntry.date} />
+                  <div className="table-wrap">
+                    <table>
+                      <thead><tr><th>Item</th><th>Price</th></tr></thead>
+                      <tbody>
+                        {(() => {
+                          let details = Array.isArray(bazarDetailsEntry.items) ? bazarDetailsEntry.items : null;
+                          if (!details && typeof bazarDetailsEntry.items === "string") {
+                            try { const parsed=JSON.parse(bazarDetailsEntry.items); details=Array.isArray(parsed)?parsed:null; } catch { details=null; }
+                          }
+                          const normalize = (entry) => {
+                            if (typeof entry === "string") return { item: entry.trim(), price: null };
+                            if (!entry || typeof entry !== "object") return { item: "", price: null };
+                            const rawItem = entry.item ?? entry.name ?? entry.title;
+                            const item = typeof rawItem === "string" ? rawItem : (rawItem?.name ?? rawItem?.item ?? "");
+                            const rawPrice = entry.price ?? entry.amount ?? rawItem?.price;
+                            const price = rawPrice === "" || rawPrice == null || !Number.isFinite(Number(rawPrice)) ? null : Number(rawPrice);
+                            return { item: String(item || "").trim(), price };
+                          };
+                          const rows = (details || String(bazarDetailsEntry.items||"").split(",")).map(normalize).filter(row=>row.item);
+                          return rows.map((entry,index)=><tr key={`${index}-${entry.item}`}><td>{entry.item}</td><td>{entry.price==null?"—":money(entry.price)}</td></tr>);
+                        })()}</tbody>
+                    </table>
+                  </div>
+                  <div className="total-row"><b>Total</b><b>{money(bazarDetailsEntry.amount)}</b></div>
+                  <button type="button" className="secondary full bazar-details-close" onClick={() => setBazarDetailsEntry(null)}>Close</button>
+                </section>
+              </div>
+            )}
+            {pendingBazarDelete && (
+              <div className="modal-backdrop delete-confirm-backdrop" onClick={() => setPendingBazarDelete(null)}>
+                <section className="modal panel delete-confirm-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+                  <div className="delete-confirm-icon delete-confirm-square">
+                    <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 25.5 20 35 38 14"/></svg>
+                  </div>
+                  <h3>Delete bazar entry?</h3>
+                  <p>This entry will be permanently removed. This action cannot be undone.</p>
+                  <div className="delete-confirm-actions">
+                    <button className="secondary" onClick={() => setPendingBazarDelete(null)}>Cancel</button>
+                    <button className="danger" onClick={async () => { const entry=pendingBazarDelete; try { const {error}=await supabase.from("bazar_entries").delete().eq("id",entry.id); if(error) throw error; setPendingBazarDelete(null); await loadCloudData(user.id,month); setBazarSuccessToast("Bazar deleted successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600); } catch(e) { alert("Could not delete bazar: "+e.message); } }}>Delete entry</button>
+                  </div>
+                </section>
+              </div>
+            )}
           </>
+        )}
+        {confirmDialog && (
+          <div className="modal-backdrop delete-confirm-backdrop" onClick={() => { confirmDialog.resolve(false); setConfirmDialog(null); }}>
+            <section className="modal panel delete-confirm-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+              <div className="delete-confirm-icon"><Trash2 size={22}/></div>
+              <h3>{confirmDialog.title}</h3>
+              <p>{confirmDialog.message}</p>
+              <div className="delete-confirm-actions">
+                <button className="secondary close-red" onClick={() => { confirmDialog.resolve(false); setConfirmDialog(null); }}>Cancel</button>
+                <button className="danger" onClick={() => { confirmDialog.resolve(true); setConfirmDialog(null); }}>Confirm</button>
+              </div>
+            </section>
+          </div>
         )}
         {page === "payment-options" && admin && (
           <div className="grid-two payment-options-admin">
@@ -3063,6 +3225,14 @@ function App() {
               </section>
             </div>
           )}
+        {bazarSuccessToast && (
+          <div className="bazar-success-toast" role="status" aria-live="polite">
+            <span className="bazar-success-check" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 12.5 9.5 17 19 7.5"/></svg>
+            </span>
+            <span>{bazarSuccessToast}</span>
+          </div>
+        )}
         <footer>
           <span className="footer-credit">
             Designed &amp; developed by <strong>Rahat</strong> · Monthly Hisab

@@ -724,6 +724,13 @@ a {
 .profile-settings-form input { width:100%; min-height:42px; border:1px solid var(--border, #d9dee7); border-radius:10px; padding:0 12px; background:var(--surface, #fff); color:var(--text, #182230); font:inherit; }
 
 
+/* Unified sidebar account card */ 
+.sidebar-account-row { width:100%; }
+.sidebar-account-card { display:flex; align-items:center; gap:8px; width:100%; box-sizing:border-box; padding:8px; border:1px solid var(--border, #d9e2f0); border-radius:18px; background:var(--panel, #fff); box-shadow:0 8px 24px rgba(30,64,120,.07); }
+.sidebar-account-card .profile-trigger { flex:1; min-width:0; border:0; border-radius:12px; background:transparent; box-shadow:none; padding:8px; }
+.sidebar-account-card .profile-trigger:hover { background:var(--hover, rgba(120,130,150,.10)); }
+.sidebar-account-card .sidebar-logout-btn { width:40px; height:40px; flex:0 0 40px; border:0; border-radius:12px; background:#e62932; color:#fff; box-shadow:0 5px 12px rgba(220,38,48,.22); }
+.sidebar-account-card .sidebar-logout-btn:hover { background:#c91f29; color:#fff; border:0; }
 /* Profile settings opens from the sidebar account control, not My Account. */
 .sidebar-account-row { display:flex; align-items:center; gap:4px; width:100%; }
 .sidebar-account-row .profile-trigger { flex:1; min-width:0; }
@@ -1343,3 +1350,1100 @@ footer{color:#7891b1}
 .profile-modal-logout:hover{background:#b92535!important;border-color:#b92535!important;color:#fff!important}
 :root[data-theme="dark"] .profile-modal-logout{background:#e04455!important;border-color:#e04455!important;color:#fff!important}
 :root[data-theme="dark"] .profile-modal-logout:hover{background:#f05262!important;border-color:#f05262!important}
+
+/* Requested account-card and logout refinements; preserve the existing theme palettes. */
+.sidebar-account-row .profile-trigger{min-height:76px!important;padding:12px!important;gap:12px!important;border:1px solid var(--border,#e7ebf2)!important;border-radius:13px!important}
+.sidebar-account-row .profile-trigger .avatar{width:52px!important;height:52px!important;flex:0 0 52px!important;font-size:18px!important}
+.sidebar-account-row .profile-trigger-info b{font-size:15px!important;line-height:20px!important}
+.sidebar-account-row .profile-trigger-info small{font-size:12px!important;line-height:16px!important}
+.profile-modal-logout{width:100%!important;justify-content:center!important;background:#e64155!important;color:#fff!important;border:1px solid #d93248!important;border-radius:10px!important;font-weight:700!important;min-height:42px!important}
+.profile-modal-logout:hover{background:#cf2f45!important;color:#fff!important}
+:root[data-theme="dark"] .profile-modal-logout{background:#e64155!important;color:#fff!important;border-color:#d93248!important}
+:root[data-theme="dark"] .sidebar-account-row .profile-trigger{background:#151f32!important;border-color:#2b3950!important;color:#f3f6fc!important}
+:root[data-theme="dark"] .sidebar-account-row .profile-trigger-info b{color:#f3f6fc!important}
+:root[data-theme="dark"] .sidebar-account-row .profile-trigger-info small{color:#aab8cc!important}
+/* Dark theme coverage for nested panels, history controls, table actions and overlays. */
+:root[data-theme="dark"] .bazar-history-panel,:root[data-theme="dark"] .bazar-layout>.panel,:root[data-theme="dark"] .account-stats .stat,:root[data-theme="dark"] .account-welcome{color:#e7edf7!important}
+:root[data-theme="dark"] .bazar-history-panel .history-filter{color:#c4d0e2!important}
+:root[data-theme="dark"] .bazar-history-panel .history-filter select{background:#0e1728!important;color:#f3f6fc!important;border-color:#3a4962!important}
+:root[data-theme="dark"] .bazar-history-panel th{color:#bdc9dc!important;border-bottom-color:#2b3950!important}
+:root[data-theme="dark"] .bazar-history-panel td{color:#e7edf7!important;border-bottom-color:#2b3950!important}
+:root[data-theme="dark"] .bazar-history-panel .row-actions .icon-btn{color:#bdc9dc!important}
+:root[data-theme="dark"] .bazar-history-panel .row-actions .icon-btn:hover{background:#26344c!important;color:#fff!important}
+:root[data-theme="dark"] .bazar-history-panel .total-row{background:#202d4d!important;color:#dbe5ff!important}
+:root[data-theme="dark"] .profile-modal{background:#151f32!important;color:#e7edf7!important;border-color:#2b3950!important}
+:root[data-theme="dark"] .profile-modal input,:root[data-theme="dark"] .profile-modal select,:root[data-theme="dark"] .profile-modal textarea{background:#0e1728!important;color:#f3f6fc!important;border-color:#3a4962!important}
+:root[data-theme="dark"] .profile-modal .panel,:root[data-theme="dark"] .profile-settings-panel{background:#151f32!important;color:#e7edf7!important;border-color:#2b3950!important}
+
+
+/* Step 2: profile card and logout polish. Uses existing theme tokens only. */
+.profile-trigger{width:100%;min-height:76px;padding:14px 15px;display:flex;align-items:center;gap:13px;border-radius:16px;text-align:left}
+.profile-trigger .profile-avatar-image,.profile-trigger .avatar{width:52px;height:52px;min-width:52px;font-size:21px}
+.profile-trigger-info{min-width:0;display:flex;flex-direction:column;gap:5px}
+.profile-trigger-info b{font-size:16px;line-height:1.25;font-weight:700}
+.profile-trigger-info small{font-size:13px;line-height:1.35}
+.profile-modal-logout{width:100%;min-height:42px;justify-content:center;background:#dc2626!important;color:#fff!important;border-color:#dc2626!important}
+.profile-modal-logout:hover{background:#b91c1c!important;border-color:#b91c1c!important}
+
+
+/* Step 3: readable, consistent history and data tables in both themes. */
+table{width:100%;border-collapse:separate;border-spacing:0;overflow:hidden;border-radius:12px}
+table thead th{font-weight:700;letter-spacing:.01em;white-space:nowrap}
+table tbody td{vertical-align:middle;line-height:1.45}
+table tbody tr:last-child td{border-bottom:0}
+table tbody tr:hover td{background:var(--table-hover,rgba(127,127,127,.055))}
+table td:last-child,table th:last-child{white-space:nowrap}
+table .green,table .green-text{font-weight:650}
+table .due{font-weight:700}
+.row-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.row-actions button{min-height:32px;padding:6px 10px;border-radius:9px;font-weight:600}
+
+/* Step 6: Monthly bazar history readability and responsive table polish. */
+.bazar-history-panel{min-width:0}
+.bazar-history-panel .history-filter{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin:12px 0 16px;font-size:13px;font-weight:600}
+.bazar-history-panel .history-filter select{max-width:240px;min-width:170px}
+.bazar-history-panel .table-wrap{width:100%;overflow-x:auto;border-radius:12px}
+.bazar-history-panel table{min-width:620px;width:100%;border-collapse:separate;border-spacing:0}
+.bazar-history-panel thead th{padding:13px 14px;text-align:left;font-size:12px;font-weight:750;letter-spacing:.035em;text-transform:uppercase}
+.bazar-history-panel tbody td{padding:13px 14px;font-size:13px;line-height:1.5}
+.bazar-history-panel tbody td:first-child{white-space:nowrap;font-variant-numeric:tabular-nums}
+.bazar-history-panel tbody td:nth-child(2){min-width:180px;overflow-wrap:anywhere}
+.bazar-history-panel tbody td:nth-child(4){white-space:nowrap;font-weight:750;font-variant-numeric:tabular-nums}
+.bazar-history-panel .row-actions{display:flex;gap:7px;align-items:center}
+.bazar-history-panel .row-actions .icon-btn{width:34px;height:34px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center}
+.bazar-history-panel .total-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 2px 2px;font-size:14px}
+@media(max-width:640px){.bazar-history-panel .history-filter{align-items:stretch;flex-direction:column}.bazar-history-panel .history-filter select{max-width:none;width:100%}}
+
+.bazar-item-list{display:flex;flex-direction:column;gap:9px}
+.bazar-item-heading,.bazar-item-row{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(100px,1fr);gap:9px;align-items:center}
+.bazar-item-heading{font-size:12px;font-weight:700;padding:0 2px}
+.bazar-item-row input{width:100%;min-width:0}
+.bazar-item-total{display:flex;align-items:center;justify-content:space-between;padding:10px 2px;font-weight:700}
+
+.bazar-details-modal{width:min(560px,calc(100vw - 32px));max-height:82vh;overflow:auto;margin:auto;background:var(--panel,#fff);border-radius:18px;padding:22px;box-shadow:0 24px 80px #0f172a55;position:relative}
+.bazar-details-modal .table-wrap{max-height:48vh;overflow:auto}
+.modal-backdrop{position:fixed!important;inset:0!important;z-index:9999!important;display:flex!important;align-items:center!important;justify-content:center!important;background:rgba(15,23,42,.58)!important;padding:16px!important}
+
+/* Monthly bazar total footer alignment */
+.total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+  box-sizing: border-box;
+}
+.total-row > b:last-child {
+  margin-left: auto;
+  text-align: right;
+  flex: 0 0 auto;
+}
+.total-row > b:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Monthly Bazar History: keep footer total label and amount on one aligned row */
+.bazar-history-panel .total-row,
+section.panel:has(.bazar-history-panel) .total-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  min-height: 44px;
+  padding: 12px 14px !important;
+  gap: 16px !important;
+  box-sizing: border-box !important;
+}
+.bazar-history-panel .total-row > b:first-child,
+section.panel:has(.bazar-history-panel) .total-row > b:first-child {
+  display: block;
+  flex: 1 1 auto;
+  text-align: left !important;
+  white-space: nowrap;
+}
+.bazar-history-panel .total-row > b:last-child,
+section.panel:has(.bazar-history-panel) .total-row > b:last-child {
+  display: block;
+  flex: 0 0 auto;
+  margin-left: auto !important;
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+/* Premium styling for Bazar Details modal footer */
+.bazar-details-modal .total-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  margin: 18px 0 10px !important;
+  padding: 15px 18px !important;
+  min-height: 58px !important;
+  border: 1px solid var(--border, #dbe5f5) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #f4f7ff 0%, #eaf1ff 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.85) !important;
+  box-sizing: border-box !important;
+}
+.bazar-details-modal .total-row b:first-child {
+  flex: 1 1 auto !important;
+  color: #3455a4 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  text-align: left !important;
+}
+.bazar-details-modal .total-row b:last-child {
+  flex: 0 0 auto !important;
+  margin-left: auto !important;
+  color: #173b83 !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  text-align: right !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.bazar-details-modal > button.secondary.full {
+  width: 100% !important;
+  min-height: 46px !important;
+  margin-top: 2px !important;
+  border-radius: 12px !important;
+  border: 1px solid #d6e1ff !important;
+  background: #f7f9ff !important;
+  color: #405fce !important;
+  font-size: 14px !important;
+  font-weight: 650 !important;
+  letter-spacing: .01em !important;
+  box-shadow: 0 2px 5px rgba(37, 73, 160, .06) !important;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease, box-shadow .16s ease !important;
+}
+.bazar-details-modal > button.secondary.full:hover {
+  background: #edf2ff !important;
+  border-color: #b9ccff !important;
+  box-shadow: 0 5px 12px rgba(37, 73, 160, .10) !important;
+  transform: translateY(-1px) !important;
+}
+.bazar-details-modal > button.secondary.full:active {
+  transform: translateY(0) !important;
+  box-shadow: none !important;
+}
+
+.delete-confirm-modal{width:min(420px,calc(100vw - 32px));padding:28px!important;text-align:center;border-radius:20px!important;background:var(--panel,#fff)!important;box-shadow:0 28px 90px rgba(15,23,42,.28)!important}
+.delete-confirm-icon{width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;background:#fff1f2;color:#dc3545;border:1px solid #ffe0e3}
+.delete-confirm-modal h3{margin:0 0 9px;font-size:19px;font-weight:750;color:var(--text,#17233b)}
+.delete-confirm-modal p{margin:0 auto 24px;max-width:320px;line-height:1.55;color:var(--muted,#718096);font-size:13px}
+.delete-confirm-actions{display:flex;gap:10px;justify-content:center}
+.delete-confirm-actions button{flex:1;min-height:44px;border-radius:12px;font-weight:700}
+.delete-confirm-actions button.danger{background:#dc3545!important;color:white!important;border:1px solid #dc3545!important;box-shadow:0 5px 12px rgba(220,53,69,.18)}
+.delete-confirm-actions button.danger:hover{background:#c82333!important}
+
+/* Red close/cancel buttons across modal dialogs */
+.modal button.close-red,
+.modal .close-btn,
+.modal button[aria-label*="Close"],
+.modal button[aria-label*="close"]{
+  color:#dc3545!important;
+}
+.modal button.close-red{
+  border:1px solid #ffd5d9!important;
+  background:#fff5f6!important;
+}
+.modal button.close-red:hover{
+  background:#ffe8eb!important;border-color:#ffb8c0!important;
+}
+
+.bazar-edit-modal{width:min(620px,calc(100vw - 32px));max-height:min(82vh,760px);overflow:auto;padding:22px}
+.bazar-edit-fields{display:grid;gap:14px;margin-top:18px}
+.bazar-edit-fields label{display:grid;gap:6px;font-size:12px;color:var(--muted,#64748b);font-weight:600}
+.bazar-edit-fields input{width:100%;min-width:0;box-sizing:border-box}
+.bazar-edit-item-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,.45fr) 32px;gap:10px;align-items:end}
+.bazar-edit-total{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-radius:12px;background:var(--soft-blue,#e8f0ff);color:var(--primary,#165dff);font-weight:700}
+.bazar-edit-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+.bazar-edit-actions button{min-width:130px}
+@media(max-width:520px){.bazar-edit-item-row{grid-template-columns:minmax(0,1fr) minmax(95px,.6fr) 30px}.bazar-edit-modal{padding:16px}}
+
+.bazar-edit-modal{width:min(680px,calc(100vw - 30px))!important;max-height:min(88vh,820px)!important;overflow:auto!important;padding:26px!important;border:1px solid rgba(255,255,255,.7)!important;border-radius:22px!important;box-shadow:0 28px 90px rgba(15,35,75,.28),0 6px 24px rgba(15,35,75,.12)!important}
+.bazar-edit-modal .bazar-edit-fields{gap:16px;margin-top:22px}
+.bazar-edit-modal .bazar-edit-fields>label,.bazar-edit-modal .bazar-edit-item-row label{gap:8px;color:#718096;font-size:12px;font-weight:650}
+.bazar-edit-modal .bazar-edit-fields input{min-height:42px;padding:10px 12px;border-radius:10px;border:1px solid #dbe5f3;background:#f8fbff;color:#172b4d;font-size:14px;box-sizing:border-box}
+.bazar-edit-modal .bazar-edit-fields input:focus{outline:none;border-color:#5571ff;box-shadow:0 0 0 3px rgba(85,113,255,.14);background:#fff}
+.bazar-edit-modal .bazar-edit-item-row{padding:12px;background:#f7f9fd;border:1px solid #e4ebf5;border-radius:14px;grid-template-columns:minmax(0,1fr) minmax(115px,.42fr) 34px;gap:12px}
+.bazar-edit-modal .bazar-edit-item-row .icon-btn{width:34px;height:42px;border-radius:10px;display:grid;place-items:center;background:#fff1f2;border:1px solid #ffd5da;color:#dc3545}
+.bazar-edit-modal .bazar-edit-fields>.secondary.full{min-height:44px;border-radius:12px;border:1px dashed #c8d5ff;background:#f4f6ff;color:#4964ed;font-weight:650}
+.bazar-edit-modal .bazar-edit-total{padding:16px 18px;border:1px solid #d9e5ff;border-radius:14px;background:linear-gradient(135deg,#edf4ff,#f5f7ff);color:#2458d6}
+.bazar-edit-modal .bazar-edit-total strong{font-size:19px;font-weight:800}
+.bazar-edit-modal .bazar-edit-actions{position:sticky;bottom:-26px;padding:16px 0 0;background:#fff;border-top:1px solid #e7edf6}
+.bazar-edit-modal .bazar-edit-actions button{min-height:44px;border-radius:12px;font-weight:700}
+@media(max-width:560px){.bazar-edit-modal{padding:18px!important}.bazar-edit-modal .bazar-edit-item-row{grid-template-columns:minmax(0,1fr) minmax(90px,.55fr) 30px;padding:9px;gap:7px}}
+
+
+/* Bazar success confirmation */
+.bazar-success-toast{position:fixed;right:28px;top:24px;z-index:1200;display:flex;align-items:center;gap:11px;padding:14px 19px;border:1px solid #b9e8ce;border-radius:16px;background:rgba(255,255,255,.97);color:#176b3a;box-shadow:0 14px 38px rgba(22,101,52,.16);font-size:14px;font-weight:650;animation:bazar-toast-in .32s cubic-bezier(.2,.8,.2,1) both;backdrop-filter:blur(12px)}
+.bazar-success-check{width:27px;height:27px;display:grid;place-items:center;border-radius:50%;background:#dcfce7;flex:none}
+.bazar-success-check svg{width:17px;height:17px;fill:none;stroke:#15803d;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;stroke-dashoffset:24;animation:bazar-check-draw .45s .12s ease-out forwards}
+@keyframes bazar-toast-in{from{opacity:0;transform:translateY(-10px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes bazar-check-draw{to{stroke-dashoffset:0}}
+@media(prefers-reduced-motion:reduce){.bazar-success-toast,.bazar-success-check svg{animation:none}.bazar-success-check svg{stroke-dashoffset:0}}
+
+/* Centered success confirmation and delete dialog polish */
+.bazar-success-toast{right:auto!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%)!important;animation:bazar-center-toast-in .32s cubic-bezier(.2,.8,.2,1) both!important}
+@keyframes bazar-center-toast-in{from{opacity:0;transform:translate(-50%,-46%) scale(.96)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.delete-confirm-backdrop{position:fixed;inset:0;z-index:1190;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.48);backdrop-filter:blur(5px)}
+.delete-confirm-modal{width:min(440px,calc(100vw - 32px));padding:26px;border:1px solid rgba(255,255,255,.75);border-radius:22px;background:var(--panel-bg,#fff);box-shadow:0 24px 80px rgba(15,23,42,.24);animation:bazar-center-toast-in .24s ease-out both}
+.delete-confirm-modal .danger{background:#dc2626!important;color:#fff!important;border:1px solid #dc2626!important;border-radius:12px!important}
+.delete-confirm-modal button:not(.danger){border-radius:12px!important}
+@media(prefers-reduced-motion:reduce){.bazar-success-toast,.delete-confirm-modal{animation:none!important}}
+
+/* Centered premium delete confirmation with square large tick */
+.delete-confirm-backdrop{position:fixed!important;inset:0!important;z-index:1300!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:22px!important;background:rgba(15,23,42,.52)!important;backdrop-filter:blur(6px)!important}
+.delete-confirm-modal{width:min(460px,calc(100vw - 36px))!important;min-height:390px!important;box-sizing:border-box!important;border-radius:24px!important;padding:34px!important;text-align:center!important;background:#fff!important;box-shadow:0 28px 90px rgba(15,23,42,.3)!important;animation:delete-modal-pop .24s ease-out both}
+.delete-confirm-square{width:104px!important;height:104px!important;margin:0 auto 22px!important;border-radius:24px!important;background:#fff1f2!important;border:1px solid #fecdd3!important;display:grid!important;place-items:center!important;color:#e11d48!important}
+.delete-confirm-square svg{width:72px!important;height:72px!important;fill:none!important;stroke:#e11d48!important;stroke-width:4.5!important;stroke-linecap:round!important;stroke-linejoin:round!important;stroke-dasharray:70!important;stroke-dashoffset:70!important;animation:delete-big-tick .55s .12s ease-out forwards}
+.delete-confirm-modal h3{font-size:21px!important;margin:0 0 10px!important}
+.delete-confirm-modal p{font-size:14px!important;line-height:1.6!important;margin:0 auto 28px!important;max-width:330px!important;color:#64748b!important}
+.delete-confirm-actions{display:flex!important;justify-content:center!important;gap:12px!important}
+.delete-confirm-actions button{min-width:132px!important;min-height:46px!important;border-radius:13px!important;font-weight:650!important}
+.delete-confirm-actions button.danger{background:#dc2626!important;border-color:#dc2626!important;color:#fff!important}
+@keyframes delete-modal-pop{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes delete-big-tick{to{stroke-dashoffset:0}}
+@media(prefers-reduced-motion:reduce){.delete-confirm-modal,.delete-confirm-square svg{animation:none!important}.delete-confirm-square svg{stroke-dashoffset:0!important}}
+
+
+/* Large centered square success toast: 1-inch check mark */
+.bazar-success-toast{
+  left:50%!important; right:auto!important; top:50%!important;
+  width:min(300px,calc(100vw - 32px))!important;
+  min-height:260px!important; box-sizing:border-box!important;
+  padding:28px 22px!important; gap:18px!important;
+  flex-direction:column!important; justify-content:center!important;
+  text-align:center!important; border-radius:24px!important;
+  transform:translate(-50%,-50%)!important;
+  font-size:16px!important; line-height:1.45!important;
+  box-shadow:0 28px 90px rgba(15,23,42,.24)!important;
+}
+.bazar-success-check{
+  width:96px!important; height:96px!important; min-width:96px!important;
+  border-radius:24px!important; margin:0 auto!important;
+  display:grid!important; place-items:center!important;
+  background:#dcfce7!important; box-shadow:inset 0 0 0 1px #bbf7d0!important;
+}
+.bazar-success-check svg{
+  width:68px!important; height:68px!important;
+  stroke:#15803d!important; stroke-width:3.8!important;
+}
+@media(max-width:420px){
+  .bazar-success-toast{width:calc(100vw - 28px)!important;min-height:230px!important}
+  .bazar-success-check{width:84px!important;height:84px!important;min-width:84px!important}
+  .bazar-success-check svg{width:60px!important;height:60px!important}
+}
+
+
+/* Premium delete confirmation action: remove the harsh red box */
+.delete-confirm-actions button.danger,
+.delete-confirm-modal .danger{
+  background:linear-gradient(180deg,#fff 0%,#fff7f7 100%)!important;
+  color:#c62828!important;
+  border:1px solid rgba(220,38,38,.16)!important;
+  box-shadow:0 8px 22px rgba(15,23,42,.07), inset 0 1px 0 rgba(255,255,255,.9)!important;
+  font-weight:700!important;
+  letter-spacing:.01em!important;
+  transition:background .18s ease,box-shadow .18s ease,transform .18s ease!important;
+}
+.delete-confirm-actions button.danger:hover,
+.delete-confirm-modal .danger:hover{
+  background:#fff1f1!important;
+  border-color:rgba(220,38,38,.28)!important;
+  box-shadow:0 10px 24px rgba(220,38,38,.10)!important;
+  transform:translateY(-1px)!important;
+}
+.delete-confirm-actions button.danger:active,
+.delete-confirm-modal .danger:active{transform:translateY(0)!important}
+
+
+/* Final override: neutral premium delete action, no red box/border */
+.modal-backdrop .delete-confirm-modal .delete-confirm-actions > button.danger,
+.delete-confirm-modal .delete-confirm-actions > button.danger,
+.delete-confirm-actions > button.danger{
+  background:#fff!important;
+  color:#dc2626!important;
+  border:1px solid transparent!important;
+  outline:0!important;
+  box-shadow:0 8px 24px rgba(15,23,42,.075)!important;
+  border-radius:14px!important;
+}
+.modal-backdrop .delete-confirm-modal .delete-confirm-actions > button.danger:hover,
+.delete-confirm-modal .delete-confirm-actions > button.danger:hover,
+.delete-confirm-actions > button.danger:hover{
+  background:#fff8f8!important;
+  color:#b91c1c!important;
+  border-color:transparent!important;
+  box-shadow:0 10px 26px rgba(15,23,42,.10)!important;
+}
+.delete-confirm-actions > button.danger:focus-visible{
+  outline:2px solid rgba(220,38,38,.18)!important;
+  outline-offset:3px!important;
+}
+
+
+/* Remove the empty red icon container above the delete confirmation title */
+.delete-confirm-modal .delete-confirm-icon,
+.delete-confirm-modal .delete-confirm-symbol,
+.delete-confirm-modal .delete-confirm-mark,
+.delete-confirm-modal .delete-icon,
+.delete-confirm-modal .icon-box,
+.delete-confirm-modal .warning-icon,
+.delete-confirm-modal .modal-icon{
+  display:none!important;
+  width:0!important;height:0!important;min-width:0!important;min-height:0!important;
+  margin:0!important;padding:0!important;border:0!important;background:transparent!important;
+  box-shadow:none!important;
+}
+.delete-confirm-modal{
+  gap:0!important;
+}
+
+
+/* Refined premium delete confirmation layout */
+.delete-confirm-backdrop{
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  padding:24px!important;box-sizing:border-box!important;
+}
+.delete-confirm-modal{
+  width:min(460px,calc(100vw - 36px))!important;
+  min-height:0!important;height:auto!important;max-height:calc(100vh - 48px)!important;
+  box-sizing:border-box!important;padding:30px 30px 26px!important;
+  border-radius:26px!important;gap:0!important;
+  background:linear-gradient(180deg,#fff 0%,#fcfdff 100%)!important;
+  border:1px solid rgba(148,163,184,.16)!important;
+  box-shadow:0 24px 80px rgba(15,23,42,.20),0 4px 14px rgba(15,23,42,.06)!important;
+  text-align:center!important;overflow:auto!important;
+}
+.delete-confirm-modal h2,
+.delete-confirm-modal h3{
+  margin:0 0 12px!important;font-size:21px!important;line-height:1.3!important;
+  letter-spacing:-.035em!important;font-weight:750!important;color:#172033!important;
+}
+.delete-confirm-modal p{
+  max-width:330px!important;margin:0 auto 26px!important;
+  color:#718096!important;font-size:14px!important;line-height:1.65!important;
+}
+.delete-confirm-actions{
+  display:flex!important;gap:12px!important;justify-content:center!important;
+  margin-top:0!important;width:100%!important;
+}
+.delete-confirm-actions button{
+  flex:1!important;min-width:0!important;min-height:48px!important;
+  border-radius:14px!important;font-size:14px!important;font-weight:700!important;
+  transition:transform .18s ease,box-shadow .18s ease,background .18s ease!important;
+}
+.delete-confirm-actions button:not(.danger){
+  background:#f3f6ff!important;color:#4056d8!important;
+  border:1px solid #e0e7ff!important;box-shadow:inset 0 1px 0 #fff!important;
+}
+.delete-confirm-actions button:not(.danger):hover{
+  background:#eaf0ff!important;transform:translateY(-1px)!important;
+}
+.delete-confirm-actions button.danger{
+  background:#fff!important;color:#dc2626!important;border:1px solid transparent!important;
+  box-shadow:0 8px 24px rgba(15,23,42,.075)!important;
+}
+.delete-confirm-actions button.danger:hover{
+  background:#fff7f7!important;transform:translateY(-1px)!important;
+  box-shadow:0 10px 26px rgba(15,23,42,.10)!important;
+}
+@media(max-width:480px){
+ .delete-confirm-modal{padding:26px 20px 22px!important;border-radius:22px!important}
+ .delete-confirm-actions{gap:9px!important}
+ .delete-confirm-actions button{min-height:46px!important}
+}
+
+
+/* Scoped red styling for the Bazar Details modal close button */
+.bazar-details-modal button.bazar-details-close,
+.bazar-details-modal .bazar-details-close {
+  color: #dc2626 !important;
+  border: 1px solid #fecaca !important;
+  background: #fff5f5 !important;
+  box-shadow: 0 6px 18px rgba(220, 38, 38, 0.10) !important;
+}
+.bazar-details-modal button.bazar-details-close:hover,
+.bazar-details-modal .bazar-details-close:hover {
+  color: #b91c1c !important;
+  border-color: #fca5a5 !important;
+  background: #fff0f0 !important;
+}
+
+/* Edit form: only the item remove icon gets the solid red Logout-style treatment.
+   Cancel and Bazar Details Close keep their existing button design. */
+.bazar-edit-item-row .danger-text.icon-btn {
+  background: var(--danger, #e3262e) !important;
+  color: #fff !important;
+  border: 1px solid var(--danger, #e3262e) !important;
+  box-shadow: 0 5px 14px rgba(227, 38, 46, .18);
+  width: 40px;
+  min-width: 40px;
+  height: 42px;
+  border-radius: 12px;
+}
+.bazar-edit-item-row .danger-text.icon-btn:hover:not(:disabled) {
+  background: #c91d25 !important;
+  color: #fff !important;
+}
+.bazar-edit-fields select {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 12px;
+}
+
+
+/* Premium visual polish for the Bazar Edit modal only.
+   No form behavior, save flow, Details modal, or other buttons changed. */
+.bazar-edit-modal {
+  width: min(680px, calc(100vw - 32px)) !important;
+  max-width: 680px !important;
+  padding: 28px !important;
+  border: 1px solid rgba(203, 213, 225, .72) !important;
+  border-radius: 24px !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%) !important;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, .22), 0 6px 20px rgba(15, 23, 42, .06) !important;
+}
+.bazar-edit-modal .bazar-edit-fields {
+  gap: 16px !important;
+}
+.bazar-edit-modal .bazar-edit-fields > label {
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  letter-spacing: .015em;
+  gap: 8px !important;
+}
+.bazar-edit-modal .bazar-edit-fields input,
+.bazar-edit-modal .bazar-edit-fields select {
+  min-height: 46px !important;
+  padding: 0 14px !important;
+  border: 1px solid #dbe5f4 !important;
+  border-radius: 13px !important;
+  background: #f8fbff !important;
+  color: #172b4d !important;
+  font-size: 14px !important;
+  font-weight: 550 !important;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, .025) !important;
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease !important;
+}
+.bazar-edit-modal .bazar-edit-fields input:focus,
+.bazar-edit-modal .bazar-edit-fields select:focus {
+  outline: none !important;
+  border-color: #7897ff !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 4px rgba(79, 103, 255, .12) !important;
+}
+.bazar-edit-modal .bazar-edit-item-row {
+  padding: 14px !important;
+  border: 1px solid #e2eaf7 !important;
+  border-radius: 17px !important;
+  background: linear-gradient(135deg, #fbfdff 0%, #f5f8ff 100%) !important;
+  box-shadow: 0 3px 10px rgba(30, 64, 120, .035) !important;
+  gap: 12px !important;
+}
+.bazar-edit-modal .bazar-edit-item-row label {
+  color: #71819a !important;
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  gap: 8px !important;
+}
+.bazar-edit-modal .bazar-edit-total {
+  padding: 17px 20px !important;
+  border: 1px solid #d9e5ff !important;
+  border-radius: 17px !important;
+  background: linear-gradient(135deg, #f1f6ff 0%, #eaf1ff 100%) !important;
+  color: #2457d6 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.75) !important;
+}
+.bazar-edit-modal .bazar-edit-total span {
+  font-weight: 700 !important;
+}
+.bazar-edit-modal .bazar-edit-total strong {
+  font-size: 20px !important;
+  font-weight: 750 !important;
+  letter-spacing: -.02em;
+}
+.bazar-edit-modal .bazar-edit-actions {
+  margin-top: 18px !important;
+  padding-top: 16px !important;
+  border-top: 1px solid #e8edf5 !important;
+  background: transparent !important;
+  gap: 10px !important;
+}
+.bazar-edit-modal .bazar-edit-actions button {
+  min-height: 46px !important;
+  padding: 0 22px !important;
+  border-radius: 13px !important;
+  font-weight: 700 !important;
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease !important;
+}
+.bazar-edit-modal .bazar-edit-actions button:hover {
+  transform: translateY(-1px);
+}
+@media (max-width: 560px) {
+  .bazar-edit-modal {
+    padding: 20px !important;
+    border-radius: 20px !important;
+  }
+  .bazar-edit-modal .bazar-edit-item-row {
+    padding: 11px !important;
+  }
+  .bazar-edit-modal .bazar-edit-actions button {
+    padding: 0 14px !important;
+  }
+}
+
+/* Footer credit: bottom-center on app pages and login screen */
+.login-wrap { position: relative; min-height: 100vh; padding-bottom: 58px !important; }
+.login-footer-credit {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 28px);
+  color: #71819a;
+  font-size: 11px;
+  text-align: center;
+  letter-spacing: .01em;
+}
+.login-footer-credit strong { color: #315bdc; font-weight: 700; }
+.app-shell footer, main > footer {
+  display: flex;
+  justify-content: center !important;
+  text-align: center !important;
+  width: 100%;
+}
+.footer-credit { text-align: center !important; }
+
+
+/* Unified solid-red action buttons, matching the Logout button.
+   Scoped to Close, Cancel, Delete and remove-item actions only. */
+.bazar-edit-actions button.secondary,
+.bazar-details-modal > button.secondary.full,
+.delete-confirm-actions button.danger,
+.bazar-edit-item-row button.danger-text.icon-btn,
+button[aria-label*="Delete"],
+button[title*="Delete"],
+button[aria-label*="Remove item"] {
+  background: #dc2626 !important;
+  color: #fff !important;
+  border: 1px solid #dc2626 !important;
+  box-shadow: 0 5px 14px rgba(220, 38, 38, .18) !important;
+}
+.bazar-edit-actions button.secondary:hover,
+.bazar-details-modal > button.secondary.full:hover,
+.delete-confirm-actions button.danger:hover,
+.bazar-edit-item-row button.danger-text.icon-btn:hover:not(:disabled),
+button[aria-label*="Delete"]:hover,
+button[title*="Delete"]:hover,
+button[aria-label*="Remove item"]:hover {
+  background: #b91c1c !important;
+  color: #fff !important;
+  border-color: #b91c1c !important;
+  box-shadow: 0 7px 18px rgba(185, 28, 28, .22) !important;
+}
+
+
+/* Premium Contacts directory polish. Visual-only; contact data and actions unchanged. */
+.contacts-directory {
+  gap: 20px !important;
+}
+.contacts-directory > .panel-head {
+  margin-bottom: 2px !important;
+}
+.contact-category-card {
+  padding: 20px !important;
+  border-radius: 20px !important;
+  border-color: #dce6f4 !important;
+  background: linear-gradient(145deg, #ffffff 0%, #fbfdff 100%) !important;
+  box-shadow: 0 10px 28px rgba(27, 55, 95, .055), inset 0 1px 0 rgba(255,255,255,.9) !important;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease !important;
+}
+.contact-category-card:hover {
+  transform: translateY(-2px) !important;
+  border-color: #cbdcff !important;
+  box-shadow: 0 15px 32px rgba(27, 55, 95, .085) !important;
+}
+.contact-category-heading {
+  gap: 12px !important;
+  margin-bottom: 17px !important;
+}
+.contact-category-heading h3 {
+  font-size: 15px !important;
+  letter-spacing: -.015em !important;
+}
+.contact-category-heading small {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 5px 9px !important;
+  border-radius: 999px !important;
+  background: #f1f5fb !important;
+  color: #70819a !important;
+}
+.contact-category-icon {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(145deg, #f0efff, #e8edff) !important;
+  color: #6257e8 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.85) !important;
+}
+.contact-person-card {
+  gap: 12px !important;
+  padding: 12px !important;
+  border-radius: 14px !important;
+  margin-top: 10px !important;
+  border-color: #e1e9f4 !important;
+  background: rgba(255,255,255,.82) !important;
+  box-shadow: 0 3px 10px rgba(24,48,82,.025) !important;
+  transition: border-color .16s ease, background .16s ease, transform .16s ease, box-shadow .16s ease !important;
+}
+.contact-person-card:hover {
+  border-color: #cbdcff !important;
+  background: #fff !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 7px 18px rgba(24,48,82,.06) !important;
+}
+.contact-person-avatar {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(145deg, #f1f4f8, #e9eef5) !important;
+  color: #71829b !important;
+}
+.contact-person-info b {
+  font-size: 13.5px !important;
+  font-weight: 750 !important;
+  letter-spacing: -.01em !important;
+}
+.contact-person-info a {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  letter-spacing: .015em !important;
+}
+.contact-call-btn {
+  min-width: 42px !important;
+  min-height: 34px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 8px 12px !important;
+  border-radius: 10px !important;
+  background: linear-gradient(145deg, #f0efff, #e9edff) !important;
+  border: 1px solid #e5e7ff !important;
+  color: #5c55e8 !important;
+  font-size: 12px !important;
+  font-weight: 750 !important;
+  box-shadow: 0 2px 6px rgba(79,70,229,.045) !important;
+  transition: background .16s ease, transform .16s ease, box-shadow .16s ease !important;
+}
+.contact-call-btn:hover {
+  background: linear-gradient(145deg, #e4e7ff, #dfe6ff) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 5px 12px rgba(79,70,229,.12) !important;
+}
+:root[data-theme="dark"] .contact-category-card {
+  background: linear-gradient(145deg, #121d2e, #101a29) !important;
+  border-color: #29384d !important;
+  box-shadow: 0 12px 30px rgba(0,0,0,.16) !important;
+}
+:root[data-theme="dark"] .contact-category-card:hover {
+  border-color: #3a4d6b !important;
+}
+:root[data-theme="dark"] .contact-category-heading small {
+  background: #1b2a3d !important;
+  color: #a6bad2 !important;
+}
+:root[data-theme="dark"] .contact-category-icon {
+  background: linear-gradient(145deg, #29264d, #202b4b) !important;
+  color: #a5a0ff !important;
+}
+:root[data-theme="dark"] .contact-person-card {
+  background: #152235 !important;
+  border-color: #2a3b51 !important;
+}
+:root[data-theme="dark"] .contact-person-card:hover {
+  background: #19283d !important;
+  border-color: #405675 !important;
+}
+:root[data-theme="dark"] .contact-person-avatar {
+  background: #223248 !important;
+  color: #a5bad4 !important;
+}
+:root[data-theme="dark"] .contact-call-btn {
+  background: linear-gradient(145deg, #29264d, #202b4b) !important;
+  border-color: #37365f !important;
+  color: #b3adff !important;
+}
+:root[data-theme="dark"] .contact-call-btn:hover {
+  background: #34315e !important;
+}
+@media (max-width: 720px) {
+  .contacts-directory { grid-template-columns: minmax(0,1fr) !important; }
+  .contact-category-card { padding: 15px !important; border-radius: 16px !important; }
+  .contact-person-card { padding: 10px !important; }
+}
+
+/* Premium visual refinement layer: CSS only, no behavior changes */
+:root {
+  --premium-ease: cubic-bezier(.2,.7,.2,1);
+}
+body { text-rendering: optimizeLegibility; }
+.app-shell, .main-content, .page-content { min-width: 0; }
+.card, .panel, .section-card, .contact-category-card, .modal-content {
+  transition: box-shadow .22s var(--premium-ease), border-color .22s var(--premium-ease), transform .22s var(--premium-ease);
+}
+.card, .panel, .section-card {
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(35, 68, 112, .045);
+}
+button, .btn, input, select, textarea {
+  transition: background-color .18s var(--premium-ease), border-color .18s var(--premium-ease), box-shadow .18s var(--premium-ease), transform .18s var(--premium-ease);
+}
+button:focus-visible, .btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid rgba(91, 105, 245, .24); outline-offset: 2px;
+}
+button:not(:disabled):active, .btn:not(:disabled):active { transform: translateY(1px) scale(.99); }
+.table-wrap, .table-container { border-radius: 14px; overflow: hidden; }
+table thead th { letter-spacing: .045em; text-transform: uppercase; font-size: 11px; }
+table tbody tr { transition: background-color .16s ease; }
+:root[data-theme="dark"] .card, :root[data-theme="dark"] .panel, :root[data-theme="dark"] .section-card {
+  box-shadow: 0 12px 30px rgba(0,0,0,.14);
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
+
+/* Isolated profile-card layout fix only: keep the unified card as one surface. */
+.sidebar-account-card{
+  display:flex!important;align-items:center!important;gap:8px!important;
+  width:100%!important;min-width:0!important;box-sizing:border-box!important;
+  padding:8px!important;border:1px solid var(--border,#d9e2f0)!important;
+  border-radius:18px!important;background:var(--panel,#fff)!important;
+  box-shadow:0 8px 24px rgba(30,64,120,.07)!important;
+}
+.sidebar-account-card>.profile.profile-trigger{
+  display:flex!important;align-items:center!important;flex:1 1 auto!important;
+  min-width:0!important;width:auto!important;min-height:58px!important;
+  margin:0!important;padding:6px 8px!important;gap:9px!important;
+  border:0!important;border-radius:12px!important;background:transparent!important;
+  box-shadow:none!important;
+}
+.sidebar-account-card>.profile.profile-trigger:hover{
+  background:var(--hover,rgba(120,130,150,.10))!important;
+}
+.sidebar-account-card .profile-trigger .avatar,
+.sidebar-account-card .profile-trigger .profile-avatar-image{
+  width:44px!important;height:44px!important;flex:0 0 44px!important;
+}
+.sidebar-account-card .profile-trigger-info{flex:1 1 auto!important;min-width:0!important}
+.sidebar-account-card .profile-trigger-info b{
+  display:block!important;overflow:hidden!important;text-overflow:ellipsis!important;
+  white-space:nowrap!important;font-size:14px!important;line-height:19px!important;
+}
+.sidebar-account-card .profile-trigger-info small{
+  display:block!important;overflow:hidden!important;text-overflow:ellipsis!important;
+  white-space:nowrap!important;font-size:11px!important;line-height:15px!important;
+}
+.sidebar-account-card>.sidebar-logout-btn{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  width:40px!important;height:40px!important;min-width:40px!important;
+  flex:0 0 40px!important;margin:0!important;padding:0!important;
+  border:0!important;border-radius:12px!important;background:#e62932!important;
+  color:#fff!important;box-shadow:0 5px 12px rgba(220,38,48,.22)!important;
+}
+.sidebar-account-card>.sidebar-logout-btn:hover{
+  background:#c91f29!important;color:#fff!important;border:0!important;
+}
+:root[data-theme="dark"] .sidebar-account-card{
+  background:#151f32!important;border-color:#2b3950!important;
+}
+:root[data-theme="dark"] .sidebar-account-card>.profile.profile-trigger{color:#f3f6fc!important}
+:root[data-theme="dark"] .sidebar-account-card .profile-trigger-info b{color:#f3f6fc!important}
+:root[data-theme="dark"] .sidebar-account-card .profile-trigger-info small{color:#aab8cc!important}
+
+/* Contacts page: richer category accents, visual-only */
+.contacts-directory {
+  background: linear-gradient(135deg, rgba(238,244,255,.72), rgba(248,250,255,.92)) !important;
+  border-color: #d8e5fb !important;
+}
+.contacts-directory > .panel-head h2,
+.contacts-directory > .panel-head h3 { color: #17345f !important; }
+.contacts-directory > .panel-head p { color: #7186a8 !important; }
+.contacts-directory .contact-category-card:nth-of-type(1) { border-top: 3px solid #6578f7 !important; }
+.contacts-directory .contact-category-card:nth-of-type(2) { border-top: 3px solid #16a6a1 !important; }
+.contacts-directory .contact-category-card:nth-of-type(3) { border-top: 3px solid #e4a23b !important; }
+.contacts-directory .contact-category-card:nth-of-type(4) { border-top: 3px solid #e36c83 !important; }
+.contacts-directory .contact-category-card:nth-of-type(1) .contact-category-icon { background: linear-gradient(135deg,#e9eaff,#dfe5ff) !important; color:#5968e9 !important; }
+.contacts-directory .contact-category-card:nth-of-type(2) .contact-category-icon { background: linear-gradient(135deg,#dcf8f3,#c9f0e9) !important; color:#0b9189 !important; }
+.contacts-directory .contact-category-card:nth-of-type(3) .contact-category-icon { background: linear-gradient(135deg,#fff4dc,#ffebc4) !important; color:#bd8120 !important; }
+.contacts-directory .contact-category-card:nth-of-type(4) .contact-category-icon { background: linear-gradient(135deg,#ffedf1,#ffe0e8) !important; color:#d65370 !important; }
+.contacts-directory .contact-person-avatar { box-shadow: inset 0 0 0 1px rgba(255,255,255,.85), 0 3px 8px rgba(36,65,105,.06) !important; }
+.contacts-directory .contact-call-btn { background: linear-gradient(135deg,#eef1ff,#e5eaff) !important; color:#4e5fe0 !important; border-color:#dce3ff !important; }
+:root[data-theme="dark"] .contacts-directory { background: linear-gradient(135deg,#101b2b,#142237) !important; border-color:#293b54 !important; }
+:root[data-theme="dark"] .contacts-directory > .panel-head h2,
+:root[data-theme="dark"] .contacts-directory > .panel-head h3 { color:#e5efff !important; }
+:root[data-theme="dark"] .contacts-directory > .panel-head p { color:#9eb2cd !important; }
+:root[data-theme="dark"] .contacts-directory .contact-category-card:nth-of-type(1) .contact-category-icon { background:#292e58 !important; color:#a9afff !important; }
+:root[data-theme="dark"] .contacts-directory .contact-category-card:nth-of-type(2) .contact-category-icon { background:#183f42 !important; color:#77d8cb !important; }
+:root[data-theme="dark"] .contacts-directory .contact-category-card:nth-of-type(3) .contact-category-icon { background:#453622 !important; color:#f0c16e !important; }
+:root[data-theme="dark"] .contacts-directory .contact-category-card:nth-of-type(4) .contact-category-icon { background:#492936 !important; color:#f3a2b7 !important; }
+
+
+/* Premium page finish + reliable dark-mode contrast */
+.contacts-directory {
+  background: linear-gradient(145deg, rgba(255,255,255,.96), rgba(242,247,255,.92)) !important;
+}
+.contacts-directory .contact-category-card {
+  border: 1px solid #dce6f5 !important;
+  box-shadow: 0 10px 26px rgba(32,72,130,.055) !important;
+  transition: transform .18s ease, box-shadow .18s ease !important;
+}
+.contacts-directory .contact-category-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(32,72,130,.10) !important;
+}
+.contacts-directory .contact-card {
+  background: linear-gradient(135deg,#fff,#f9fbff) !important;
+  border-color: #e1e9f5 !important;
+}
+.contacts-directory .contact-card .call-btn {
+  background: linear-gradient(135deg,#eef0ff,#e6eaff) !important;
+  color: #4f46e5 !important;
+  border: 1px solid #dfe3ff !important;
+}
+:root[data-theme="dark"] .contacts-directory {
+  background: linear-gradient(145deg,#101827,#131f31) !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-category-card {
+  background: linear-gradient(145deg,#172337,#142033) !important;
+  border-color:#2a3b53 !important;
+  box-shadow:0 10px 26px rgba(0,0,0,.18) !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-card {
+  background:linear-gradient(145deg,#1b293d,#172437) !important;
+  border-color:#30445e !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-card strong,
+:root[data-theme="dark"] .contacts-directory .contact-card h4 { color:#edf4ff !important; }
+:root[data-theme="dark"] .contacts-directory .contact-card span,
+:root[data-theme="dark"] .contacts-directory .contact-card p { color:#a9bdd7 !important; }
+:root[data-theme="dark"] .contacts-directory .contact-card .call-btn {
+  background:linear-gradient(135deg,#292e58,#222a4a) !important;
+  color:#b8beff !important;
+  border-color:#3b4677 !important;
+}
+
+
+/* Contacts: subtle category colors only */
+.contacts-directory .contact-category-card:nth-of-type(1) {
+  background: linear-gradient(135deg, rgba(91,104,238,.075), rgba(255,255,255,.94)) !important;
+  border-top: 3px solid #7778f5 !important;
+}
+.contacts-directory .contact-category-card:nth-of-type(2) {
+  background: linear-gradient(135deg, rgba(22,164,145,.075), rgba(255,255,255,.94)) !important;
+  border-top: 3px solid #29b6a5 !important;
+}
+.contacts-directory .contact-category-card:nth-of-type(3) {
+  background: linear-gradient(135deg, rgba(224,157,50,.09), rgba(255,255,255,.94)) !important;
+  border-top: 3px solid #dfa13e !important;
+}
+.contacts-directory .contact-category-card:nth-of-type(4) {
+  background: linear-gradient(135deg, rgba(218,79,113,.075), rgba(255,255,255,.94)) !important;
+  border-top: 3px solid #dc6b87 !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-category-card:nth-of-type(1) {
+  background: linear-gradient(135deg,rgba(91,104,238,.13),#172337) !important;
+  border-top-color:#7778f5 !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-category-card:nth-of-type(2) {
+  background: linear-gradient(135deg,rgba(22,164,145,.13),#172337) !important;
+  border-top-color:#29b6a5 !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-category-card:nth-of-type(3) {
+  background: linear-gradient(135deg,rgba(224,157,50,.13),#172337) !important;
+  border-top-color:#dfa13e !important;
+}
+:root[data-theme="dark"] .contacts-directory .contact-category-card:nth-of-type(4) {
+  background: linear-gradient(135deg,rgba(218,79,113,.13),#172337) !important;
+  border-top-color:#dc6b87 !important;
+}
+
+
+/* Focused dark-mode fixes: notification controls and avatar circle */
+:root[data-theme="dark"] .notice-bell {
+  background:#17263b !important;
+  color:#dbeafe !important;
+  border-color:#344a66 !important;
+}
+:root[data-theme="dark"] .notice-bell:hover {
+  background:#223651 !important;
+  color:#ffffff !important;
+}
+:root[data-theme="dark"] .notice-badge { border-color:#142238 !important; }
+:root[data-theme="dark"] .read-all-btn {
+  background:#203a57 !important;
+  color:#dbeafe !important;
+  border:1px solid #365779 !important;
+}
+:root[data-theme="dark"] .read-all-btn:hover:not(:disabled) {
+  background:#2b4b70 !important;
+  color:#ffffff !important;
+}
+:root[data-theme="dark"] .read-all-btn:disabled {
+  background:#1a2a3e !important;
+  color:#8197b1 !important;
+  border-color:#2b3d52 !important;
+}
+/* Keep profile photos perfectly round, including flex/sidebar sizing */
+.profile-avatar-image,
+.profile .avatar,
+.profile-trigger .avatar,
+.sidebar-account-card .avatar,
+.sidebar-account-card .profile-avatar-image {
+  display:block !important;
+  width:44px;
+  height:44px;
+  min-width:44px;
+  min-height:44px;
+  aspect-ratio:1 / 1 !important;
+  flex:0 0 44px !important;
+  border-radius:50% !important;
+  overflow:hidden !important;
+  object-fit:cover !important;
+  object-position:center !important;
+}
+
+
+/* Keep logout action visually identical in dark and light themes */
+:root[data-theme="dark"] .profile-logout-btn,
+:root[data-theme="dark"] .sidebar-logout-btn,
+:root[data-theme="dark"] .logout-button,
+:root[data-theme="dark"] button[aria-label*="Logout"],
+:root[data-theme="dark"] button[title*="Logout"] {
+  background:linear-gradient(135deg,#ef4444,#dc2626) !important;
+  color:#ffffff !important;
+  border:1px solid #ef4444 !important;
+  box-shadow:0 5px 14px rgba(220,38,38,.22) !important;
+}
+:root[data-theme="dark"] .profile-logout-btn:hover,
+:root[data-theme="dark"] .sidebar-logout-btn:hover,
+:root[data-theme="dark"] .logout-button:hover,
+:root[data-theme="dark"] button[aria-label*="Logout"]:hover,
+:root[data-theme="dark"] button[title*="Logout"]:hover {
+  background:linear-gradient(135deg,#dc2626,#b91c1c) !important;
+  color:#ffffff !important;
+  border-color:#dc2626 !important;
+}
+
+
+
+/* Dark mode: keep Bazar Details modal readable without changing light mode */
+:root[data-theme="dark"] .bazar-details-modal {
+  background: #101d30 !important;
+  color: #e8eef8 !important;
+  border-color: #2b405d !important;
+}
+:root[data-theme="dark"] .bazar-details-modal h3,
+:root[data-theme="dark"] .bazar-details-modal h4,
+:root[data-theme="dark"] .bazar-details-modal .bazar-item-heading,
+:root[data-theme="dark"] .bazar-details-modal th {
+  color: #c6d7f0 !important;
+}
+:root[data-theme="dark"] .bazar-details-modal .table-wrap,
+:root[data-theme="dark"] .bazar-details-modal table,
+:root[data-theme="dark"] .bazar-details-modal td {
+  color: #e6edf7 !important;
+  border-color: #2b4058 !important;
+}
+:root[data-theme="dark"] .bazar-details-modal .total-row {
+  background: #1b3555 !important;
+  border-color: #496585 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04) !important;
+}
+:root[data-theme="dark"] .bazar-details-modal .total-row b:first-child {
+  color: #a9c8ff !important;
+}
+:root[data-theme="dark"] .bazar-details-modal .total-row b:last-child {
+  color: #f0f6ff !important;
+}
+:root[data-theme="dark"] .bazar-details-modal > button.secondary.full,
+:root[data-theme="dark"] .bazar-details-modal .bazar-details-close {
+  background: #e3262e !important;
+  border-color: #f0444b !important;
+  color: #fff !important;
+}
+:root[data-theme="dark"] .bazar-details-modal > button.secondary.full:hover,
+:root[data-theme="dark"] .bazar-details-modal .bazar-details-close:hover {
+  background: #c91f28 !important;
+  border-color: #e3262e !important;
+  color: #fff !important;
+}
+
+
+/* Step 1: Bazar edit modal dark-mode contrast only */
+:root[data-theme="dark"] .bazar-edit-modal {
+  background: #0f2035 !important;
+  color: #eaf2ff !important;
+  border-color: #294563 !important;
+  box-shadow: 0 28px 90px rgba(0,0,0,.48) !important;
+}
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-fields > label,
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-item-row label {
+  color: #9db4d0 !important;
+}
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-fields input,
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-fields select {
+  background: #132a43 !important;
+  color: #f1f6ff !important;
+  border-color: #35516f !important;
+  color-scheme: dark;
+}
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-fields input::placeholder {
+  color: #8ba4c1 !important;
+}
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-fields input:focus,
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-fields select:focus {
+  background: #18334f !important;
+  border-color: #6e9bff !important;
+  box-shadow: 0 0 0 4px rgba(91,137,255,.18) !important;
+}
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-item-row {
+  background: linear-gradient(135deg,#172d45 0%,#12263b 100%) !important;
+  border-color: #2e4965 !important;
+  box-shadow: 0 3px 12px rgba(0,0,0,.12) !important;
+}
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-fields > .secondary.full {
+  background: #18314c !important;
+  color: #a9c4ff !important;
+  border-color: #42618a !important;
+}
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-total {
+  background: linear-gradient(135deg,#19365a 0%,#1b2f4e 100%) !important;
+  border-color: #41638d !important;
+  color: #dceaff !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04) !important;
+}
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-total span {
+  color: #a9c8ff !important;
+}
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-total strong {
+  color: #f3f7ff !important;
+}
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-actions {
+  border-top-color: #2b435d !important;
+}
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-actions button:not(.primary) {
+  background: #172d45 !important;
+  color: #e4edff !important;
+  border-color: #3a5878 !important;
+}
+:root[data-theme="dark"] .bazar-edit-modal .bazar-edit-actions button:not(.primary):hover {
+  background: #203b58 !important;
+  color: #fff !important;
+}
