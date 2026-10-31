@@ -14,6 +14,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Home,
+  ChartNoAxesColumn,
+  PieChart,
   Search,
   Download,
   CheckCircle2,
@@ -67,7 +69,7 @@ function App() {
     });
   }, [session?.id]);
   const [page, setPage] = useState("overview"),
-    [month, setMonth] = useState(db.month),
+    [month, setMonth] = useState(new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })),
     [menu, setMenu] = useState(false);
   const monthChoices = (() => { const now = new Date(); return [-2,-1,0,1].map(offset => new Date(now.getFullYear(), now.getMonth()+offset, 1).toLocaleDateString("en-US", {month:"long",year:"numeric"})); })();
   const [login, setLogin] = useState({ username: "", password: "" }),
@@ -150,6 +152,9 @@ function App() {
   }
 
   const [cloudMonthId, setCloudMonthId] = useState(null);
+  const [previousDue, setPreviousDue] = useState(0);
+  const [previousDueByUser, setPreviousDueByUser] = useState({});
+  const [previousDueLoading, setPreviousDueLoading] = useState(false);
   const [cloudBusy, setCloudBusy] = useState(false);
   const [utilityMemberCount, setUtilityMemberCount] = useState(4);
   const [utilityMemberCountInput, setUtilityMemberCountInput] = useState("4");
@@ -165,6 +170,7 @@ function App() {
     }),
     [paymentForm, setPaymentForm] = useState({
       userId: "u2",
+      month: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
       amount: "",
       note: "Rent payment",
     });
@@ -198,6 +204,7 @@ function App() {
 
   const [cashForm, setCashForm] = useState({
     date: new Date().toISOString().slice(0, 10),
+    month: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
     amount: "",
     paidBy: "u1",
     note: "Cash contribution",
@@ -270,7 +277,9 @@ function App() {
   }, [session]);
   useEffect(() => {
     if (session?.id && supabaseConfigured) {
-      loadCloudData(session.id, month)
+      const currentMonth = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      setMonth(currentMonth);
+      loadCloudData(session.id, currentMonth)
         .then(async () => {
           await loadNotices(true, session.id).catch((err) =>
             console.warn("Notices are not configured yet:", err?.message),
@@ -286,6 +295,54 @@ function App() {
     }
   }, []);
   const user = db.users.find((u) => u.id === session?.id);
+  useEffect(() => {
+    if (!session?.id || !supabaseConfigured || !user) return;
+    let cancelled = false;
+    const monthIndex = (value) => { const d = new Date(`${value} 1`); return Number.isNaN(d.getTime()) ? -1 : d.getFullYear() * 12 + d.getMonth(); };
+    async function calculatePreviousDueForMembers() {
+      setPreviousDueLoading(true);
+      try {
+        const { data: monthsRows, error: monthsError } = await supabase.from("months").select("id,label");
+        if (monthsError) throw monthsError;
+        const currentIndex = monthIndex(month);
+        const septemberBaseline = monthIndex("September 2026");
+        const pastMonths = (monthsRows || []).filter((m) => monthIndex(m.label) > septemberBaseline && monthIndex(m.label) < currentIndex);
+        const balances = Object.fromEntries((db.users || []).map((member) => [member.id, 0]));
+        for (const past of pastMonths) {
+          const [cat, pay, baz, cash, meal, utilityList] = await Promise.all([
+            supabase.from("expense_categories").select("name,amount,shared").eq("month_id", past.id),
+            supabase.from("rent_payments").select("user_id,amount,note").eq("month_id", past.id),
+            supabase.from("bazar_entries").select("amount,paid_by,paid_from_cash").eq("month_id", past.id),
+            supabase.from("cash_contributions").select("amount,paid_by").eq("month_id", past.id),
+            supabase.from("app_settings").select("value").eq("key", `meal_active_members_${past.label}`).maybeSingle(),
+            supabase.from("app_settings").select("value").eq("key", `shared_utilities_list_${past.label}`).maybeSingle(),
+          ]);
+          for (const result of [cat,pay,baz,cash,meal,utilityList]) if (result.error) throw result.error;
+          let mealIds=[]; try { mealIds=JSON.parse(meal.data?.value || "[]"); } catch {}
+          let utilityItems=null; try { utilityItems=JSON.parse(utilityList.data?.value || "null"); } catch {}
+          const categories=cat.data || [];
+          const utilities=Array.isArray(utilityItems) ? utilityItems : categories.filter(c=>String(c.name||"").toLowerCase()!=="bazar").map(c=>({name:c.name,amount:c.amount,shared:c.shared}));
+          const sharedTotal=utilities.filter(c=>c.shared).reduce((sum,c)=>sum+Number(c.amount||0),0);
+          const utilityShare=sharedTotal / Math.max(1, Number(utilityMemberCount||4));
+          const bazarTotal=(baz.data||[]).reduce((sum,b)=>sum+Number(b.amount||0),0);
+          for (const member of (db.users || [])) {
+            const mealCost=Array.isArray(mealIds)&&mealIds.includes(member.id) ? Math.ceil(bazarTotal/Math.max(1,mealIds.length)) : 0;
+            const payments=(pay.data||[]).filter(x=>x.user_id===member.id).reduce((sum,x)=>sum+Number(x.amount||0),0);
+            const mealCredits=(baz.data||[]).filter(b=>!b.paid_from_cash&&b.paid_by===member.id).reduce((sum,b)=>sum+Number(b.amount||0),0);
+            const cashCredits=(cash.data||[]).filter(c=>c.paid_by===member.id).reduce((sum,c)=>sum+Number(c.amount||0),0);
+            balances[member.id] += Number(member.rent||0) + utilityShare + mealCost - payments - mealCredits - cashCredits;
+          }
+        }
+        const rounded = Object.fromEntries(Object.entries(balances).map(([id, amount]) => [id, Math.ceil(amount)]));
+        if (!cancelled) { setPreviousDueByUser(rounded); setPreviousDue(rounded[user.id] || 0); }
+      } catch (error) {
+        console.warn("Could not calculate previous due:", error?.message);
+        if (!cancelled) { setPreviousDueByUser({}); setPreviousDue(0); }
+      } finally { if (!cancelled) setPreviousDueLoading(false); }
+    }
+    calculatePreviousDueForMembers();
+    return () => { cancelled = true; };
+  }, [session?.id, user?.id, user?.rent, month, utilityMemberCount, db.users]);
   // On refresh, the member profile arrives asynchronously from Supabase. Route members back to My Account once their role is loaded.
   useEffect(() => {
     if (session?.id && user?.role === "member" && page === "overview")
@@ -387,7 +444,7 @@ function App() {
       .reduce((s, p) => s + Number(p.amount || 0), 0) +
     memberCredits(uid);
   const memberRentShare = (u) =>
-    Number(u.rent || 0) + (selected.includes(u.id) ? utilitiesPerMember : 0);
+    Number(u.rent || 0) + utilitiesPerMember;
   // Meal charges apply only to members explicitly active in the meal roster.
   // Being selected for the rent/overview table does not make a member a meal member.
   const memberMealShare = (u) =>
@@ -565,6 +622,25 @@ function App() {
         .payments-cash-grid table { min-width: 560px; }
         @media (max-width: 900px) { .payments-cash-grid { grid-template-columns: 1fr; } }
 
+/* Bazar history readability polish only */
+.bazar-history-panel .table-wrap table tbody td:nth-child(2) {
+  font-size: 16px;
+  line-height: 1.75;
+  font-weight: 500;
+  color: var(--text, #172b4d);
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+.bazar-history-panel .table-wrap table thead th {
+  font-size: 12px;
+  letter-spacing: .035em;
+}
+@media (max-width: 700px) {
+  .bazar-history-panel .table-wrap table tbody td:nth-child(2) {
+    font-size: 15px;
+    line-height: 1.65;
+  }
+}
 .bazar-layout-full{width:100%;}
 .bazar-history-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}
 .bazar-history-head .primary{white-space:nowrap;}
@@ -971,7 +1047,8 @@ function App() {
     e.preventDefault();
     if (!admin || Number(paymentForm.amount) <= 0) return;
     try {
-      const mid = await monthIdFor();
+      const selectedMonth = paymentForm.month || month;
+      const mid = await monthIdFor(selectedMonth);
       const { error } = await supabase
         .from("rent_payments")
         .insert({
@@ -1157,7 +1234,8 @@ function App() {
     e.preventDefault();
     if (!admin || Number(cashForm.amount) <= 0) return;
     try {
-      const mid = await monthIdFor();
+      const selectedMonth = cashForm.month || month;
+      const mid = await monthIdFor(selectedMonth);
       const { error } = await supabase
         .from("cash_contributions")
         .insert({
@@ -1548,7 +1626,19 @@ function App() {
   if (!session || !user)
     return (
       <div className="login-wrap">
-        <form
+        <div className="login-shell">
+          <aside className="login-brand-panel">
+            <div className="login-brand-name"><Home size={27} /> <strong>Monthly Hisab</strong></div>
+            <h2>Manage Your<br />Shared Home Expenses</h2>
+            <p>Track rent, meals, utilities and<br />member balances, all in one place.</p>
+            <ul>
+              <li><Users size={20} />Manage members</li>
+              <li><ChartNoAxesColumn size={20} />Track expenses</li>
+              <li><PieChart size={20} />See balances</li>
+            </ul>
+            <img className="login-cottage" src="/login-cottage.png" alt="" />
+          </aside>
+          <form
           className="login-card"
           onSubmit={resetMode ? requestPasswordReset : signIn}
         >
@@ -1612,6 +1702,7 @@ function App() {
             {resetMode ? "Back to login" : "Forgot password?"}
           </button>
         </form>
+        </div>
         <div className="login-footer-credit">Designed &amp; developed by <strong>Rahat</strong> · Monthly Hisab</div>
       </div>
     );
@@ -1923,6 +2014,7 @@ function App() {
                         <th>Individual meal</th>
                         <th>Rent paid</th>
                         <th>Meal paid</th>
+                        <th>Previous Due</th>
                         <th>Due</th>
                       </tr>
                     </thead>
@@ -1941,7 +2033,8 @@ function App() {
                           <td>{money(memberMealShare(x.u))}</td>
                           <td className="green-text">{money(memberRentPaid(x.u.id))}</td>
                           <td className="green-text">{money(memberMealPaid(x.u.id))}</td>
-                          <td className="due">{money(memberDue(x.u))}</td>
+                          <td>{previousDueLoading ? "Loading…" : money(previousDueByUser[x.u.id] || 0)}</td>
+                          <td className="due">{money(memberDue(x.u) + (previousDueByUser[x.u.id] || 0))}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2018,10 +2111,18 @@ function App() {
                 hint="Bazar and meal credits"
               />
               <Stat
-                title="Due"
-                value={money(ownDue)}
+                title="Previous Due"
+                value={previousDueLoading ? "Loading…" : money(previousDue)}
                 icon={Wallet}
                 tone="orange"
+                hint="Unpaid balance from past months"
+              />
+              <Stat
+                title="Due"
+                value={money(ownDue + previousDue)}
+                icon={Wallet}
+                tone="orange"
+                hint={`${money(previousDue)} + ${money(ownDue)}`}
               />
             </div>
             <section className="panel">
@@ -2419,6 +2520,12 @@ function App() {
                   </select>
                 </label>
                 <label>
+                  Month
+                  <select value={paymentForm.month} onChange={async (e) => { const v = e.target.value; setPaymentForm({ ...paymentForm, month: v }); if (session?.id) await loadCloudData(session.id, v); }}>
+                    {monthChoices.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </label>
+                <label>
                   Amount (৳)
                   <input
                     type="number"
@@ -2608,6 +2715,12 @@ function App() {
                     }
                     required
                   />
+                </label>
+                <label>
+                  Month
+                  <select value={cashForm.month} onChange={async (e) => { const v = e.target.value; setCashForm({ ...cashForm, month: v }); if (session?.id) await loadCloudData(session.id, v); }}>
+                    {monthChoices.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
                 </label>
                 <label>
                   Amount (৳)
