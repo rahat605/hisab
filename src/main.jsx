@@ -2112,17 +2112,17 @@ function App() {
               />
               <Stat
                 title="Previous Due"
-                value={previousDueLoading ? "Loading…" : money(previousDue)}
+                value={previousDueLoading ? "Loading…" : money(previousDueByUser[user.id] ?? previousDue)}
                 icon={Wallet}
                 tone="orange"
                 hint="Unpaid balance from past months"
               />
               <Stat
                 title="Due"
-                value={money(ownDue + previousDue)}
+                value={money(ownDue + (previousDueByUser[user.id] ?? previousDue))}
                 icon={Wallet}
                 tone="orange"
-                hint={`${money(previousDue)} + ${money(ownDue)}`}
+                hint={`${money(previousDueByUser[user.id] ?? previousDue)} + ${money(ownDue)}`}
               />
             </div>
             <section className="panel">
