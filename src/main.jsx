@@ -69,6 +69,7 @@ function App() {
   const [page, setPage] = useState("overview"),
     [month, setMonth] = useState(db.month),
     [menu, setMenu] = useState(false);
+  const monthChoices = (() => { const now = new Date(); return [-2,-1,0,1].map(offset => new Date(now.getFullYear(), now.getMonth()+offset, 1).toLocaleDateString("en-US", {month:"long",year:"numeric"})); })();
   const [login, setLogin] = useState({ username: "", password: "" }),
     [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -154,6 +155,8 @@ function App() {
   const [utilityMemberCountInput, setUtilityMemberCountInput] = useState("4");
   const [utilityMemberCountSaving, setUtilityMemberCountSaving] = useState(false);
   const [utilityMemberCountMessage, setUtilityMemberCountMessage] = useState("");
+  const [editingUtilityName, setEditingUtilityName] = useState("");
+  const [utilityEditModal, setUtilityEditModal] = useState(null);
   const [expenseForm, setExpenseForm] = useState({
       name: "",
       amount: "",
@@ -641,8 +644,11 @@ function App() {
       const { data: sharedUtilitySetting, error: sharedUtilityError } = await supabase
         .from("app_settings").select("value").eq("key", "shared_utilities_list").maybeSingle();
       if (sharedUtilityError) throw sharedUtilityError;
+      const { data: monthUtilitySetting, error: monthUtilityError } = await supabase
+        .from("app_settings").select("value").eq("key", `shared_utilities_list_${label}`).maybeSingle();
+      if (monthUtilityError) throw monthUtilityError;
       let sharedUtilities = null;
-      try { sharedUtilities = JSON.parse(sharedUtilitySetting?.value || "null"); } catch { sharedUtilities = null; }
+      try { sharedUtilities = JSON.parse(monthUtilitySetting?.value || sharedUtilitySetting?.value || "null"); } catch { sharedUtilities = null; }
       if (!Array.isArray(sharedUtilities)) {
         sharedUtilities = (catsRes.data || [])
           .filter((c) => String(c.name || "").toLowerCase() !== "bazar")
@@ -887,30 +893,60 @@ function App() {
     finally { setUtilityMemberCountSaving(false); }
   }
 
+  useEffect(() => {
+    setEditingUtilityName("");
+    setUtilityEditModal(null);
+    setExpenseForm({ name: "", amount: "", shared: true });
+  }, [month]);
+
+  async function getUtilitiesForMonth() {
+    const { data: monthSetting, error: monthError } = await supabase.from("app_settings").select("value").eq("key", `shared_utilities_list_${month}`).maybeSingle();
+    if (monthError) throw monthError;
+    if (monthSetting?.value) {
+      try { const parsed = JSON.parse(monthSetting.value); if (Array.isArray(parsed)) return parsed; } catch {}
+    }
+    const { data: baseSetting, error: baseError } = await supabase.from("app_settings").select("value").eq("key", "shared_utilities_list").maybeSingle();
+    if (baseError) throw baseError;
+    try { const parsed = JSON.parse(baseSetting?.value || "[]"); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+  }
+
   async function addCategory(e) {
     e.preventDefault();
     if (!admin || !expenseForm.name || Number(expenseForm.amount) < 0) return;
     try {
-      const { data: utilitySetting, error: utilitySettingError } = await supabase
-        .from("app_settings").select("value").eq("key", "shared_utilities_list").maybeSingle();
-      if (utilitySettingError) throw utilitySettingError;
-      let utilities = [];
-      try { utilities = JSON.parse(utilitySetting?.value || "[]"); } catch { utilities = []; }
-      if (!Array.isArray(utilities)) utilities = [];
+      const utilities = [...(await getUtilitiesForMonth())];
       const utility = { name: expenseForm.name.trim(), amount: Number(expenseForm.amount), shared: !!expenseForm.shared };
-      const existingIndex = utilities.findIndex((item) => String(item.name || "").toLowerCase() === utility.name.toLowerCase());
+      const existingIndex = utilities.findIndex((item) => String(item.name || "").toLowerCase() === String(utility.name).toLowerCase());
       if (existingIndex >= 0) utilities[existingIndex] = utility; else utilities.push(utility);
       const { error } = await supabase.from("app_settings").upsert(
-        { key: "shared_utilities_list", value: JSON.stringify(utilities), updated_at: new Date().toISOString() },
+        { key: `shared_utilities_list_${month}`, value: JSON.stringify(utilities), updated_at: new Date().toISOString() },
         { onConflict: "key" },
       );
       if (error) throw error;
       await loadCloudData(user.id, month);
       setExpenseForm({ name: "", amount: "", shared: true });
+      setEditingUtilityName("");
     } catch (e) {
       alert("Could not save expense: " + e.message);
     }
   }
+  async function saveUtilityEdit() {
+    if (!admin || !utilityEditModal?.name || Number(utilityEditModal.amount) < 0) return;
+    try {
+      const utilities = [...(await getUtilitiesForMonth())].map((item) => ({ ...item }));
+      const index = utilities.findIndex((item) => String(item.name || "").toLowerCase() === String(utilityEditModal.originalName || utilityEditModal.name).toLowerCase());
+      if (index < 0) throw new Error("Utility was not found in this month.");
+      utilities[index] = { ...utilities[index], name: utilityEditModal.name.trim(), amount: Number(utilityEditModal.amount), shared: !!utilityEditModal.shared };
+      const { error } = await supabase.from("app_settings").upsert(
+        { key: `shared_utilities_list_${month}`, value: JSON.stringify(utilities), updated_at: new Date().toISOString() },
+        { onConflict: "key" },
+      );
+      if (error) throw error;
+      setUtilityEditModal(null);
+      await loadCloudData(user.id, month);
+    } catch (e) { alert("Could not save utility: " + e.message); }
+  }
+
   async function addPayment(e) {
     e.preventDefault();
     if (!admin || Number(paymentForm.amount) <= 0) return;
@@ -1779,14 +1815,7 @@ function App() {
                 if (session?.id) await loadCloudData(session.id, v);
               }}
             >
-              {[
-                "June 2026",
-                "July 2026",
-                "August 2026",
-                "September 2026",
-                "October 2026",
-                "November 2026",
-              ].map((m) => (
+              {monthChoices.map((m) => (
                 <option key={m}>{m}</option>
               ))}
             </select>
@@ -2331,7 +2360,7 @@ function App() {
                   Split among current members
                 </label>
                 <button className="primary full">
-                  <Plus size={16} /> Add utility
+                  {editingUtilityName ? "Save changes" : <><Plus size={16} /> Add utility</>}
                 </button>
               </form>
               <div className="utility-member-settings">
@@ -2358,19 +2387,15 @@ function App() {
                     <small>{c.shared ? "Shared equally" : "Not shared"}</small>
                   </span>
                   <b>{money(c.amount)}</b>
+                  <button className="icon-btn secondary" type="button" aria-label={`Edit ${c.name}`} onClick={() => setUtilityEditModal({ originalName: c.name, name: c.name, amount: String(c.amount), shared: !!c.shared })}><Edit size={15} /></button>
                   <button
                     className="icon-btn danger"
                     onClick={async () => {
                       if (!admin) return;
                       try {
-                        const { data: utilitySetting, error: utilitySettingError } = await supabase
-                          .from("app_settings").select("value").eq("key", "shared_utilities_list").maybeSingle();
-                        if (utilitySettingError) throw utilitySettingError;
-                        let utilities = [];
-                        try { utilities = JSON.parse(utilitySetting?.value || "[]"); } catch { utilities = []; }
-                        utilities = (Array.isArray(utilities) ? utilities : []).filter((item) => String(item.name || "").toLowerCase() !== String(c.name || "").toLowerCase());
+                        const utilities = [...(await getUtilitiesForMonth())].filter((item) => String(item.name || "").toLowerCase() !== String(c.name || "").toLowerCase()).map((item) => ({ ...item }));
                         const { error } = await supabase.from("app_settings").upsert(
-                          { key: "shared_utilities_list", value: JSON.stringify(utilities), updated_at: new Date().toISOString() },
+                          { key: `shared_utilities_list_${month}`, value: JSON.stringify(utilities), updated_at: new Date().toISOString() },
                           { onConflict: "key" },
                         );
                         if (error) throw error;
@@ -2495,14 +2520,7 @@ function App() {
                     if (session?.id) await loadCloudData(session.id, v);
                   }}
                 >
-                  {[
-                    "June 2026",
-                    "July 2026",
-                    "August 2026",
-                    "September 2026",
-                    "October 2026",
-                    "November 2026",
-                  ].map((m) => (
+                  {monthChoices.map((m) => (
                     <option>{m}</option>
                   ))}
                 </select>
@@ -2879,7 +2897,7 @@ function App() {
               </section>
             </div>
             {bazarEditEntry && (
-              <div className="modal-backdrop" role="presentation" onClick={() => setBazarEditEntry(null)}>
+              <div className="modal-backdrop" role="presentation">
                 <section className="modal panel bazar-edit-modal" role="dialog" aria-modal="true" aria-labelledby="bazar-edit-title" onClick={(e) => e.stopPropagation()}>
                   <PanelHead title="Edit bazar entry" sub="Update date, items and prices" />
                   <div className="bazar-edit-fields">
@@ -3337,6 +3355,23 @@ function App() {
             <span>{bazarSuccessToast}</span>
           </div>
         )}
+            {utilityEditModal && (
+              <div className="modal-backdrop" role="presentation">
+                <section className="modal panel bazar-edit-modal" role="dialog" aria-modal="true" aria-labelledby="utility-edit-title" onClick={(e) => e.stopPropagation()}>
+                  <PanelHead title="Edit utility" sub="Update utility name, amount and sharing" />
+                  <div className="bazar-edit-fields">
+                    <label>Utility name<input value={utilityEditModal.name} onChange={(e) => setUtilityEditModal(old => ({...old, name:e.target.value}))} /></label>
+                    <label>Amount (৳)<input type="number" min="0" value={utilityEditModal.amount} onChange={(e) => setUtilityEditModal(old => ({...old, amount:e.target.value}))} /></label>
+                    <label className="check"><input type="checkbox" checked={utilityEditModal.shared} onChange={(e) => setUtilityEditModal(old => ({...old, shared:e.target.checked}))} /> Split among current members</label>
+                  </div>
+                  <div className="bazar-edit-actions">
+                    <button type="button" className="secondary" onClick={() => setUtilityEditModal(null)}>Cancel</button>
+                    <button type="button" className="primary" onClick={saveUtilityEdit}>Save changes</button>
+                  </div>
+                </section>
+              </div>
+            )}
+
         <footer>
           <span className="footer-credit">
             Designed &amp; developed by <strong>Rahat</strong> · Monthly Hisab

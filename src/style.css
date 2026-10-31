@@ -2725,3 +2725,21 @@ table tbody tr { transition: background-color .16s ease; }
 .pay-rent-page .copy-payment{border:1px solid #d9e3ff;border-radius:10px;background:#f2f6ff;color:#3559d8;font-weight:700;padding:9px 13px;transition:background .18s ease,border-color .18s ease}
 .pay-rent-page .copy-payment:hover{background:#e5edff;border-color:#b8cbff}
 @media(max-width:760px){.pay-rent-page{padding:16px;border-radius:16px}.pay-rent-page .payment-method-card{padding:13px;gap:10px}.pay-rent-page .payment-method-info>strong{font-size:14px}.pay-rent-page .copy-payment{padding:8px 10px}}
+
+/* Utility edit sharing checkbox: keep the tick small and aligned */
+.bazar-edit-modal .bazar-edit-fields > label.check {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+.bazar-edit-modal .bazar-edit-fields > label.check input[type="checkbox"] {
+  width: 18px !important;
+  min-width: 18px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  flex: 0 0 18px !important;
+  accent-color: #4b61e8;
+}
