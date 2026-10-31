@@ -3395,3 +3395,330 @@ table tbody tr { transition: background-color .16s ease; }
     pointer-events: none;
   }
 }
+
+/* Phone login vertical fit only */
+@media(max-width:760px) {
+  .login-shell .login-card {
+    min-height: 100svh !important;
+    padding: 24px 24px 168px !important;
+    gap: 8px !important;
+  }
+  .login-shell .login-card .brand-mark {
+    width: 58px !important;
+    height: 58px !important;
+    margin-bottom: 4px !important;
+  }
+  .login-shell .login-card h1 {
+    font-size: 23px !important;
+    line-height: 1.2 !important;
+  }
+  .login-shell .login-card p {
+    margin-bottom: 12px !important;
+  }
+  .login-shell .login-card label {
+    margin-top: 5px !important;
+  }
+  .login-shell .login-card input {
+    min-height: 48px !important;
+  }
+  .login-shell .login-card .primary {
+    min-height: 50px !important;
+    margin-top: 5px !important;
+  }
+  .login-shell .login-card:after {
+    height: 175px !important;
+    background-size: 96% auto !important;
+  }
+}
+
+/* Current mobile viewport fit: compact login stack and keep cottage visible */
+@media (max-width: 760px) {
+  .login-wrap {
+    min-height: 100svh !important;
+    height: 100svh !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+  }
+  .login-shell {
+    min-height: 100svh !important;
+    height: 100svh !important;
+    padding: 0 !important;
+    align-items: stretch !important;
+  }
+  .login-shell .login-card {
+    box-sizing: border-box !important;
+    height: 100svh !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    padding: 18px 22px 145px !important;
+    gap: 5px !important;
+  }
+  .login-shell .login-card .brand-mark {
+    width: 56px !important;
+    height: 56px !important;
+    margin: 0 auto 3px !important;
+  }
+  .login-shell .login-card h1 {
+    font-size: 22px !important;
+    line-height: 1.15 !important;
+    margin: 3px 0 0 !important;
+  }
+  .login-shell .login-card p {
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+    margin: 4px 0 10px !important;
+  }
+  .login-shell .login-card label {
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+    margin: 4px 0 2px !important;
+  }
+  .login-shell .login-card input {
+    min-height: 44px !important;
+    height: 44px !important;
+    padding: 0 14px !important;
+  }
+  .login-shell .login-card .primary {
+    min-height: 48px !important;
+    height: 48px !important;
+    margin-top: 8px !important;
+  }
+  .login-shell .login-card .login-link {
+    font-size: 13px !important;
+    margin-top: 8px !important;
+  }
+  .login-shell .login-card:after {
+    height: 132px !important;
+    bottom: 0 !important;
+    background-size: auto 132px !important;
+    background-position: center bottom !important;
+  }
+}
+
+/* Login dark-mode support for desktop and phone, plus mobile cottage placement */
+@media (prefers-color-scheme: dark) {
+  .login-wrap {
+    background-color: #101323 !important;
+    color: #eef0ff !important;
+  }
+  .login-shell .login-card,
+  .login-shell .login-form-panel,
+  .login-shell .login-panel {
+    background-color: #171a2b !important;
+    color: #eef0ff !important;
+    border-color: rgba(166,174,220,.20) !important;
+  }
+  .login-shell .login-card h1,
+  .login-shell .login-card label,
+  .login-shell .login-card .brand-title {
+    color: #f4f5ff !important;
+  }
+  .login-shell .login-card p,
+  .login-shell .login-card .subtitle {
+    color: #b9c0dc !important;
+  }
+  .login-shell .login-card input {
+    background: #20243a !important;
+    color: #f4f5ff !important;
+    border-color: #3a4261 !important;
+  }
+  .login-shell .login-card input::placeholder {
+    color: #929bb9 !important;
+  }
+  .login-shell .login-card .login-link,
+  .login-shell .login-card a {
+    color: #b8a7ff !important;
+  }
+}
+@media(max-width:760px) {
+  .login-shell .login-card:after {
+    height: 165px !important;
+    bottom: 0 !important;
+    background-size: auto 165px !important;
+    background-position: center bottom !important;
+  }
+  .login-shell .login-card {
+    padding-bottom: 172px !important;
+  }
+}
+
+
+/* Login dark theme: support the app's saved theme class as well as OS preference */
+.dark .login-wrap,
+[data-theme="dark"] .login-wrap,
+.theme-dark .login-wrap {
+  background: radial-gradient(ellipse at top, #172b45 0%, #071426 72%) !important;
+  color: #f4f6ff !important;
+}
+.dark .login-shell .login-card,
+.dark .login-shell .login-form-panel,
+.dark .login-shell .login-panel,
+[data-theme="dark"] .login-shell .login-card,
+[data-theme="dark"] .login-shell .login-form-panel,
+[data-theme="dark"] .login-shell .login-panel,
+.theme-dark .login-shell .login-card,
+.theme-dark .login-shell .login-form-panel,
+.theme-dark .login-shell .login-panel {
+  background: #10243a !important;
+  color: #f4f6ff !important;
+  border-color: #344b68 !important;
+}
+.dark .login-shell .login-card h1,
+.dark .login-shell .login-card label,
+.dark .login-shell .login-card .brand-title,
+[data-theme="dark"] .login-shell .login-card h1,
+[data-theme="dark"] .login-shell .login-card label,
+[data-theme="dark"] .login-shell .login-card .brand-title,
+.theme-dark .login-shell .login-card h1,
+.theme-dark .login-shell .login-card label,
+.theme-dark .login-shell .login-card .brand-title {
+  color: #f7f8ff !important;
+}
+.dark .login-shell .login-card p,
+.dark .login-shell .login-card .subtitle,
+[data-theme="dark"] .login-shell .login-card p,
+[data-theme="dark"] .login-shell .login-card .subtitle,
+.theme-dark .login-shell .login-card p,
+.theme-dark .login-shell .login-card .subtitle {
+  color: #c0cce0 !important;
+}
+.dark .login-shell .login-card input,
+[data-theme="dark"] .login-shell .login-card input,
+.theme-dark .login-shell .login-card input {
+  background: #091a2c !important;
+  color: #f7f8ff !important;
+  border-color: #38516e !important;
+}
+.dark .login-shell .login-card input::placeholder,
+[data-theme="dark"] .login-shell .login-card input::placeholder,
+.theme-dark .login-shell .login-card input::placeholder {
+  color: #9aacc4 !important;
+}
+.dark .login-shell .login-card .login-link,
+.dark .login-shell .login-card a,
+[data-theme="dark"] .login-shell .login-card .login-link,
+[data-theme="dark"] .login-shell .login-card a,
+.theme-dark .login-shell .login-card .login-link,
+.theme-dark .login-shell .login-card a {
+  color: #c1b2ff !important;
+}
+@media (max-width:760px) {
+  .login-shell .login-card:after {
+    height: 190px !important;
+    background-size: auto 190px !important;
+  }
+  .login-shell .login-card { padding-bottom: 198px !important; }
+}
+
+
+/* Final login dark-mode contrast fix. Scoped only to the login screen. */
+.dark .login-shell .login-info,
+.dark .login-shell .login-hero,
+.dark .login-shell .login-brand-panel,
+.dark .login-shell .login-left,
+[data-theme="dark"] .login-shell .login-info,
+[data-theme="dark"] .login-shell .login-hero,
+[data-theme="dark"] .login-shell .login-brand-panel,
+[data-theme="dark"] .login-shell .login-left,
+.theme-dark .login-shell .login-info,
+.theme-dark .login-shell .login-hero,
+.theme-dark .login-shell .login-brand-panel,
+.theme-dark .login-shell .login-left {
+  background: linear-gradient(145deg, #172b46 0%, #101f35 55%, #0b182a 100%) !important;
+  color: #f5f7ff !important;
+  opacity: 1 !important;
+}
+.dark .login-shell .login-info *,
+.dark .login-shell .login-hero *,
+.dark .login-shell .login-brand-panel *,
+.dark .login-shell .login-left *,
+[data-theme="dark"] .login-shell .login-info *,
+[data-theme="dark"] .login-shell .login-hero *,
+[data-theme="dark"] .login-shell .login-brand-panel *,
+[data-theme="dark"] .login-shell .login-left *,
+.theme-dark .login-shell .login-info *,
+.theme-dark .login-shell .login-hero *,
+.theme-dark .login-shell .login-brand-panel *,
+.theme-dark .login-shell .login-left * {
+  color: #f2f5ff !important;
+  opacity: 1 !important;
+}
+.dark .login-shell .login-info h1,
+.dark .login-shell .login-info h2,
+.dark .login-shell .login-info p,
+.dark .login-shell .login-info li,
+[data-theme="dark"] .login-shell .login-info h1,
+[data-theme="dark"] .login-shell .login-info h2,
+[data-theme="dark"] .login-shell .login-info p,
+[data-theme="dark"] .login-shell .login-info li,
+.theme-dark .login-shell .login-info h1,
+.theme-dark .login-shell .login-info h2,
+.theme-dark .login-shell .login-info p,
+.theme-dark .login-shell .login-info li {
+  color: #e3eaff !important;
+  text-shadow: none !important;
+}
+.dark .login-shell .login-info::before,
+.dark .login-shell .login-info::after,
+[data-theme="dark"] .login-shell .login-info::before,
+[data-theme="dark"] .login-shell .login-info::after,
+.theme-dark .login-shell .login-info::before,
+.theme-dark .login-shell .login-info::after {
+  opacity: .22 !important;
+}
+
+
+/* Login-only: improve small feature icons and mobile cottage placement */
+.login-brand-panel li svg {
+  color: #6045e8 !important;
+  background: #ebe7ff !important;
+  opacity: 1 !important;
+  stroke: currentColor !important;
+}
+.login-brand-name svg {
+  color: #6045e8 !important;
+  opacity: 1 !important;
+}
+.login-shell .login-card .brand-mark svg {
+  color: #6246e8 !important;
+  opacity: 1 !important;
+}
+@media (prefers-color-scheme: dark) {
+  .login-brand-panel li svg {
+    color: #c5b8ff !important;
+    background: #29365f !important;
+    opacity: 1 !important;
+  }
+  .login-brand-name svg {
+    color: #c5b8ff !important;
+    opacity: 1 !important;
+  }
+  .login-shell .login-card .brand-mark {
+    background: #29365f !important;
+    color: #d9d0ff !important;
+  }
+  .login-shell .login-card .brand-mark svg {
+    color: #d9d0ff !important;
+    opacity: 1 !important;
+  }
+}
+@media (max-width: 760px) {
+  .login-shell .login-card {
+    padding-bottom: 205px !important;
+  }
+  .login-shell .login-card:after {
+    height: 205px !important;
+    bottom: 0 !important;
+    background-size: auto 205px !important;
+    background-position: center bottom !important;
+    opacity: 1 !important;
+    mix-blend-mode: normal !important;
+  }
+}
+
+/* Login mobile: bring cottage closer to Forgot password */
+@media (max-width: 760px) {
+  .login-shell .login-card:after {
+    bottom: 58px !important;
+  }
+}
