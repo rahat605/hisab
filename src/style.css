@@ -2447,3 +2447,281 @@ table tbody tr { transition: background-color .16s ease; }
   background: #203b58 !important;
   color: #fff !important;
 }
+
+.utility-member-settings{margin-top:22px;padding:18px 20px;border:1px solid var(--line, #dbe5f5);border-radius:16px;background:linear-gradient(135deg,rgba(245,248,255,.95),rgba(250,252,255,.88));box-shadow:0 8px 22px rgba(32,68,130,.05)}
+.utility-member-heading{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.utility-member-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#e9efff;color:#5264f5}
+.utility-member-heading strong{display:block;font-size:14px;font-weight:700;color:var(--text, #15233b)}
+.utility-member-heading small{display:block;margin-top:4px;color:var(--muted, #71819b);font-size:12px}
+.utility-member-form{display:grid;grid-template-columns:minmax(0,1fr) 112px;align-items:end;gap:12px}
+.utility-member-form label{margin:0}
+.utility-member-form button{height:42px;border-radius:11px}
+.utility-member-form small{grid-column:1/-1}
+@media(max-width:600px){.utility-member-form{grid-template-columns:1fr}.utility-member-form button{width:100%}}
+
+/* Premium polish for the Payments & Cash page only */
+.payments-cash-grid {
+  gap: 24px !important;
+  align-items: stretch;
+}
+.payments-cash-grid > .panel {
+  position: relative;
+  overflow: hidden;
+  padding: 26px !important;
+  border-radius: 22px !important;
+  border: 1px solid rgba(125, 160, 220, .25) !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.98), rgba(248,251,255,.94)) !important;
+  box-shadow: 0 14px 36px rgba(35, 74, 135, .075), inset 0 1px 0 rgba(255,255,255,.9) !important;
+}
+.payments-cash-grid > .panel::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #5368f5, #7a8cff 55%, #9bb7ff);
+  opacity: .9;
+}
+.payments-cash-grid .panel-head {
+  margin-bottom: 22px !important;
+}
+.payments-cash-grid .panel-head h2,
+.payments-cash-grid .panel-head h3 {
+  font-size: 17px !important;
+  letter-spacing: -.25px;
+  font-weight: 750 !important;
+}
+.payments-cash-grid .panel-head p,
+.payments-cash-grid .panel-head small {
+  margin-top: 6px;
+  line-height: 1.55;
+}
+.payments-cash-grid .form-panel form {
+  gap: 17px !important;
+}
+.payments-cash-grid .form-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--muted, #6c7d98);
+  font-size: 12px;
+  font-weight: 650;
+}
+.payments-cash-grid .form-panel input,
+.payments-cash-grid .form-panel select,
+.payments-cash-grid .form-panel textarea {
+  min-height: 46px;
+  border-radius: 12px !important;
+  border: 1px solid #d7e3f5 !important;
+  background: #f8fbff !important;
+  padding: 11px 14px !important;
+  color: #14233b;
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+.payments-cash-grid .form-panel input:focus,
+.payments-cash-grid .form-panel select:focus,
+.payments-cash-grid .form-panel textarea:focus {
+  outline: none;
+  border-color: #7185ff !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 4px rgba(83,104,245,.12) !important;
+}
+.payments-cash-grid .primary.full {
+  min-height: 48px !important;
+  border-radius: 13px !important;
+  box-shadow: 0 7px 16px rgba(79,99,240,.2);
+  font-size: 13px;
+  letter-spacing: .1px;
+  transition: transform .16s ease, box-shadow .16s ease;
+}
+.payments-cash-grid .primary.full:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(79,99,240,.25);
+}
+.payments-cash-grid .history-list,
+.payments-cash-grid .table-wrap {
+  border-radius: 14px;
+}
+.payments-cash-grid .break-row {
+  padding: 16px 2px !important;
+  border-bottom: 1px solid #e8eef8 !important;
+  transition: background .15s ease;
+}
+.payments-cash-grid .break-row:hover {
+  background: rgba(239,244,255,.62);
+}
+.payments-cash-grid table {
+  min-width: 560px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.payments-cash-grid table th {
+  padding: 12px 10px !important;
+  background: #f5f8ff;
+  color: #71819b;
+  font-size: 10px !important;
+  font-weight: 750;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.payments-cash-grid table td {
+  padding: 14px 10px !important;
+  border-bottom: 1px solid #e8eef8;
+  vertical-align: middle;
+}
+.payments-cash-grid table tbody tr:hover td {
+  background: rgba(241,246,255,.65);
+}
+:root[data-theme="dark"] .payments-cash-grid > .panel {
+  background: linear-gradient(145deg, #14243a, #101e31) !important;
+  border-color: #2c405b !important;
+  box-shadow: 0 14px 36px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.025) !important;
+}
+:root[data-theme="dark"] .payments-cash-grid .form-panel input,
+:root[data-theme="dark"] .payments-cash-grid .form-panel select,
+:root[data-theme="dark"] .payments-cash-grid .form-panel textarea {
+  background: #0f1e31 !important;
+  border-color: #344b68 !important;
+  color: #e8f0ff !important;
+}
+:root[data-theme="dark"] .payments-cash-grid table th {
+  background: #1b2d44;
+  color: #a8bad4;
+}
+:root[data-theme="dark"] .payments-cash-grid table td,
+:root[data-theme="dark"] .payments-cash-grid .break-row {
+  border-bottom-color: #2b4059 !important;
+}
+@media (max-width: 900px) {
+  .payments-cash-grid { grid-template-columns: 1fr !important; }
+  .payments-cash-grid > .panel { padding: 20px !important; border-radius: 18px !important; }
+}
+/* Compact Payments & Cash page only */
+.payments-cash-grid{gap:12px;margin-bottom:12px}
+.payments-cash-grid>.panel{padding:14px 16px;margin-bottom:0;border-radius:12px}
+.payments-cash-grid .panel-head{margin-bottom:10px}
+.payments-cash-grid .form-panel form{gap:8px}
+.payments-cash-grid .form-panel label{gap:5px;font-size:11px}
+.payments-cash-grid .form-panel input,.payments-cash-grid .form-panel select{padding:7px 9px;font-size:12px;min-height:34px}
+.payments-cash-grid .primary.full{padding:8px 12px;min-height:35px;font-size:11px}
+.payments-cash-grid .break-row{padding:7px 0}
+.payments-cash-grid th{padding:7px 6px}
+.payments-cash-grid td{padding:8px 6px}
+.payments-cash-grid .table-wrap{max-height:220px;overflow:auto}
+@media(max-width:1100px){.payments-cash-grid{gap:10px}.payments-cash-grid>.panel{padding:12px}}
+
+/* Dark theme palette aligned with the Admin Overview dashboard. */
+:root[data-theme="dark"] {
+  color-scheme: dark !important;
+  background: #08182a !important;
+  color: #e7efff !important;
+}
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .app,
+:root[data-theme="dark"] .main,
+:root[data-theme="dark"] .content,
+:root[data-theme="dark"] main {
+  background: #08182a !important;
+  color: #e7efff !important;
+}
+:root[data-theme="dark"] .sidebar,
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .stat,
+:root[data-theme="dark"] .welcome,
+:root[data-theme="dark"] .notice-card,
+:root[data-theme="dark"] .notice-modal,
+:root[data-theme="dark"] .notification-popover,
+:root[data-theme="dark"] .dropdown-menu,
+:root[data-theme="dark"] .login-card,
+:root[data-theme="dark"] .profile,
+:root[data-theme="dark"] .form-panel,
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .modal-content {
+  background: #10243a !important;
+  color: #e7efff !important;
+  border-color: #1e3c58 !important;
+}
+:root[data-theme="dark"] header,
+:root[data-theme="dark"] .header,
+:root[data-theme="dark"] .topbar {
+  background: #08182a !important;
+  color: #e7efff !important;
+  border-color: #1e3c58 !important;
+}
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] .header-actions select {
+  background: #091a2d !important;
+  color: #e7efff !important;
+  border-color: #254663 !important;
+}
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder { color: #819bb7 !important; }
+:root[data-theme="dark"] table,
+:root[data-theme="dark"] tbody,
+:root[data-theme="dark"] tr { color: #e7efff !important; }
+:root[data-theme="dark"] th { background: #142b43 !important; color: #9db8d5 !important; border-color: #1e3c58 !important; }
+:root[data-theme="dark"] td,
+:root[data-theme="dark"] .break-row,
+:root[data-theme="dark"] hr { border-color: #1e3c58 !important; }
+:root[data-theme="dark"] p,
+:root[data-theme="dark"] small,
+:root[data-theme="dark"] label,
+:root[data-theme="dark"] .panel-head p,
+:root[data-theme="dark"] .welcome p,
+:root[data-theme="dark"] .stat span { color: #a8bfd9 !important; }
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] h3,
+:root[data-theme="dark"] h4,
+:root[data-theme="dark"] strong,
+:root[data-theme="dark"] b { color: #f0f6ff !important; }
+:root[data-theme="dark"] .nav-item { color: #a8bfd9 !important; }
+:root[data-theme="dark"] .nav-item:hover { background: #142d49 !important; color: #f0f6ff !important; }
+:root[data-theme="dark"] .nav-item.active { background: #17375a !important; color: #67aaff !important; border-color: #2b7bd8 !important; }
+:root[data-theme="dark"] .secondary,
+:root[data-theme="dark"] .reset-month-btn,
+:root[data-theme="dark"] .icon-btn { background: #142b43 !important; color: #dceaff !important; border-color: #254663 !important; }
+:root[data-theme="dark"] .primary { background: #1769e8 !important; color: #fff !important; border-color: #1769e8 !important; }
+:root[data-theme="dark"] .success-message { background: #123b34 !important; color: #a9f0d3 !important; }
+:root[data-theme="dark"] .error-message { background: #40202d !important; color: #ffb6c4 !important; }
+
+/* Utilities page: align member-count card with the site dark palette. */
+:root[data-theme="dark"] .utility-member-settings{background:#151f32!important;border-color:#2b3950!important;box-shadow:none!important}
+:root[data-theme="dark"] .utility-member-heading strong{color:#f3f6fc!important}
+:root[data-theme="dark"] .utility-member-heading small,:root[data-theme="dark"] .utility-member-form small{color:#aab8cc!important}
+:root[data-theme="dark"] .utility-member-icon{background:#1b3558!important;color:#6ea8ff!important}
+:root[data-theme="dark"] .utility-member-form label{color:#aab8cc!important}
+:root[data-theme="dark"] .utility-member-form input{background:#0e1728!important;color:#f3f6fc!important;border-color:#3a4962!important}
+
+/* Dark mode polish: remove the flat boxed backdrop and use a softer premium surface
+   for the Overview and Account section headers only. */
+:root[data-theme="dark"] .welcome {
+  background: linear-gradient(135deg, rgba(16,36,58,.72), rgba(8,24,42,.22)) !important;
+  border: 1px solid rgba(75,125,170,.16) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,.10) !important;
+}
+:root[data-theme="dark"] .welcome + .stats-grid,
+:root[data-theme="dark"] .welcome + .stat-grid {
+  background: transparent !important;
+}
+:root[data-theme="dark"] .main > section.welcome {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Premium member payment cards */
+.pay-rent-page{max-width:1040px;padding:22px;border:1px solid #dce6f7;background:linear-gradient(145deg,#ffffff 0%,#f8fbff 100%);border-radius:20px;box-shadow:0 14px 38px rgba(35,65,120,.07)}
+.pay-rent-page .payment-method-grid{gap:14px;margin-top:18px}
+.pay-rent-page .payment-method-card{position:relative;gap:15px;padding:17px 16px;border:1px solid #e1e9f5;border-radius:17px;background:linear-gradient(135deg,#fff 0%,#fbfdff 100%);box-shadow:0 5px 16px rgba(25,55,100,.045);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.pay-rent-page .payment-method-card:hover{transform:translateY(-2px);border-color:#c8d8ff;box-shadow:0 12px 26px rgba(49,89,160,.10)}
+.pay-rent-page .payment-method-card .payment-brand,.pay-rent-page .payment-method-card .pay-logo,.pay-rent-page .payment-method-card [class*="payment-brand"]{border-radius:13px}
+.pay-rent-page .payment-method-info{gap:5px}
+.pay-rent-page .payment-method-info>b{font-size:14px;font-weight:700;letter-spacing:.01em;color:#243653}
+.pay-rent-page .payment-method-info>strong{font-size:16px;font-weight:750;line-height:1.35;color:#111e32;letter-spacing:.025em}
+.pay-rent-page .payment-method-info>small{font-size:11px;line-height:1.5;color:#71819a}
+.pay-rent-page .copy-payment{border:1px solid #d9e3ff;border-radius:10px;background:#f2f6ff;color:#3559d8;font-weight:700;padding:9px 13px;transition:background .18s ease,border-color .18s ease}
+.pay-rent-page .copy-payment:hover{background:#e5edff;border-color:#b8cbff}
+@media(max-width:760px){.pay-rent-page{padding:16px;border-radius:16px}.pay-rent-page .payment-method-card{padding:13px;gap:10px}.pay-rent-page .payment-method-info>strong{font-size:14px}.pay-rent-page .copy-payment{padding:8px 10px}}

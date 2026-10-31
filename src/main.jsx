@@ -93,9 +93,12 @@ function App() {
 
   const [profileOpen, setProfileOpen] = useState(false);
   async function updateProfileEmail(e) {
-    e.preventDefault(); setProfileBusy(true); setProfileError(""); setProfileMessage("");
+    e.preventDefault();
+    const requestedEmail = String(profileEmail || "").trim();
+    if (!requestedEmail) { setProfileError("Enter a new email address."); return; }
+    setProfileBusy(true); setProfileError(""); setProfileMessage("");
     try {
-      const { error } = await supabase.auth.updateUser({ email: profileEmail.trim() });
+      const { error } = await supabase.auth.updateUser({ email: requestedEmail });
       if (error) throw error;
       setProfileMessage("Email change requested. Check your inbox and confirm it to finish updating your email.");
     } catch (err) { setProfileError(err.message || "Could not update email."); }
@@ -147,6 +150,10 @@ function App() {
 
   const [cloudMonthId, setCloudMonthId] = useState(null);
   const [cloudBusy, setCloudBusy] = useState(false);
+  const [utilityMemberCount, setUtilityMemberCount] = useState(4);
+  const [utilityMemberCountInput, setUtilityMemberCountInput] = useState("4");
+  const [utilityMemberCountSaving, setUtilityMemberCountSaving] = useState(false);
+  const [utilityMemberCountMessage, setUtilityMemberCountMessage] = useState("");
   const [expenseForm, setExpenseForm] = useState({
       name: "",
       amount: "",
@@ -206,8 +213,10 @@ function App() {
     [noticeBusy, setNoticeBusy] = useState(false),
     [noticeError, setNoticeError] = useState(""),
     [noticePanelOpen, setNoticePanelOpen] = useState(false),
+    [noticeComposerOpen, setNoticeComposerOpen] = useState(false),
     [noticeModal, setNoticeModal] = useState(false),
-    [noticeReadBusy, setNoticeReadBusy] = useState(false);
+    [noticeReadBusy, setNoticeReadBusy] = useState(false),
+    [noticeDraftBusy, setNoticeDraftBusy] = useState(false);
   const paymentDefaults = [
     {
       provider: "bkash",
@@ -293,7 +302,7 @@ function App() {
     (s, c) => s + Number(c.amount || 0),
     0,
   );
-  const utilitiesPerMember = selected.length ? utilitiesTotal / selected.length : 0;
+  const utilitiesPerMember = utilityMemberCount > 0 ? utilitiesTotal / utilityMemberCount : 0;
   const bazarMemberCount = mealActiveIds.length;
   const individualMealCost = bazarMemberCount > 0 ? Math.ceil(bazarTotal / bazarMemberCount) : 0;
   const sharedTotal =
@@ -325,7 +334,7 @@ function App() {
       .filter((p) => p.userId === user?.id && p.month === month)
       .reduce((s, p) => s + Number(p.amount), 0) + memberCredits(user?.id);
   // Member due is room rent plus their share of utilities and bazar, less credits/payments.
-  const ownTotalRent = ownRent + (selected.includes(user?.id) ? utilitiesPerMember : 0);
+  const ownTotalRent = ownRent + utilitiesPerMember;
   const ownDue = Math.ceil(ownTotalRent + (mealActiveIds.includes(user?.id) ? individualMealCost : 0) - ownPayments);
   const allDue = db.users
     .filter((u) => u.active)
@@ -471,12 +480,11 @@ function App() {
     if (!supabaseConfigured || !supabase) return [];
     const { data, error } = await supabase
       .from("notices")
-      .select("id,title,body,image_url,created_at,created_by")
+      .select("id,title,body,image_url,created_at,created_by,status")
       .order("created_at", { ascending: false })
       .limit(30);
     if (error) throw error;
     const rows = data || [];
-    setNotices(rows);
     let role = db.users.find((u) => u.id === profileId)?.role;
     if (profileId) {
       const { data: profile, error: profileError } = await supabase
@@ -487,6 +495,8 @@ function App() {
       if (profileError) throw profileError;
       if (profile?.role) role = profile.role;
     }
+    const visibleRows = role === "admin" ? rows : rows.filter((n) => n.status === "published");
+    setNotices(visibleRows);
     if (profileId) {
       const { data: reads, error: readError } = await supabase
         .from("notice_reads")
@@ -498,11 +508,11 @@ function App() {
       if (
         showForUser &&
         role === "member" &&
-        rows.some((n) => !readIds.includes(n.id))
+        visibleRows.some((n) => !readIds.includes(n.id))
       )
         setNoticeModal(true);
     } else setReadNoticeIds([]);
-    return rows;
+    return visibleRows;
   }
   async function markAllNoticesRead(profileId = session?.id) {
     if (!profileId || !supabase || noticeReadBusy) return;
@@ -540,8 +550,16 @@ function App() {
   function exportMyAccountPdf() {
     const popup = window.open("", "_blank", "width=900,height=700");
     if (!popup) { alert("Please allow pop-ups to export your account PDF."); return; }
-    const rows = utilityCategories.filter((c) => c.shared).map((c) => `<tr><td>${String(c.name).replace(/[&<>]/g, x => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[x]))}</td><td>${money(c.amount)}</td><td>${money(selected.length ? Math.ceil(Number(c.amount || 0) / selected.length) : 0)}</td></tr>`).join("");
-    popup.document.write(`<!doctype html><html><head><title>My Monthly Hisab - ${month}</title><style>body{font:14px Arial,sans-serif;color:#172033;padding:32px}h1{margin-bottom:4px}p{color:#64748b}.cards{display:flex;gap:12px;flex-wrap:wrap;margin:24px 0}.card{border:1px solid #e2e8f0;border-radius:12px;padding:16px;min-width:145px}.label{color:#64748b;font-size:12px}.value{font-size:22px;font-weight:700;margin-top:8px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:10px;border-bottom:1px solid #e2e8f0}th{color:#64748b}.print{margin-bottom:20px;padding:8px 14px;border:0;border-radius:8px;background:#4f5ff0;color:white;cursor:pointer}@media print{.print{display:none}body{padding:0}}</style></head><body><button class="print" onclick="window.print()">Save as PDF / Print</button><h1>My Monthly Hisab</h1><p>${month} · ${user.name}</p><div class="cards"><div class="card"><div class="label">Total rent</div><div class="value">${money(ownTotalRent)}</div></div><div class="card"><div class="label">Individual meal cost</div><div class="value">${money(mealActiveIds.includes(user.id) ? individualMealCost : 0)}</div></div><div class="card"><div class="label">Paid</div><div class="value">${money(ownPayments)}</div></div><div class="card"><div class="label">Remaining due</div><div class="value">${money(Math.ceil(ownDue))}</div></div></div><h2>Utilities breakdown</h2><table><thead><tr><th>Utility</th><th>Total</th><th>Your share</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No utilities</td></tr>'}</tbody></table><p>Individual meal cost = total bazar divided by ${bazarMemberCount} meal members.</p><script>window.onafterprint=()=>window.close();</script></body></html>`);
+    const rows = utilityCategories.filter((c) => c.shared).map((c) => `<tr><td>${String(c.name).replace(/[&<>]/g, x => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[x]))}</td><td>${money(c.amount)}</td><td>${money(utilityMemberCount > 0 ? Math.ceil(Number(c.amount || 0) / utilityMemberCount) : 0)}</td></tr>`).join("");
+    popup.document.write(`<!doctype html><html><head><title>My Monthly Hisab - ${month}</title><style>body{font:14px Arial,sans-serif;color:#172033;padding:32px}h1{margin-bottom:4px}p{color:#64748b}.cards{display:flex;gap:12px;flex-wrap:wrap;margin:24px 0}.card{border:1px solid #e2e8f0;border-radius:12px;padding:16px;min-width:145px}.label{color:#64748b;font-size:12px}.value{font-size:22px;font-weight:700;margin-top:8px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:10px;border-bottom:1px solid #e2e8f0}th{color:#64748b}.print{margin-bottom:20px;padding:8px 14px;border:0;border-radius:8px;background:#4f5ff0;color:white;cursor:pointer}@media print{.print{display:none}body{padding:0}}
+        .payments-cash-grid { align-items: stretch; gap: 22px; }
+        .payments-cash-grid > .panel { border-radius: 20px; border: 1px solid var(--border, #dbe5f5); box-shadow: 0 10px 28px rgba(34, 74, 140, .06); }
+        .payments-cash-grid .form-panel form { gap: 15px; }
+        .payments-cash-grid .primary.full { min-height: 46px; border-radius: 12px; font-weight: 650; }
+        .payments-cash-grid .break-row { padding: 15px 2px; }
+        .payments-cash-grid table { min-width: 560px; }
+        @media (max-width: 900px) { .payments-cash-grid { grid-template-columns: 1fr; } }
+</style></head><body><button class="print" onclick="window.print()">Save as PDF / Print</button><h1>My Monthly Hisab</h1><p>${month} · ${user.name}</p><div class="cards"><div class="card"><div class="label">Total rent</div><div class="value">${money(ownTotalRent)}</div></div><div class="card"><div class="label">Individual meal cost</div><div class="value">${money(mealActiveIds.includes(user.id) ? individualMealCost : 0)}</div></div><div class="card"><div class="label">Paid</div><div class="value">${money(ownPayments)}</div></div><div class="card"><div class="label">Remaining due</div><div class="value">${money(Math.ceil(ownDue))}</div></div></div><h2>Utilities breakdown</h2><table><thead><tr><th>Utility</th><th>Total</th><th>Your share</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No utilities</td></tr>'}</tbody></table><p>Individual meal cost = total bazar divided by ${bazarMemberCount} meal members.</p><script>window.onafterprint=()=>window.close();</script></body></html>`);
     popup.document.close();
   }
   async function saveMealMemberCount() {
@@ -583,6 +601,10 @@ function App() {
       let savedMealIds = [];
       try { savedMealIds = JSON.parse(mealSetting?.value || "[]"); } catch { savedMealIds = []; }
       if (Array.isArray(savedMealIds)) setMealActiveIds(savedMealIds);
+      const { data: utilityCountSetting, error: utilityCountError } = await supabase.from("app_settings").select("value").eq("key", "utilities_current_users").maybeSingle();
+      if (utilityCountError) throw utilityCountError;
+      const savedUtilityCount = Number(utilityCountSetting?.value || 4);
+      if (Number.isFinite(savedUtilityCount) && savedUtilityCount > 0) { setUtilityMemberCount(savedUtilityCount); setUtilityMemberCountInput(String(savedUtilityCount)); }
       const [catsRes, payRes, bazRes, cashRes] = await Promise.all([
         supabase
           .from("expense_categories")
@@ -616,11 +638,28 @@ function App() {
         photo_url: p.photo_url || "",
         paid: 0,
       }));
-      const categories = (catsRes.data || []).map((c) => ({
-        id: c.id,
-        name: c.name,
+      const { data: sharedUtilitySetting, error: sharedUtilityError } = await supabase
+        .from("app_settings").select("value").eq("key", "shared_utilities_list").maybeSingle();
+      if (sharedUtilityError) throw sharedUtilityError;
+      let sharedUtilities = null;
+      try { sharedUtilities = JSON.parse(sharedUtilitySetting?.value || "null"); } catch { sharedUtilities = null; }
+      if (!Array.isArray(sharedUtilities)) {
+        sharedUtilities = (catsRes.data || [])
+          .filter((c) => String(c.name || "").toLowerCase() !== "bazar")
+          .map((c) => ({ name: c.name, amount: Number(c.amount || 0), shared: !!c.shared }));
+        if (activeProfile.role === "admin" && sharedUtilities.length) {
+          const { error: seedUtilityError } = await supabase.from("app_settings").upsert(
+            { key: "shared_utilities_list", value: JSON.stringify(sharedUtilities), updated_at: new Date().toISOString() },
+            { onConflict: "key" },
+          );
+          if (seedUtilityError) throw seedUtilityError;
+        }
+      }
+      const categories = (sharedUtilities || []).map((c, index) => ({
+        id: `shared-utility-${index}`,
+        name: String(c.name || ""),
         amount: Number(c.amount || 0),
-        shared: c.shared,
+        shared: !!c.shared,
       }));
       const payments = (payRes.data || []).map((x) => ({
         id: x.id,
@@ -835,23 +874,36 @@ function App() {
       alert("Could not save monthly setup: " + e.message);
     }
   }
+  async function saveUtilityMemberCount(e) {
+    e.preventDefault();
+    const count = Number(utilityMemberCountInput);
+    if (!admin || !Number.isInteger(count) || count < 1) { setUtilityMemberCountMessage("Enter a whole number greater than 0."); return; }
+    setUtilityMemberCountSaving(true); setUtilityMemberCountMessage("");
+    try {
+      const { error } = await supabase.from("app_settings").upsert({ key: "utilities_current_users", value: String(count), updated_at: new Date().toISOString() }, { onConflict: "key" });
+      if (error) throw error;
+      setUtilityMemberCount(count); setUtilityMemberCountInput(String(count)); setUtilityMemberCountMessage("Saved. Utilities share updated for all months.");
+    } catch (error) { setUtilityMemberCountMessage(error.message || "Could not save current user count."); }
+    finally { setUtilityMemberCountSaving(false); }
+  }
+
   async function addCategory(e) {
     e.preventDefault();
     if (!admin || !expenseForm.name || Number(expenseForm.amount) < 0) return;
     try {
-      const mid = await monthIdFor();
-      const { error } = await supabase
-        .from("expense_categories")
-        .upsert(
-          {
-            month_id: mid,
-            name: expenseForm.name.trim(),
-            amount: Number(expenseForm.amount),
-            shared: !!expenseForm.shared,
-            created_by: user.id,
-          },
-          { onConflict: "month_id,name" },
-        );
+      const { data: utilitySetting, error: utilitySettingError } = await supabase
+        .from("app_settings").select("value").eq("key", "shared_utilities_list").maybeSingle();
+      if (utilitySettingError) throw utilitySettingError;
+      let utilities = [];
+      try { utilities = JSON.parse(utilitySetting?.value || "[]"); } catch { utilities = []; }
+      if (!Array.isArray(utilities)) utilities = [];
+      const utility = { name: expenseForm.name.trim(), amount: Number(expenseForm.amount), shared: !!expenseForm.shared };
+      const existingIndex = utilities.findIndex((item) => String(item.name || "").toLowerCase() === utility.name.toLowerCase());
+      if (existingIndex >= 0) utilities[existingIndex] = utility; else utilities.push(utility);
+      const { error } = await supabase.from("app_settings").upsert(
+        { key: "shared_utilities_list", value: JSON.stringify(utilities), updated_at: new Date().toISOString() },
+        { onConflict: "key" },
+      );
       if (error) throw error;
       await loadCloudData(user.id, month);
       setExpenseForm({ name: "", amount: "", shared: true });
@@ -1200,66 +1252,80 @@ function App() {
       alert("Could not deactivate member: " + e.message);
     }
   }
-  async function postNotice(e) {
-    e.preventDefault();
-    if (
-      !admin ||
-      (!noticeForm.title.trim() && !noticeForm.body.trim() && !noticeImage)
-    )
-      return;
-    setNoticeBusy(true);
-    setNoticeError("");
+  async function saveNoticeDraft(e) {
+    e?.preventDefault();
+    if (!admin || (!noticeForm.title.trim() && !noticeForm.body.trim() && !noticeImage)) return;
+    setNoticeDraftBusy(true); setNoticeError("");
     try {
       let imageUrl = null;
       if (noticeImage) {
-        const ext =
-          (noticeImage.name.split(".").pop() || "jpg")
-            .toLowerCase()
-            .replace(/[^a-z0-9]/g, "") || "jpg";
+        const ext = (noticeImage.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
         const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("notices")
-          .upload(path, noticeImage, {
-            upsert: false,
-            contentType: noticeImage.type || "image/jpeg",
-          });
+        const { error: uploadError } = await supabase.storage.from("notices").upload(path, noticeImage, { upsert: false, contentType: noticeImage.type || "image/jpeg" });
         if (uploadError) throw uploadError;
-        const { data: publicData } = supabase.storage
-          .from("notices")
-          .getPublicUrl(path);
-        imageUrl = publicData.publicUrl;
+        imageUrl = supabase.storage.from("notices").getPublicUrl(path).data.publicUrl;
       }
-      const { error } = await supabase
-        .from("notices")
-        .insert({
-          title: noticeForm.title.trim() || "Notice",
-          body: noticeForm.body.trim(),
-          image_url: imageUrl,
-          created_by: user.id,
-        });
+      const { error } = await supabase.from("notices").insert({ title: noticeForm.title.trim() || "Notice", body: noticeForm.body.trim(), image_url: imageUrl, created_by: user.id, status: "draft" });
+      if (error) throw error;
+      await loadNotices(false); setNoticeForm({ title: "", body: "" }); setNoticeImage(null); setNoticeComposerOpen(false);
+      const fileInput = document.getElementById("notice-image-input"); if (fileInput) fileInput.value = "";
+      setBazarSuccessToast("Notice saved as draft. Members have not been notified."); window.setTimeout(() => setBazarSuccessToast(""), 2600);
+    } catch (err) { setNoticeError(err.message || "Could not save draft. Apply the notice SQL setup first."); }
+    finally { setNoticeDraftBusy(false); }
+  }
+  async function postNotice(e) {
+    e.preventDefault();
+    if (!admin || (!noticeForm.title.trim() && !noticeForm.body.trim() && !noticeImage)) return;
+    setNoticeBusy(true); setNoticeError("");
+    try {
+      let imageUrl = null;
+      if (noticeImage) {
+        const ext = (noticeImage.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+        const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("notices").upload(path, noticeImage, { upsert: false, contentType: noticeImage.type || "image/jpeg" });
+        if (uploadError) throw uploadError;
+        imageUrl = supabase.storage.from("notices").getPublicUrl(path).data.publicUrl;
+      }
+      const { error } = await supabase.from("notices").insert({ title: noticeForm.title.trim() || "Notice", body: noticeForm.body.trim(), image_url: imageUrl, created_by: user.id, status: "published" });
+      if (error) throw error;
+      await loadNotices(false); setNoticeForm({ title: "", body: "" }); setNoticeImage(null); setNoticeComposerOpen(false);
+      const fileInput = document.getElementById("notice-image-input"); if (fileInput) fileInput.value = "";
+      setBazarSuccessToast("Notice published successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600);
+    } catch (err) { setNoticeError(err.message || "Could not publish notice. Apply the notice SQL/storage setup first."); }
+    finally { setNoticeBusy(false); }
+  }
+  async function publishSavedNotice(n) {
+    if (!admin || !(await askConfirm("Publish this saved notice for all members? They will be able to see it.", "Publish notice?"))) return;
+    try {
+      const { error } = await supabase.from("notices").update({ status: "published" }).eq("id", n.id);
+      if (error) throw error;
+      await loadNotices(false); setBazarSuccessToast("Notice published successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600);
+    } catch (e) { alert("Could not publish notice: " + e.message); }
+  }
+  async function repostNotice(n) {
+    if (!admin || !(await askConfirm("Repost this notice to all members? They will receive it again.", "Repost notice?"))) return;
+    try {
+      const { error } = await supabase.from("notices").insert({
+        title: n.title || "Notice",
+        body: n.body || "",
+        image_url: n.image_url || null,
+        created_by: user.id,
+        status: "published",
+      });
       if (error) throw error;
       await loadNotices(false);
-      setNoticeForm({ title: "", body: "" });
-      setNoticeImage(null);
-      setNoticePanelOpen(false);
-      const fileInput = document.getElementById("notice-image-input");
-      if (fileInput) fileInput.value = "";
-      alert("Notice posted. It is now available to all members.");
-    } catch (err) {
-      setNoticeError(
-        err.message ||
-          "Could not post notice. Apply the notice SQL/storage setup first.",
-      );
-    } finally {
-      setNoticeBusy(false);
+      setBazarSuccessToast("Notice reposted successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600);
+    } catch (e) {
+      alert("Could not repost notice: " + e.message);
     }
   }
   async function deleteNotice(n) {
-    if (!admin || !confirm("Delete this notice for all members?")) return;
+    if (!admin || !(await askConfirm("Delete this notice for all members? This cannot be undone.", "Delete notice?"))) return;
     try {
       const { error } = await supabase.from("notices").delete().eq("id", n.id);
       if (error) throw error;
       await loadNotices(false);
+      setBazarSuccessToast("Notice deleted successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600);
     } catch (e) {
       alert("Could not delete notice: " + e.message);
     }
@@ -1505,8 +1571,7 @@ function App() {
             ? [
                 ["members", "Members", Users],
                 ["expenses", "Utilities", Receipt],
-                ["payments", "Rent Payment", ArrowDownRight],
-                ["cash", "Cash Contributions", Wallet],
+                ["payments", "Payments & Cash", ArrowDownRight],
                 ["payment-options", "Payment Options", Wallet],
                 ["notices", "Notices", Bell],
                 ["contact-management", "Contact Management", Users],
@@ -1595,7 +1660,6 @@ function App() {
               </div>
             </header>
             <section className="panel profile-settings-panel">
-              <PanelHead title="Profile settings" sub="Manage your photo, email, and password" />
               <div className="profile-settings-photo">
                 {profilePhoto ? <img src={profilePhoto} alt="Profile" /> : <div className="avatar profile-large">{user.name?.[0] || "M"}</div>}
                 <label className="btn secondary profile-upload-label">
@@ -1774,7 +1838,7 @@ function App() {
               />
               <Stat
                 title="Rent due"
-                value={money(Math.max(0, totalRent - rentPaid))}
+                value={money(Math.max(0, totalRent + utilitiesTotal - rentPaid))}
                 icon={Wallet}
                 tone="orange"
                 hint="Rent remaining"
@@ -1928,8 +1992,8 @@ function App() {
                         <small>Your share</small>
                         <b>
                           {money(
-                            selected.includes(user.id) && selected.length
-                              ? Number(c.amount) / selected.length
+                            utilityMemberCount > 0
+                              ? Number(c.amount) / utilityMemberCount
                               : 0,
                           )}
                         </b>
@@ -2034,6 +2098,7 @@ function App() {
                       <th>Rent</th>
                       <th>Meal</th>
                       <th>Status</th>
+                      <th>Report</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -2062,6 +2127,30 @@ function App() {
                           >
                             {u.active ? "Active" : "Inactive"}
                           </span>
+                        </td>
+                        <td>
+                          <button
+                            className="icon-btn"
+                            title={`Download ${u.name} monthly bill`}
+                            aria-label={`Download ${u.name} monthly bill`}
+                            onClick={() => {
+                              const memberUtilities = utilityCategories.filter((c) => c.shared).map((c) => ({ name: c.name, amount: Number(c.amount || 0), share: utilityMemberCount > 0 ? Number(c.amount || 0) / utilityMemberCount : 0 }));
+                              const utilitiesShare = memberUtilities.reduce((sum, c) => sum + c.share, 0);
+                              const rentPayments = (db.payments || []).filter((p) => p.userId === u.id && p.month === month && String(p.note || "").toLowerCase().includes("rent")).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+                              const mealPaid = (db.payments || []).filter((p) => p.userId === u.id && p.month === month && !String(p.note || "").toLowerCase().includes("rent")).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+                              const credits = memberCredits(u.id);
+                              const mealCost = mealActiveIds.includes(u.id) ? individualMealCost : 0;
+                              const total = Number(u.rent || 0) + utilitiesShare + mealCost;
+                              const paid = rentPayments + mealPaid + credits;
+                              const billRows = memberUtilities.map((c) => `<tr><td>${c.name}</td><td>${money(c.amount)}</td><td>${money(c.share)}</td></tr>`).join("");
+                              const html = `<!doctype html><html><head><meta charset="utf-8"><title>${u.name} - ${month} Bill</title><style>*{box-sizing:border-box}body{font-family:Inter,"Segoe UI",Arial,sans-serif;color:#334155;padding:24px;max-width:720px;margin:0 auto;background:#fff;font-size:13px;line-height:1.55}header{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:20px 22px;margin-bottom:22px;border-radius:16px;color:#334155;background:linear-gradient(120deg,#f0f7ff 0%,#f5f2ff 55%,#fff7ed 100%);border:1px solid #e3eaf7}h1{margin:0;font-size:26px;letter-spacing:-.5px;font-weight:800;color:#334155}header small{display:block;text-align:right;font-size:12px;color:#64748b;line-height:1.6}h3{font-size:15px;margin:0 0 10px;color:#5267a8;display:flex;align-items:center;gap:8px}h3:before{content:'';display:inline-block;width:4px;height:18px;border-radius:5px;background:linear-gradient(#93c5fd,#c4b5fd)}small{color:#718096}table{width:100%;border-collapse:separate;border-spacing:0;margin:10px 0 16px;table-layout:fixed;border:1px solid #e5eaf3;border-radius:11px;overflow:hidden}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #edf1f7}th{background:#f3f6fc;color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.6px}tbody tr:nth-child(even){background:#fbfcff}tbody tr:last-child td{border-bottom:0}td:nth-child(2),td:nth-child(3),th:nth-child(2),th:nth-child(3){text-align:right}.summary{background:linear-gradient(135deg,#fbfdff,#faf8ff);border:1px solid #e5eaf5;border-radius:14px;padding:15px 18px;margin-top:16px}.line{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:9px 0;border-bottom:1px solid #edf1f7;color:#64748b}.line:nth-child(1) b{color:#6488c7}.line:nth-child(2) b{color:#8b7ac4}.line:nth-child(3) b{color:#5a9b83}.line:nth-child(4){font-weight:750;background:#f0f5ff;margin:5px -9px;padding:10px 9px;border-radius:8px;color:#5267a8}.line:nth-child(4) b{color:#5267a8}.line:last-child{border-bottom:0}.line b{font-variant-numeric:tabular-nums;white-space:nowrap;color:#475569}.due{font-size:15px;font-weight:800;color:#49689e;background:#edf5ff;border:1px solid #dbeafe;border-radius:9px;margin:10px -6px -5px;padding:12px 8px}.due b{color:#49689e}.footer{margin-top:18px;padding-top:10px;border-top:1px solid #edf1f7;font-size:10px;color:#94a3b8;display:flex;justify-content:space-between}.footer span:first-child{color:#7c8fb8;font-weight:650}@page{size:A4;margin:13mm}@media print{body{padding:0;max-width:none;font-size:12px;background:#fff}header{margin-bottom:16px;box-shadow:none;print-color-adjust:exact;-webkit-print-color-adjust:exact}button{display:none}table{break-inside:avoid}th,.summary,.due{print-color-adjust:exact;-webkit-print-color-adjust:exact}.summary{break-inside:avoid}}</style></style></head><body><header><h1>Monthly Bill</h1><small>${month} · ${u.name} (${u.username})</small></header><h3>Utilities</h3><table><thead><tr><th>Utility</th><th>Total</th><th>Your share</th></tr></thead><tbody>${billRows}</tbody></table><div class="summary"><div class="line"><span>Room rent</span><b>${money(u.rent)}</b></div><div class="line"><span>Utilities share</span><b>${money(utilitiesShare)}</b></div><div class="line"><span>Meal cost</span><b>${money(mealCost)}</b></div><div class="line"><span>Total monthly bill</span><b>${money(total)}</b></div><div class="line"><span>Rent payments</span><b>${money(rentPayments)}</b></div><div class="line"><span>Meal payments & credits</span><b>${money(mealPaid + credits)}</b></div><div class="line due"><span>Balance due</span><b>${money(Math.ceil(total-paid))}</b></div></div><div class="footer"><span>Monthly Hisab · ${month}</span><span>Generated ${new Date().toLocaleDateString()}</span></div><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`;
+                              const win = window.open("", "_blank", "width=850,height=950");
+                              if (!win) { alert("Please allow pop-ups to generate the monthly bill."); return; }
+                              win.document.open(); win.document.write(html); win.document.close();
+                            }}
+                          >
+                            <Download size={16} />
+                          </button>
                         </td>
                         <td>
                           <div className="actions">
@@ -2245,11 +2334,22 @@ function App() {
                   <Plus size={16} /> Add utility
                 </button>
               </form>
+              <div className="utility-member-settings">
+                <div className="utility-member-heading">
+                  <span className="utility-member-icon"><Users size={17} /></span>
+                  <div><strong>Current User</strong><small>Utilities are divided by this number for every month</small></div>
+                </div>
+                <form onSubmit={saveUtilityMemberCount} className="utility-member-form">
+                  <label>Current user count<input type="number" min="1" step="1" value={utilityMemberCountInput} onChange={(e) => setUtilityMemberCountInput(e.target.value)} required /></label>
+                  <button className="primary" disabled={utilityMemberCountSaving}>{utilityMemberCountSaving ? "Saving..." : "Save"}</button>
+                  {utilityMemberCountMessage && <small>{utilityMemberCountMessage}</small>}
+                </form>
+              </div>
             </section>
             <section className="panel">
               <PanelHead
                 title="Utilities list"
-                sub={`${month} · ${selected.length} current members`}
+                sub={`${month} · ${utilityMemberCount} current users`}
               />
               {utilityCategories.map((c, i) => (
                 <div className="break-row">
@@ -2263,10 +2363,16 @@ function App() {
                     onClick={async () => {
                       if (!admin) return;
                       try {
-                        const { error } = await supabase
-                          .from("expense_categories")
-                          .delete()
-                          .eq("id", c.id);
+                        const { data: utilitySetting, error: utilitySettingError } = await supabase
+                          .from("app_settings").select("value").eq("key", "shared_utilities_list").maybeSingle();
+                        if (utilitySettingError) throw utilitySettingError;
+                        let utilities = [];
+                        try { utilities = JSON.parse(utilitySetting?.value || "[]"); } catch { utilities = []; }
+                        utilities = (Array.isArray(utilities) ? utilities : []).filter((item) => String(item.name || "").toLowerCase() !== String(c.name || "").toLowerCase());
+                        const { error } = await supabase.from("app_settings").upsert(
+                          { key: "shared_utilities_list", value: JSON.stringify(utilities), updated_at: new Date().toISOString() },
+                          { onConflict: "key" },
+                        );
                         if (error) throw error;
                         await loadCloudData(user.id, month);
                       } catch (e) {
@@ -2286,8 +2392,8 @@ function App() {
           </div>
         )}
         {page === "payments" && admin && (
-          <div className="grid-two">
-            <section className="panel form-panel">
+          <div className="grid-two payments-cash-grid">
+            <section className="panel form-panel payment-entry-panel">
               <PanelHead
                 title="Record rent payment"
                 sub="Admin records money received from a member"
@@ -2488,9 +2594,9 @@ function App() {
             </section>
           </div>
         )}
-        {page === "cash" && admin && (
-          <div className="grid-two">
-            <section className="panel form-panel">
+        {page === "payments" && admin && (
+          <div className="grid-two payments-cash-grid">
+            <section className="panel form-panel cash-entry-panel">
               <PanelHead
                 title="Add cash contribution"
                 sub="Money given for future monthly bazar"
@@ -3074,7 +3180,7 @@ function App() {
               </form>
             </section>
             <section className="panel"><PanelHead title="Saved contacts" sub="Manage the contacts members can see" />
-              {contactRows.map(c=><div className="break-row" key={c.id}><span><b>{c.name}</b><small>{c.category} · {c.phone}</small></span><div className="row-actions"><button className="icon-btn" onClick={()=>setContactForm({id:c.id,category:c.category,name:c.name,phone:c.phone})}><Edit size={15}/></button><button className="icon-btn danger-text" onClick={async()=>{if(!confirm("Delete this contact?"))return;const {error}=await supabase.from("member_contacts").delete().eq("id",c.id);if(error)alert(error.message);else setContactRows(rows=>rows.filter(r=>r.id!==c.id));}}><Trash2 size={15}/></button></div></div>)}
+              {contactRows.map(c=><div className="break-row" key={c.id}><span><b>{c.name}</b><small>{c.category} · {c.phone}</small></span><div className="row-actions"><button className="icon-btn" onClick={()=>setContactForm({id:c.id,category:c.category,name:c.name,phone:c.phone})}><Edit size={15}/></button><button className="icon-btn danger-text" onClick={async()=>{if(!(await askConfirm(`Delete ${c.name || "this contact"}? This cannot be undone.`, "Delete contact?")))return;const {error}=await supabase.from("member_contacts").delete().eq("id",c.id);if(error)alert(error.message);else setContactRows(rows=>rows.filter(r=>r.id!==c.id));}}><Trash2 size={15}/></button></div></div>)}
             </section>
           </div>
         )}
@@ -3082,18 +3188,18 @@ function App() {
           <div className="grid-two">
             <section className="panel form-panel">
               <PanelHead
-                title="Preload Notice"
-                sub="Prepare a notice with text and an optional photo, then publish it for every member"
+                title="Direct Posting Notice"
+                sub="Write a notice, save it as draft, or publish it to members"
               />
               <button
                 type="button"
                 className="secondary full notice-compose-toggle"
-                onClick={() => setNoticePanelOpen((open) => !open)}
-                aria-expanded={noticePanelOpen}
+                onClick={() => setNoticeComposerOpen((open) => !open)}
+                aria-expanded={noticeComposerOpen}
               >
-                {noticePanelOpen ? "Close notice composer" : "Preload Notice"}
+                {noticeComposerOpen ? "Close notice composer" : "Compose notice"}
               </button>
-              {noticePanelOpen && <form onSubmit={postNotice}>
+              {noticeComposerOpen && <form onSubmit={postNotice}>
                 <label>
                   Notice title
                   <input
@@ -3132,16 +3238,16 @@ function App() {
                   </div>
                 )}
                 {noticeError && <div className="error">{noticeError}</div>}
-                <button className="primary full" disabled={noticeBusy}>
-                  <Send size={16} />
-                  {noticeBusy ? "Publishing…" : "Publish notice"}
-                </button>
+                <div className="row-actions">
+                  <button type="button" className="secondary" disabled={noticeDraftBusy || noticeBusy} onClick={saveNoticeDraft}>{noticeDraftBusy ? "Saving…" : "Save Notice"}</button>
+                  <button className="primary" disabled={noticeBusy || noticeDraftBusy}><Send size={16} />{noticeBusy ? "Publishing…" : "Publish"}</button>
+                </div>
               </form>}
             </section>
             <section className="panel">
               <PanelHead
-                title="Published notices"
-                sub="Visible to all active users"
+                title="Saved Notices"
+                sub="Drafts and published notices stay here until deleted"
               />
               {notices.length ? (
                 notices.map((n) => (
@@ -3151,13 +3257,11 @@ function App() {
                         <h3>{n.title || "Notice"}</h3>
                         <small>{new Date(n.created_at).toLocaleString()}</small>
                       </div>
-                      <button
-                        className="icon-btn danger"
-                        title="Delete notice"
-                        onClick={() => deleteNotice(n)}
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="row-actions">
+                        <small>{n.status === "draft" ? "Draft" : "Published"}</small>
+                        {n.status !== "published" && <button className="secondary" onClick={() => publishSavedNotice(n)}>Publish</button>}{n.status === "published" && <button className="secondary" onClick={() => repostNotice(n)}>Repost</button>}
+                        <button className="icon-btn danger" title="Delete notice" onClick={() => deleteNotice(n)}><Trash2 size={16} /></button>
+                      </div>
                     </div>
                     {n.body && <p>{n.body}</p>}
                     {n.image_url && <img src={n.image_url} alt="Notice" />}

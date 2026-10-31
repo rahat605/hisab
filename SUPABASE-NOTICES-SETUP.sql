@@ -4,12 +4,13 @@ CREATE TABLE IF NOT EXISTS public.notices (
   title text NOT NULL DEFAULT 'Notice',
   body text NOT NULL DEFAULT '',
   image_url text,
+  status text NOT NULL DEFAULT 'published' CHECK (status IN ('draft', 'published')),
   created_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
 ALTER TABLE public.notices ENABLE ROW LEVEL SECURITY;
-GRANT SELECT, INSERT, DELETE ON public.notices TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.notices TO authenticated;
 
 DROP POLICY IF EXISTS "Active users can read notices" ON public.notices;
 CREATE POLICY "Active users can read notices"
@@ -17,6 +18,7 @@ ON public.notices FOR SELECT TO authenticated
 USING (EXISTS (
   SELECT 1 FROM public.profiles p
   WHERE p.id = auth.uid() AND p.active = true
+    AND (public.notices.status = 'published' OR p.role = 'admin')
 ));
 
 DROP POLICY IF EXISTS "Admins can post notices" ON public.notices;
@@ -33,6 +35,18 @@ DROP POLICY IF EXISTS "Admins can delete notices" ON public.notices;
 CREATE POLICY "Admins can delete notices"
 ON public.notices FOR DELETE TO authenticated
 USING (EXISTS (
+  SELECT 1 FROM public.profiles p
+  WHERE p.id = auth.uid() AND p.active = true AND p.role = 'admin'
+));
+
+DROP POLICY IF EXISTS "Admins can update notices" ON public.notices;
+CREATE POLICY "Admins can update notices"
+ON public.notices FOR UPDATE TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM public.profiles p
+  WHERE p.id = auth.uid() AND p.active = true AND p.role = 'admin'
+))
+WITH CHECK (EXISTS (
   SELECT 1 FROM public.profiles p
   WHERE p.id = auth.uid() AND p.active = true AND p.role = 'admin'
 ));
