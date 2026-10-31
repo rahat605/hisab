@@ -157,6 +157,7 @@ function App() {
   const [utilityMemberCountMessage, setUtilityMemberCountMessage] = useState("");
   const [editingUtilityName, setEditingUtilityName] = useState("");
   const [utilityEditModal, setUtilityEditModal] = useState(null);
+  const [showAddUtility, setShowAddUtility] = useState(false);
   const [expenseForm, setExpenseForm] = useState({
       name: "",
       amount: "",
@@ -175,6 +176,7 @@ function App() {
     rent: "",
     role: "member",
   });
+  const [showAddBazar, setShowAddBazar] = useState(false);
   const [bazarForm, setBazarForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     amount: "",
@@ -562,6 +564,21 @@ function App() {
         .payments-cash-grid .break-row { padding: 15px 2px; }
         .payments-cash-grid table { min-width: 560px; }
         @media (max-width: 900px) { .payments-cash-grid { grid-template-columns: 1fr; } }
+
+.bazar-layout-full{width:100%;}
+.bazar-history-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}
+.bazar-history-head .primary{white-space:nowrap;}
+.modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(4,12,24,.68);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;}
+.modal-backdrop .form-panel{width:min(580px,100%);max-height:calc(100vh - 40px);overflow:auto;}
+@media(max-width:640px){.bazar-history-head{flex-direction:column;}.bazar-history-head .primary{width:100%;}}
+
+.utilities-layout-step1{display:grid;grid-template-columns:minmax(280px,1fr);gap:16px;width:100%;}
+.utilities-layout-step1>.utilities-history-panel{width:100%;min-width:0;}
+@media(min-width:900px){.utilities-layout-step1{grid-template-columns:minmax(280px,0.38fr) minmax(0,1fr);}}
+
+.utilities-history-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;}
+.utilities-history-head button{white-space:nowrap;}
+.utility-add-modal{width:min(560px,100%);max-height:calc(100vh - 36px);overflow:auto;}
 </style></head><body><button class="print" onclick="window.print()">Save as PDF / Print</button><h1>My Monthly Hisab</h1><p>${month} · ${user.name}</p><div class="cards"><div class="card"><div class="label">Total rent</div><div class="value">${money(ownTotalRent)}</div></div><div class="card"><div class="label">Individual meal cost</div><div class="value">${money(mealActiveIds.includes(user.id) ? individualMealCost : 0)}</div></div><div class="card"><div class="label">Paid</div><div class="value">${money(ownPayments)}</div></div><div class="card"><div class="label">Remaining due</div><div class="value">${money(Math.ceil(ownDue))}</div></div></div><h2>Utilities breakdown</h2><table><thead><tr><th>Utility</th><th>Total</th><th>Your share</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No utilities</td></tr>'}</tbody></table><p>Individual meal cost = total bazar divided by ${bazarMemberCount} meal members.</p><script>window.onafterprint=()=>window.close();</script></body></html>`);
     popup.document.close();
   }
@@ -926,6 +943,8 @@ function App() {
       await loadCloudData(user.id, month);
       setExpenseForm({ name: "", amount: "", shared: true });
       setEditingUtilityName("");
+      setShowAddUtility(false);
+      setBazarSuccessToast("Utility saved successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600);
     } catch (e) {
       alert("Could not save expense: " + e.message);
     }
@@ -944,6 +963,7 @@ function App() {
       if (error) throw error;
       setUtilityEditModal(null);
       await loadCloudData(user.id, month);
+      setBazarSuccessToast("Utility updated successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600);
     } catch (e) { alert("Could not save utility: " + e.message); }
   }
 
@@ -1060,6 +1080,7 @@ function App() {
         date: new Date().toISOString().slice(0, 10),
         paidBy: f.paidBy || user.id,
       }));
+      setShowAddBazar(false);
       setBazarSuccessToast("Bazar saved successfully");
       window.setTimeout(() => setBazarSuccessToast(""), 2600);
     } catch (e) {
@@ -2317,69 +2338,10 @@ function App() {
           </div>
         )}
         {page === "expenses" && admin && (
-          <div className="grid-two">
-            <section className="panel form-panel">
-              <PanelHead
-                title="Add utility"
-                sub="Add utilities such as WiFi, gas, electricity, and water"
-              />
-              <form onSubmit={addCategory}>
-                <label>
-                  Utility name
-                  <input
-                    value={expenseForm.name}
-                    onChange={(e) =>
-                      setExpenseForm({ ...expenseForm, name: e.target.value })
-                    }
-                    required
-                  />
-                </label>
-                <label>
-                  Amount (৳)
-                  <input
-                    type="number"
-                    min="0"
-                    value={expenseForm.amount}
-                    onChange={(e) =>
-                      setExpenseForm({ ...expenseForm, amount: e.target.value })
-                    }
-                    required
-                  />
-                </label>
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={expenseForm.shared}
-                    onChange={(e) =>
-                      setExpenseForm({
-                        ...expenseForm,
-                        shared: e.target.checked,
-                      })
-                    }
-                  />{" "}
-                  Split among current members
-                </label>
-                <button className="primary full">
-                  {editingUtilityName ? "Save changes" : <><Plus size={16} /> Add utility</>}
-                </button>
-              </form>
-              <div className="utility-member-settings">
-                <div className="utility-member-heading">
-                  <span className="utility-member-icon"><Users size={17} /></span>
-                  <div><strong>Current User</strong><small>Utilities are divided by this number for every month</small></div>
-                </div>
-                <form onSubmit={saveUtilityMemberCount} className="utility-member-form">
-                  <label>Current user count<input type="number" min="1" step="1" value={utilityMemberCountInput} onChange={(e) => setUtilityMemberCountInput(e.target.value)} required /></label>
-                  <button className="primary" disabled={utilityMemberCountSaving}>{utilityMemberCountSaving ? "Saving..." : "Save"}</button>
-                  {utilityMemberCountMessage && <small>{utilityMemberCountMessage}</small>}
-                </form>
-              </div>
-            </section>
-            <section className="panel">
-              <PanelHead
-                title="Utilities list"
-                sub={`${month} · ${utilityMemberCount} current users`}
-              />
+          <div className="utilities-layout-step1">
+            <section className="panel utilities-history-panel">
+              <div className="utilities-history-head"><PanelHead title="Utilities list" sub={`${month} · ${utilityMemberCount} current users`} /><button type="button" className="primary" onClick={() => setShowAddUtility(true)}><Plus size={16}/> Add Utility</button></div>
+
               {utilityCategories.map((c, i) => (
                 <div className="break-row">
                   <span>
@@ -2392,6 +2354,7 @@ function App() {
                     className="icon-btn danger"
                     onClick={async () => {
                       if (!admin) return;
+                      if (!(await askConfirm(`Are you sure you want to delete "${c.name}" from ${month}?`, "Delete utility?"))) return;
                       try {
                         const utilities = [...(await getUtilitiesForMonth())].filter((item) => String(item.name || "").toLowerCase() !== String(c.name || "").toLowerCase()).map((item) => ({ ...item }));
                         const { error } = await supabase.from("app_settings").upsert(
@@ -2400,6 +2363,7 @@ function App() {
                         );
                         if (error) throw error;
                         await loadCloudData(user.id, month);
+                        setBazarSuccessToast("Utility deleted successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600);
                       } catch (e) {
                         alert("Could not delete utility: " + e.message);
                       }
@@ -2413,6 +2377,20 @@ function App() {
                 <b>Total utilities</b>
                 <b>{money(utilitiesTotal)}</b>
               </div>
+            </section>
+          </div>
+        )}
+        {page === "expenses" && admin && showAddUtility && (
+          <div className="modal-backdrop" role="presentation">
+            <section className="panel form-panel utility-add-modal" role="dialog" aria-modal="true">
+              <PanelHead title="Add utility" sub="Add utilities such as WiFi, gas, electricity, and water" />
+              <form onSubmit={addCategory}>
+                <label>Utility name<input value={expenseForm.name} onChange={(e) => setExpenseForm({ ...expenseForm, name: e.target.value })} required /></label>
+                <label>Amount (৳)<input type="number" min="0" value={expenseForm.amount} onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })} required /></label>
+                <label className="check"><input type="checkbox" checked={expenseForm.shared} onChange={(e) => setExpenseForm({ ...expenseForm, shared: e.target.checked })} /> Split among current members</label>
+                <button className="primary full">{editingUtilityName ? "Save changes" : <><Plus size={16} /> Add utility</>}</button>
+              </form>
+              <button type="button" className="secondary full" onClick={() => setShowAddUtility(false)}>Close</button>
             </section>
           </div>
         )}
@@ -2734,70 +2712,12 @@ function App() {
         )}
         {page === "bazar" && (admin || user.role === "member") && (
           <>
-            <div className="grid-two bazar-layout">
-              <section className="panel form-panel">
-                <PanelHead
-                  title="Add bazar"
-                  sub="Date auto-fills today. Enter items and total paid."
-                />
-                <form
-                  onSubmit={addBazar}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && e.target.tagName !== "BUTTON") {
-                      e.preventDefault();
-                    }
-                  }}
-                >
-                  <label>
-                    Date
-                    <input
-                      type="date"
-                      value={bazarForm.date}
-                      onChange={(e) =>
-                        setBazarForm({ ...bazarForm, date: e.target.value })
-                      }
-                      required
-                    />
-                  </label>
-                  <div className="bazar-item-list">
-              <div className="bazar-item-heading"><span>Item</span><span>Price (৳)</span></div>
-              {bazarRows.map((row, index) => <div className="bazar-item-row" key={index}>
-                <input aria-label={`Item ${index+1}`} placeholder={`Item ${index + 1}`} value={row.item} onChange={(e)=>updateBazarRow(index,"item",e.target.value)}/>
-                <input aria-label={`Price ${index+1}`} type="number" min="0" step="0.01" placeholder="0.00" value={row.price} onChange={(e)=>updateBazarRow(index,"price",e.target.value)}/>
-              </div>)}
-              <button type="button" className="secondary full" onClick={()=>setBazarRows(rows=>[...rows,{item:"",price:""}])}><Plus size={15}/> Add item</button>
-              <div className="bazar-item-total"><span>Total</span><strong>{money(bazarRows.reduce((sum,row)=>sum+Number(row.price||0),0))}</strong></div>
-            </div>
-
-                  <label>
-                    Paid by
-                    {admin ? (
-                      <select
-                        name="paidBy"
-                        value={bazarForm.paidBy || user.id}
-                        onChange={(e) => setBazarForm({ ...bazarForm, paidBy: e.target.value })}
-                      >
-                        {allActiveUsers.map((u) => <option key={u.id} value={u.id}>{u.name}{u.role === "admin" ? " (Admin)" : ""}</option>)}
-                        <option value="cash-in-hand">Cash in Hand</option>
-                      </select>
-                    ) : (
-                      <input value={user.name} readOnly aria-readonly="true" />
-                    )}
-                  </label>
-                  <p className="hint">
-                    The person who paid gets this amount credited against their
-                    shared expense.
-                  </p>
-                  <button className="primary full">
-                    <Plus size={16} /> Save bazar
-                  </button>
-                </form>
-              </section>
+            <div className="bazar-layout-full">
               <section className="panel bazar-history-panel">
-                <PanelHead
-                  title="Monthly bazar history"
-                  sub={`${month} · purchases only`}
-                />
+                <div className="bazar-history-head">
+                <PanelHead title="Monthly bazar history" sub={`${month} · purchases only`} />
+                <button type="button" className="primary" onClick={() => setShowAddBazar(true)}><Plus size={16}/> Add Bazar</button>
+              </div>
                 <label className="history-filter">
                   Filter by member
                   <select
@@ -2896,6 +2816,68 @@ function App() {
                 </div>
               </section>
             </div>
+            {showAddBazar && <div className="modal-backdrop" role="presentation"><div onClick={(e)=>e.stopPropagation()}>
+              <section className="modal panel form-panel" role="dialog" aria-modal="true" aria-labelledby="add-bazar-title">
+                <PanelHead
+                  title="Add bazar"
+                  sub="Date auto-fills today. Enter items and total paid."
+                />
+                <form
+                  onSubmit={addBazar}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && e.target.tagName !== "BUTTON") {
+                      e.preventDefault();
+                    }
+                  }}
+                >
+                  <label>
+                    Date
+                    <input
+                      type="date"
+                      value={bazarForm.date}
+                      onChange={(e) =>
+                        setBazarForm({ ...bazarForm, date: e.target.value })
+                      }
+                      required
+                    />
+                  </label>
+                  <div className="bazar-item-list">
+              <div className="bazar-item-heading"><span>Item</span><span>Price (৳)</span></div>
+              {bazarRows.map((row, index) => <div className="bazar-item-row" key={index}>
+                <input aria-label={`Item ${index+1}`} placeholder={`Item ${index + 1}`} value={row.item} onChange={(e)=>updateBazarRow(index,"item",e.target.value)}/>
+                <input aria-label={`Price ${index+1}`} type="number" min="0" step="0.01" placeholder="0.00" value={row.price} onChange={(e)=>updateBazarRow(index,"price",e.target.value)}/>
+              </div>)}
+              <button type="button" className="secondary full" onClick={()=>setBazarRows(rows=>[...rows,{item:"",price:""}])}><Plus size={15}/> Add item</button>
+              <div className="bazar-item-total"><span>Total</span><strong>{money(bazarRows.reduce((sum,row)=>sum+Number(row.price||0),0))}</strong></div>
+            </div>
+
+                  <label>
+                    Paid by
+                    {admin ? (
+                      <select
+                        name="paidBy"
+                        value={bazarForm.paidBy || user.id}
+                        onChange={(e) => setBazarForm({ ...bazarForm, paidBy: e.target.value })}
+                      >
+                        {allActiveUsers.map((u) => <option key={u.id} value={u.id}>{u.name}{u.role === "admin" ? " (Admin)" : ""}</option>)}
+                        <option value="cash-in-hand">Cash in Hand</option>
+                      </select>
+                    ) : (
+                      <input value={user.name} readOnly aria-readonly="true" />
+                    )}
+                  </label>
+                  <p className="hint">
+                    The person who paid gets this amount credited against their
+                    shared expense.
+                  </p>
+                  <button className="primary full">
+                    <Plus size={16} /> Save bazar
+                  </button>
+                </form>
+
+              </section>
+              <button type="button" className="secondary full" onClick={()=>setShowAddBazar(false)}>Close</button>
+            </div></div>}
             {bazarEditEntry && (
               <div className="modal-backdrop" role="presentation">
                 <section className="modal panel bazar-edit-modal" role="dialog" aria-modal="true" aria-labelledby="bazar-edit-title" onClick={(e) => e.stopPropagation()}>
@@ -3369,7 +3351,67 @@ function App() {
                     <button type="button" className="primary" onClick={saveUtilityEdit}>Save changes</button>
                   </div>
                 </section>
+              {showAddUtility && <div className="modal-backdrop"><div onClick={(e)=>e.stopPropagation()}>
+            <section className="panel form-panel utility-add-modal">
+              <PanelHead
+                title="Add utility"
+                sub="Add utilities such as WiFi, gas, electricity, and water"
+              />
+              <form onSubmit={addCategory}>
+                <label>
+                  Utility name
+                  <input
+                    value={expenseForm.name}
+                    onChange={(e) =>
+                      setExpenseForm({ ...expenseForm, name: e.target.value })
+                    }
+                    required
+                  />
+                </label>
+                <label>
+                  Amount (৳)
+                  <input
+                    type="number"
+                    min="0"
+                    value={expenseForm.amount}
+                    onChange={(e) =>
+                      setExpenseForm({ ...expenseForm, amount: e.target.value })
+                    }
+                    required
+                  />
+                </label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={expenseForm.shared}
+                    onChange={(e) =>
+                      setExpenseForm({
+                        ...expenseForm,
+                        shared: e.target.checked,
+                      })
+                    }
+                  />{" "}
+                  Split among current members
+                </label>
+                <button className="primary full">
+                  {editingUtilityName ? "Save changes" : <><Plus size={16} /> Add utility</>}
+                </button>
+              </form>
+              <div className="utility-member-settings">
+                <div className="utility-member-heading">
+                  <span className="utility-member-icon"><Users size={17} /></span>
+                  <div><strong>Current User</strong><small>Utilities are divided by this number for every month</small></div>
+                </div>
+                <form onSubmit={saveUtilityMemberCount} className="utility-member-form">
+                  <label>Current user count<input type="number" min="1" step="1" value={utilityMemberCountInput} onChange={(e) => setUtilityMemberCountInput(e.target.value)} required /></label>
+                  <button className="primary" disabled={utilityMemberCountSaving}>{utilityMemberCountSaving ? "Saving..." : "Save"}</button>
+                  {utilityMemberCountMessage && <small>{utilityMemberCountMessage}</small>}
+                </form>
               </div>
+            </section>
+
+<button type="button" className="secondary full" onClick={()=>setShowAddUtility(false)}>Close</button></div></div>}
+          </div>
             )}
 
         <footer>
