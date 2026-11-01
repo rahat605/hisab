@@ -62,6 +62,10 @@ function App() {
       return null;
     }
   });
+  const [sessionBooting, setSessionBooting] = useState(() => {
+    try { return Boolean(JSON.parse(sessionStorage.getItem("bh-user"))?.id); }
+    catch { return false; }
+  });
   useEffect(() => {
     if (!session?.id) return;
     supabase.from("member_contacts").select("*").order("category").then(({ data, error }) => {
@@ -291,7 +295,10 @@ function App() {
             "Could not load shared Supabase data: " +
               (err?.message || "Unknown error"),
           ),
-        );
+        )
+        .finally(() => setSessionBooting(false));
+    } else {
+      setSessionBooting(false);
     }
   }, []);
   const user = db.users.find((u) => u.id === session?.id);
@@ -1633,6 +1640,17 @@ function App() {
    </style></head><body><div class="sheet"><div class="printbar"><button class="closebtn" onclick="window.close()">Close report</button><button class="printbtn" onclick="window.print()">Save as PDF / Print</button></div><header class="hero"><div class="brand">Monthly Hisab · Household finance</div><h1>Monthly Financial Report</h1><p>${esc(month)} · A clear snapshot of your shared home expenses</p><span class="tag">PREPARED BY RAHAT · ${esc(new Date().toLocaleDateString())}</span></header><main class="content"><div class="stats"><div class="stat"><span>Monthly bazar</span><strong>${money(bazarTotal)}</strong></div><div class="stat"><span>Total rent</span><strong>${money(totalRent)}</strong></div><div class="stat"><span>Rent paid</span><strong>${money(rentPaid)}</strong></div><div class="stat"><span>Cash contributions</span><strong>${money(cashTotal)}</strong></div></div><section class="section"><div class="section-title"><i></i><h2>Member balances</h2></div><p class="sub">Rent, shared expenses, recorded payments and estimated remaining due</p><table><thead><tr><th>Member</th><th>Rent</th><th>Individual meal</th><th>Rent paid</th><th>Meal paid</th><th>Due</th></tr></thead><tbody>${memberRows || tableEmpty}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Expense breakdown</h2></div><p class="sub">Expenses configured for ${esc(month)}</p><table><thead><tr><th>Expense</th><th>Type</th><th>Amount</th></tr></thead><tbody>${expenseRows || '<tr><td colspan="3" class="empty">No expenses configured</td></tr>'}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Monthly bazar history</h2></div><p class="sub">Recorded purchases for ${esc(month)} · total ${money(bazarTotal)}</p><table><thead><tr><th>Date</th><th>Items</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${bazarRows || '<tr><td colspan="4" class="empty">No bazar entries for this month</td></tr>'}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Member payment history</h2></div><p class="sub">Payments recorded by admin</p><table><thead><tr><th>Date</th><th>Member</th><th>Note</th><th>Amount</th></tr></thead><tbody>${paymentRows || '<tr><td colspan="4" class="empty">No payments recorded for this month</td></tr>'}</tbody></table></section><div class="footer"><span>Designed &amp; developed by <strong>Rahat</strong> · Monthly Hisab</span><span>Private household report · ${esc(month)}</span></div></main></div><script>window.addEventListener('load',()=>{document.title='Monthly-Hisab-${esc(month).replace(/[^a-zA-Z0-9-]/g, "-")}-Report'});</script></body></html>`);
     w.document.close();
   }
+  if (sessionBooting)
+    return (
+      <div className="app-loading-backdrop" role="status" aria-live="polite">
+        <div className="app-loading-popup">
+          <div className="app-loading-mark"><span className="app-loading-ring" /><span className="app-loading-core">৳</span></div>
+          <div className="app-loading-title">Monthly Hisab</div>
+          <div className="app-loading-caption">Preparing your account</div>
+          <div className="app-loading-track"><span /></div>
+        </div>
+      </div>
+    );
   if (!session || !user)
     return (
       <div className="login-wrap">
