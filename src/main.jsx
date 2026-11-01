@@ -298,7 +298,15 @@ function App() {
   useEffect(() => {
     if (!session?.id || !supabaseConfigured || !user) return;
     let cancelled = false;
-    const monthIndex = (value) => { const d = new Date(`${value} 1`); return Number.isNaN(d.getTime()) ? -1 : d.getFullYear() * 12 + d.getMonth(); };
+    const monthIndex = (value) => {
+      // Safari/iOS may not parse "November 2026 1" consistently.
+      // Parse the month label directly so every device gets the same index.
+      const match = String(value || "").trim().match(/^([A-Za-z]+)\\s+(\\d{4})$/);
+      if (!match) return -1;
+      const monthNames = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+      const monthNumber = monthNames.indexOf(match[1].toLowerCase());
+      return monthNumber < 0 ? -1 : Number(match[2]) * 12 + monthNumber;
+    };
     async function calculatePreviousDueForMembers() {
       setPreviousDueLoading(true);
       try {
