@@ -3841,3 +3841,28 @@ table tbody tr { transition: background-color .16s ease; }
 @media (prefers-reduced-motion: reduce) {
   .app-loading-popup, .app-loading-ring, .app-loading-track span { animation: none; }
 }
+
+/* Phone notifications open as a centered modal panel */
+@media (max-width: 700px) {
+  .notice-bell-wrap { position: static !important; }
+  .notice-popover {
+    position: fixed !important;
+    left: 50% !important;
+    right: auto !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: min(440px, calc(100vw - 32px)) !important;
+    max-height: min(78vh, 680px) !important;
+    overflow-y: auto !important;
+    z-index: 10000 !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    border-radius: 20px !important;
+    box-shadow: 0 28px 90px rgba(8, 18, 38, .32) !important;
+  }
+}
+
+/* Monthly bazar history action colors in dark mode only. */
+:root[data-theme="dark"] .bazar-history-panel tbody td:nth-child(5) .icon-btn:nth-child(1){background:#163b5b!important;border-color:#24577d!important;color:#69c5ff!important}
+:root[data-theme="dark"] .bazar-history-panel tbody td:nth-child(5) .icon-btn:nth-child(2){background:#3b2d16!important;border-color:#705326!important;color:#ffc766!important}
+:root[data-theme="dark"] .bazar-history-panel tbody td:nth-child(5) .icon-btn:nth-child(3){background:#481f2b!important;border-color:#7b3446!important;color:#ff8fa4!important}
