@@ -301,7 +301,7 @@ function App() {
     const monthIndex = (value) => {
       // Safari/iOS may not parse "November 2026 1" consistently.
       // Parse the month label directly so every device gets the same index.
-      const match = String(value || "").trim().match(/^([A-Za-z]+)\\s+(\\d{4})$/);
+      const match = String(value || "").trim().match(/^([A-Za-z]+)\s+(\d{4})$/);
       if (!match) return -1;
       const monthNames = ["january","february","march","april","may","june","july","august","september","october","november","december"];
       const monthNumber = monthNames.indexOf(match[1].toLowerCase());
