@@ -337,7 +337,9 @@ function App() {
         if (!cancelled) { setPreviousDueByUser(rounded); setPreviousDue(rounded[user.id] || 0); }
       } catch (error) {
         console.warn("Could not calculate previous due:", error?.message);
-        if (!cancelled) { setPreviousDueByUser({}); setPreviousDue(0); }
+        // Keep the last known Previous Due values if a refresh/query fails.
+        // Clearing them here makes My Account and the admin table show 0 on mobile
+        // during temporary Supabase errors.
       } finally { if (!cancelled) setPreviousDueLoading(false); }
     }
     calculatePreviousDueForMembers();
