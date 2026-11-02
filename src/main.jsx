@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   LayoutDashboard,
@@ -29,8 +29,25 @@ import {
   ImagePlus,
   Send,
   Utensils,
+  Zap,
+  ShoppingBasket,
+  Wifi,
+  Flame,
+  Droplets,
+  ArrowUpDown,
+  Brush,
+  Phone,
+  Copy,
+  MessageCircle,
+  Paperclip,
+  ChevronRight,
+  FileText,
+  MoreVertical,
+  CheckCheck,
+  Images,
 } from "lucide-react";
 import "./style.css";
+import "./inbox.css";
 import { supabase, supabaseConfigured } from "./supabase";
 
 const starter = {
@@ -91,10 +108,32 @@ function App() {
       if (!error && data) setContactRows(data);
     });
   }, [session?.id]);
-  const [page, setPage] = useState("overview"),
+  const [page, setPage] = useState(() => {
+    const validPages = new Set([
+      "overview", "my-account", "bazar", "contacts", "pay-rent",
+      "members", "expenses", "payments", "payment-options", "notices", "inbox",
+    ]);
+    try {
+      const savedPage = session?.id && sessionStorage.getItem("bh-page");
+      return validPages.has(savedPage) ? savedPage : "overview";
+    } catch {
+      return "overview";
+    }
+  }),
     [month, setMonth] = useState(new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })),
-    [menu, setMenu] = useState(false);
+    [menu, setMenu] = useState(false),
+    [monthMenuOpen, setMonthMenuOpen] = useState(false);
+  const monthPickerRef = useRef(null);
+  const monthPickerTriggerRef = useRef(null);
   const monthChoices = (() => { const now = new Date(); return [-2,-1,0,1].map(offset => new Date(now.getFullYear(), now.getMonth()+offset, 1).toLocaleDateString("en-US", {month:"long",year:"numeric"})); })();
+  useEffect(() => {
+    if (!monthMenuOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!monthPickerRef.current?.contains(event.target)) setMonthMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [monthMenuOpen]);
   const [login, setLogin] = useState({ username: "", password: "" }),
     [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -116,6 +155,8 @@ function App() {
   const [contactRows, setContactRows] = useState([]);
   const [contactForm, setContactForm] = useState({ id: "", category: "Flatmate", name: "", phone: "" });
   const [contactBusy, setContactBusy] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [contactError, setContactError] = useState("");
 
   const [profileOpen, setProfileOpen] = useState(false);
   async function updateProfileEmail(e) {
@@ -242,7 +283,9 @@ function App() {
   });
   const [editId, setEditId] = useState(null),
     [bazarFilter, setBazarFilter] = useState("all"),
-    [adminOpen, setAdminOpen] = useState(false);
+    [adminOpen, setAdminOpen] = useState(() =>
+      ["members", "expenses", "payments", "payment-options", "notices"].includes(page),
+    );
   const [count, setCount] = useState(db.currentCount),
     [selected, setSelected] = useState(db.currentMembers);
   const [mealMemberDraft, setMealMemberDraft] = useState("1");
@@ -259,7 +302,22 @@ function App() {
     [noticeComposerOpen, setNoticeComposerOpen] = useState(false),
     [noticeModal, setNoticeModal] = useState(false),
     [noticeReadBusy, setNoticeReadBusy] = useState(false),
-    [noticeDraftBusy, setNoticeDraftBusy] = useState(false);
+    [noticeDraftBusy, setNoticeDraftBusy] = useState(false),
+    [inboxMessages, setInboxMessages] = useState([]),
+    [inboxUnreadCount, setInboxUnreadCount] = useState(0),
+    [inboxOnlineIds, setInboxOnlineIds] = useState([]),
+    [inboxError, setInboxError] = useState(""),
+    [selectedInboxMemberId, setSelectedInboxMemberId] = useState(""),
+    [inboxDraft, setInboxDraft] = useState(""),
+    [inboxAttachment, setInboxAttachment] = useState(null),
+    [inboxBusy, setInboxBusy] = useState(false),
+    [inboxMenuOpen, setInboxMenuOpen] = useState(false),
+    [inboxMediaOpen, setInboxMediaOpen] = useState(false),
+    [inboxMediaFiles, setInboxMediaFiles] = useState([]),
+    [inboxMediaBusy, setInboxMediaBusy] = useState(false),
+    [inboxDeleteBusy, setInboxDeleteBusy] = useState(false);
+  const inboxAttachmentInputRef = useRef(null);
+  const lastInboxActivityAtRef = useRef(0);
   const paymentDefaults = [
     {
       provider: "bkash",
@@ -301,11 +359,17 @@ function App() {
   const [paymentOptions, setPaymentOptions] = useState(paymentDefaults);
   const [paymentOptionsBusy, setPaymentOptionsBusy] = useState(false);
   const [paymentOptionsError, setPaymentOptionsError] = useState("");
+  const [paymentEditorMode, setPaymentEditorMode] = useState("");
+  const [paymentEditorForm, setPaymentEditorForm] = useState(null);
   // Financial records are never persisted to browser storage. Supabase is the source of truth.
   useEffect(() => {
     if (session) sessionStorage.setItem("bh-user", JSON.stringify(session));
     else sessionStorage.removeItem("bh-user");
   }, [session]);
+  useEffect(() => {
+    if (session?.id) sessionStorage.setItem("bh-page", page);
+    else sessionStorage.removeItem("bh-page");
+  }, [page, session?.id]);
   useEffect(() => {
     if (session?.id && supabaseConfigured) {
       const currentMonth = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -387,18 +451,135 @@ function App() {
     calculatePreviousDueForMembers();
     return () => { cancelled = true; };
   }, [session?.id, user?.id, user?.rent, month, utilityMemberCount, db.users]);
-  // On refresh, the member profile arrives asynchronously from Supabase. Route members back to My Account once their role is loaded.
+  // On refresh, the member profile arrives asynchronously from Supabase. Keep members on a page they can access.
   useEffect(() => {
-    if (session?.id && user?.role === "member" && page === "overview")
+    const adminPages = ["overview", "members", "expenses", "payments", "payment-options", "notices"];
+    if (session?.id && user?.role === "member" && adminPages.includes(page))
       setPage("my-account");
   }, [session?.id, user?.role, page]);
   const admin = user?.role === "admin";
   const activeUsers = db.users.filter((u) => u.active && u.role === "member");
+  const inboxLastMessageAt = new Map();
+  for (const message of inboxMessages) {
+    const memberId =
+      message.sender_id === session?.id
+        ? message.recipient_id
+        : message.recipient_id === session?.id
+          ? message.sender_id
+          : null;
+    if (!memberId) continue;
+    const timestamp = Date.parse(message.created_at) || 0;
+    inboxLastMessageAt.set(
+      memberId,
+      Math.max(timestamp, inboxLastMessageAt.get(memberId) || 0),
+    );
+  }
+  const inboxPeers = db.users
+    .filter(
+      (profile) =>
+        profile.id !== session?.id &&
+        (profile.role === "member" || profile.role === "admin"),
+    )
+    .sort((left, right) => {
+      const recentDifference =
+        (inboxLastMessageAt.get(right.id) || 0) -
+        (inboxLastMessageAt.get(left.id) || 0);
+      return recentDifference || left.name.localeCompare(right.name);
+    });
+  const selectedInboxMember = inboxPeers.find((member) => member.id === selectedInboxMemberId);
+  const selectedConversation = inboxMessages.filter(
+    (message) =>
+      (message.sender_id === selectedInboxMemberId && message.recipient_id === session?.id) ||
+      (message.sender_id === session?.id && message.recipient_id === selectedInboxMemberId),
+  );
+  useEffect(() => {
+    if (!inboxPeers.length) {
+      setSelectedInboxMemberId("");
+      return;
+    }
+    if (!inboxPeers.some((profile) => profile.id === selectedInboxMemberId)) {
+      setSelectedInboxMemberId(inboxPeers[0].id);
+    }
+  }, [db.users, session?.id, selectedInboxMemberId]);
+  useEffect(() => {
+    if (!session?.id) {
+      setInboxMessages([]);
+      setInboxUnreadCount(0);
+      setInboxOnlineIds([]);
+      setInboxError("");
+      return;
+    }
+    void refreshInbox();
+    const intervalId = window.setInterval(() => void refreshInbox(), 15000);
+    return () => window.clearInterval(intervalId);
+  }, [session?.id]);
+  useEffect(() => {
+    if (!session?.id || !supabaseConfigured || !supabase) {
+      setInboxOnlineIds([]);
+      return;
+    }
+    let active = true;
+    const channel = supabase.channel("household-inbox-presence", {
+      config: { presence: { key: session.id } },
+    });
+    const updatePresence = () => {
+      if (!active) return;
+      const onlineIds = Object.values(channel.presenceState())
+        .flat()
+        .map((presence) => presence.user_id)
+        .filter((id) => typeof id === "string");
+      setInboxOnlineIds([...new Set(onlineIds)]);
+    };
+    channel
+      .on("presence", { event: "sync" }, updatePresence)
+      .on("presence", { event: "join" }, updatePresence)
+      .on("presence", { event: "leave" }, updatePresence)
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          const { error: presenceError } = await channel.track({
+            user_id: session.id,
+            online_at: new Date().toISOString(),
+          });
+          if (presenceError) console.warn("Could not publish inbox online status:", presenceError.message);
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("Inbox online status is unavailable:", status);
+        }
+      });
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [session?.id]);
+  useEffect(() => {
+    if (!session?.id || !supabaseConfigured || !supabase) return;
+    const recordActivity = async () => {
+      if (document.visibilityState !== "visible" || Date.now() - lastInboxActivityAtRef.current < 60000) return;
+      lastInboxActivityAtRef.current = Date.now();
+      const { error: activityError } = await supabase.rpc("record_member_activity");
+      if (activityError) {
+        lastInboxActivityAtRef.current = 0;
+        console.warn("Could not update last-active time:", activityError.message);
+      }
+    };
+    const intervalId = window.setInterval(() => void recordActivity(), 60000);
+    window.addEventListener("focus", recordActivity);
+    document.addEventListener("visibilitychange", recordActivity);
+    void recordActivity();
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", recordActivity);
+      document.removeEventListener("visibilitychange", recordActivity);
+    };
+  }, [session?.id]);
   const allActiveUsers = db.users.filter((u) => u.active);
   const currentUsers = db.users.filter(
     (u) => selected.includes(u.id) && u.active && u.role === "member",
   );
   const monthBazar = (db.bazars || []).filter((b) => b.month === month);
+  const filteredMonthBazar = monthBazar.filter((b) =>
+    bazarFilter === "all" ||
+    (bazarFilter === "cash-in-hand" ? b.paidFromCash : !b.paidFromCash && b.paidBy === bazarFilter),
+  );
   const bazarTotal = monthBazar.reduce((s, b) => s + Number(b.amount || 0), 0);
   // Utilities are admin-configured expenses; bazar is tracked separately as meal cost.
   const utilityCategories = db.categories.filter(
@@ -583,10 +764,13 @@ function App() {
     if (profileId) {
       const { data: reads, error: readError } = await supabase
         .from("notice_reads")
-        .select("notice_id")
+        .select("notice_id,read_at")
         .eq("user_id", profileId);
       if (readError) throw readError;
-      const readIds = (reads || []).map((r) => r.notice_id);
+      const readAtByNotice = new Map((reads || []).map((r) => [r.notice_id, Date.parse(r.read_at)]));
+      const readIds = visibleRows
+        .filter((notice) => (readAtByNotice.get(notice.id) || 0) >= Date.parse(notice.created_at))
+        .map((notice) => notice.id);
       setReadNoticeIds(readIds);
       if (
         showForUser &&
@@ -596,6 +780,250 @@ function App() {
         setNoticeModal(true);
     } else setReadNoticeIds([]);
     return visibleRows;
+  }
+  async function refreshInbox() {
+    if (!session?.id || !supabaseConfigured || !supabase) return;
+    try {
+      const baseMessageFields = "id,sender_id,recipient_id,body,created_at,read_at";
+      let attachmentSchemaAvailable = true;
+      let messagesResult = await supabase
+          .from("direct_messages")
+          .select(`${baseMessageFields},attachment_path,attachment_name,attachment_type,attachment_size`)
+          .or(`sender_id.eq.${session.id},recipient_id.eq.${session.id}`)
+          .order("created_at", { ascending: false })
+          .limit(500);
+      if (
+        messagesResult.error &&
+        /attachment_(path|name|type|size)/i.test(messagesResult.error.message || "") &&
+        /column|schema cache|does not exist|not found/i.test(messagesResult.error.message || "")
+      ) {
+        attachmentSchemaAvailable = false;
+        messagesResult = await supabase
+          .from("direct_messages")
+          .select(baseMessageFields)
+          .or(`sender_id.eq.${session.id},recipient_id.eq.${session.id}`)
+          .order("created_at", { ascending: false })
+          .limit(500);
+      }
+      const [unreadResult, activityResult] = await Promise.all([
+        supabase
+          .from("direct_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("recipient_id", session.id)
+          .is("read_at", null),
+        supabase.from("profiles").select("id,last_login_at"),
+      ]);
+      const queryError = messagesResult.error || unreadResult.error;
+      if (queryError) throw queryError;
+      const messagesWithAttachments = await Promise.all(
+        (messagesResult.data || []).map(async (message) => {
+          if (!message.attachment_path) return message;
+          const { data: signedFile, error: signedUrlError } = await supabase.storage
+            .from("inbox-attachments")
+            .createSignedUrl(message.attachment_path, 3600);
+          if (signedUrlError) {
+            console.error("Could not open an Inbox attachment:", signedUrlError);
+            return { ...message, attachment_url: "", attachment_error: signedUrlError.message };
+          }
+          return { ...message, attachment_url: signedFile.signedUrl };
+        }),
+      );
+      setInboxMessages(messagesWithAttachments.reverse());
+      setInboxUnreadCount(unreadResult.count || 0);
+      if (activityResult.error) {
+        console.warn("Could not refresh Inbox last-active times:", activityResult.error.message);
+      } else {
+        const activityById = new Map(
+          (activityResult.data || []).map((profile) => [profile.id, profile.last_login_at]),
+        );
+        setDb((current) => ({
+          ...current,
+          users: current.users.map((profile) => ({
+            ...profile,
+            lastLoginAt: activityById.get(profile.id) || profile.lastLoginAt,
+          })),
+        }));
+      }
+      setInboxError(
+        !attachmentSchemaAvailable
+          ? "Messages loaded, but Inbox attachments are not set up yet. Apply supabase/migrations/20261104_inbox_attachments.sql in Supabase."
+          : "",
+      );
+    } catch (queryError) {
+      console.error("Could not load inbox messages:", queryError);
+      setInboxError(`Inbox could not load: ${queryError?.message || "Unknown Supabase error"}`);
+    }
+  }
+  async function selectInboxMember(memberId) {
+    setSelectedInboxMemberId(memberId);
+    setInboxError("");
+    setInboxMenuOpen(false);
+    setInboxMediaOpen(false);
+    const hasUnreadFromMember = inboxMessages.some(
+      (message) =>
+        message.sender_id === memberId &&
+        message.recipient_id === session?.id &&
+        !message.read_at,
+    );
+    if (!hasUnreadFromMember) return;
+    try {
+      const { error: readError } = await supabase
+        .from("direct_messages")
+        .update({ read_at: new Date().toISOString() })
+        .eq("sender_id", memberId)
+        .eq("recipient_id", session.id)
+        .is("read_at", null);
+      if (readError) throw readError;
+      await refreshInbox();
+    } catch (readError) {
+      console.error("Could not mark inbox messages as read:", readError);
+      setInboxError("Could not mark these messages as read. Please try again.");
+    }
+  }
+  async function loadInboxMedia(memberId = selectedInboxMemberId) {
+    if (!session?.id || !memberId) return;
+    setInboxMediaBusy(true);
+    setInboxError("");
+    try {
+      const allAttachments = [];
+      for (let offset = 0; ; offset += 500) {
+        const { data, error: mediaError } = await supabase
+          .from("direct_messages")
+          .select("id,attachment_path,attachment_name,attachment_type,attachment_size,created_at")
+          .not("attachment_path", "is", null)
+          .or(
+            `and(sender_id.eq.${session.id},recipient_id.eq.${memberId}),and(sender_id.eq.${memberId},recipient_id.eq.${session.id})`,
+          )
+          .order("created_at", { ascending: false })
+          .range(offset, offset + 499);
+        if (mediaError) throw mediaError;
+        allAttachments.push(...(data || []));
+        if (!data || data.length < 500) break;
+      }
+      const signedAttachments = await Promise.all(
+        allAttachments.map(async (attachment) => {
+          const { data, error: urlError } = await supabase.storage
+            .from("inbox-attachments")
+            .createSignedUrl(attachment.attachment_path, 3600);
+          if (urlError) throw urlError;
+          return { ...attachment, url: data.signedUrl };
+        }),
+      );
+      setInboxMediaFiles(signedAttachments);
+      setInboxMediaOpen(true);
+      setInboxMenuOpen(false);
+    } catch (mediaError) {
+      console.error("Could not load conversation media:", mediaError);
+      setInboxError(mediaError?.message || "Could not load conversation media.");
+    } finally {
+      setInboxMediaBusy(false);
+    }
+  }
+  async function deleteInboxConversation() {
+    if (!selectedInboxMember || !session?.id || inboxDeleteBusy) return;
+    const confirmed = await askConfirm(
+      `Delete every message and attached file in your conversation with ${selectedInboxMember.name}? This permanently removes the conversation for both people and cannot be undone.`,
+      "Delete conversation?",
+    );
+    if (!confirmed) return;
+    setInboxDeleteBusy(true);
+    setInboxError("");
+    try {
+      const conversationMessages = [];
+      for (let offset = 0; ; offset += 500) {
+        const { data, error: fetchError } = await supabase
+          .from("direct_messages")
+          .select("id,attachment_path")
+          .or(
+            `and(sender_id.eq.${session.id},recipient_id.eq.${selectedInboxMember.id}),and(sender_id.eq.${selectedInboxMember.id},recipient_id.eq.${session.id})`,
+          )
+          .range(offset, offset + 499);
+        if (fetchError) throw fetchError;
+        conversationMessages.push(...(data || []));
+        if (!data || data.length < 500) break;
+      }
+      const attachments = conversationMessages
+        .map((message) => message.attachment_path)
+        .filter(Boolean);
+      for (let offset = 0; offset < attachments.length; offset += 100) {
+        const { error: storageError } = await supabase.storage
+          .from("inbox-attachments")
+          .remove(attachments.slice(offset, offset + 100));
+        if (storageError) throw storageError;
+      }
+      if (conversationMessages.length) {
+        const { error: deleteError } = await supabase
+          .from("direct_messages")
+          .delete()
+          .or(
+            `and(sender_id.eq.${session.id},recipient_id.eq.${selectedInboxMember.id}),and(sender_id.eq.${selectedInboxMember.id},recipient_id.eq.${session.id})`,
+          );
+        if (deleteError) throw deleteError;
+      }
+      await refreshInbox();
+      setInboxMediaFiles([]);
+      setInboxMediaOpen(false);
+      setInboxMenuOpen(false);
+    } catch (deleteError) {
+      console.error("Could not delete inbox conversation:", deleteError);
+      setInboxError(deleteError?.message || "Could not delete conversation. Please try again.");
+    } finally {
+      setInboxDeleteBusy(false);
+    }
+  }
+  async function sendInboxMessage(event) {
+    event.preventDefault();
+    const body = inboxDraft.trim();
+    const file = inboxAttachment;
+    if ((!body && !file) || body.length > 2000 || !selectedInboxMemberId || !session?.id) return;
+    setInboxBusy(true);
+    setInboxError("");
+    let uploadedPath = "";
+    try {
+      let attachment = {};
+      if (file) {
+        if (file.size > 10 * 1024 * 1024) {
+          throw new Error("Choose a file smaller than 10 MB.");
+        }
+        const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10);
+        uploadedPath = `${session.id}/${crypto.randomUUID()}${extension ? `.${extension}` : ""}`;
+        const { error: uploadError } = await supabase.storage
+          .from("inbox-attachments")
+          .upload(uploadedPath, file, {
+            contentType: file.type || "application/octet-stream",
+            upsert: false,
+          });
+        if (uploadError) throw uploadError;
+        attachment = {
+          attachment_path: uploadedPath,
+          attachment_name: file.name,
+          attachment_type: file.type || "application/octet-stream",
+          attachment_size: file.size,
+        };
+      }
+      const { error: sendError } = await supabase.from("direct_messages").insert({
+        sender_id: session.id,
+        recipient_id: selectedInboxMemberId,
+        body: body || null,
+        ...attachment,
+      });
+      if (sendError) throw sendError;
+      setInboxDraft("");
+      setInboxAttachment(null);
+      if (inboxAttachmentInputRef.current) inboxAttachmentInputRef.current.value = "";
+      await refreshInbox();
+    } catch (sendError) {
+      console.error("Could not send inbox message:", sendError);
+      if (uploadedPath) {
+        const { error: cleanupError } = await supabase.storage
+          .from("inbox-attachments")
+          .remove([uploadedPath]);
+        if (cleanupError) console.error("Could not clean up the unsent attachment:", cleanupError);
+      }
+      setInboxError(sendError?.message || "Message could not be sent. Please try again.");
+    } finally {
+      setInboxBusy(false);
+    }
   }
   async function markAllNoticesRead(profileId = session?.id) {
     if (!profileId || !supabase || noticeReadBusy) return;
@@ -630,8 +1058,10 @@ function App() {
   async function toggleNoticePanel() {
     setNoticePanelOpen((open) => !open);
   }
-  function exportMyAccountPdf() {
+  function exportMyAccountPdf(reportUser = user) {
     if (previousDueLoading) { alert("Previous months due is still loading. Please try again in a moment."); return; }
+    if (!reportUser) return;
+    const signedInUserId = user?.id;
     const popup = window.open("", "_blank", "width=900,height=700");
     const popupBlocked = !popup;
     const reportDocument = popup
@@ -641,9 +1071,16 @@ function App() {
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     }[character]));
     const rows = utilityCategories.filter((category) => category.shared).map((category) => `<tr><td><span class="utility-mark" aria-hidden="true">⌁</span>${escapeHtml(category.name)}</td><td>${money(category.amount)}</td><td>${money(utilityMemberCount > 0 ? Math.ceil(Number(category.amount || 0) / utilityMemberCount) : 0)}</td></tr>`).join("");
-    const mealCost = mealActiveIds.includes(user.id) ? individualMealCost : 0;
-    const pastDue = previousDueByUser[user.id] ?? previousDue;
-    const currentDue = Math.ceil(ownDue);
+    const reportMember = reportUser;
+    const ownTotalRent = Number(reportUser.rent || 0) + utilitiesPerMember;
+    const mealCost = mealActiveIds.includes(reportUser.id) ? individualMealCost : 0;
+    const ownPayments =
+      (db.payments || [])
+        .filter((payment) => payment.userId === reportUser.id && payment.month === month)
+        .reduce((sum, payment) => sum + Number(payment.amount || 0), 0) +
+      memberCredits(reportUser.id);
+    const currentDue = Math.ceil(ownTotalRent + mealCost - ownPayments);
+    const pastDue = previousDueByUser[reportUser.id] ?? (reportUser.id === signedInUserId ? previousDue : 0);
     const totalDue = currentDue + pastDue;
     const icons = {
       home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V21h13V9.5M9.5 21v-7h5v7"/></svg>',
@@ -663,7 +1100,7 @@ function App() {
       .note{display:flex;align-items:center;gap:13px;margin:30px 0 0;padding:16px 21px;border-radius:16px;background:#edf2e8;color:#46576a;font-size:16px;font-style:italic}.note-icon{width:25px;height:25px;display:grid;place-items:center;flex:none;border:2px solid #087343;border-radius:50%;color:#087343;font:700 16px Georgia,serif;font-style:normal}
       @page{size:A4;margin:13mm}@media(max-width:620px){body{padding:24px 16px}.brand-icon{width:58px;height:58px;border-radius:17px}.brand-icon svg{width:34px;height:34px}.heading{gap:13px}.divider{height:54px}.heading p{font-size:16px}.cards{gap:10px}.card{min-height:96px;padding:14px 12px;gap:10px;border-radius:15px}.card-icon{width:42px;height:42px;border-radius:12px}.card-icon svg{width:25px;height:25px}.label{font-size:13px}.value{font-size:24px}.section-title h2{font-size:27px}th,td{padding:11px 9px;font-size:13px}.utility-mark{width:27px;margin-right:7px}.note{font-size:14px}}
       @media print{body{padding:0;background:#fcf9f4!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.print{display:none}.sheet{max-width:none}.cards{gap:12px;margin-bottom:32px}.card{min-height:96px;padding:15px 18px;break-inside:avoid}.section-title{break-after:avoid}.table-wrap{break-inside:avoid}.note{break-inside:avoid}}
-      </style></head><body><main class="sheet"><header class="heading"><span class="brand-icon">${icons.home}</span><span class="divider"></span><div><h1>My Monthly Hisab</h1><p>${escapeHtml(month)} · ${escapeHtml(user.name)}</p></div></header>${popupBlocked ? '<button class="print" onclick="window.history.back()">Back to app</button>' : ''}<button class="print" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 17v3h14v-3"/></svg>Save as PDF / Print</button><section class="cards"><article class="card"><span class="card-icon">${icons.home}</span><div><div class="label">Total rent</div><div class="value">${money(ownTotalRent)}</div></div></article><article class="card"><span class="card-icon">${icons.meal}</span><div><div class="label">Individual meal cost</div><div class="value">${money(mealCost)}</div></div></article><article class="card"><span class="card-icon">${icons.paid}</span><div><div class="label">Paid</div><div class="value">${money(ownPayments)}</div></div></article><article class="card"><span class="card-icon">${icons.due}</span><div><div class="label">Current month due</div><div class="value">${money(currentDue)}</div></div></article><article class="card"><span class="card-icon">${icons.due}</span><div><div class="label">Previous months due</div><div class="value">${money(pastDue)}</div></div></article><article class="card"><span class="card-icon">${icons.total}</span><div><div class="label">Total due</div><div class="value">${money(totalDue)}</div></div></article></section><section><div class="section-title"><h2>Utilities breakdown</h2></div><div class="table-wrap"><table><thead><tr><th>Utility</th><th>Total</th><th>Your share</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No utilities</td></tr>'}</tbody></table></div></section><aside class="note"><span class="note-icon">i</span><span>Individual meal cost = total bazar divided by ${bazarMemberCount} meal members.</span></aside></main><script>window.onafterprint=()=>${popupBlocked ? "window.history.back()" : "window.close()"};</script></body></html>`);
+      </style></head><body><main class="sheet"><header class="heading"><span class="brand-icon">${icons.home}</span><span class="divider"></span><div><h1>My Monthly Hisab</h1><p>${escapeHtml(month)} · ${escapeHtml(reportMember.name)}</p></div></header>${popupBlocked ? '<button class="print" onclick="window.history.back()">Back to app</button>' : ''}<button class="print" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 17v3h14v-3"/></svg>Save as PDF / Print</button><section class="cards"><article class="card"><span class="card-icon">${icons.home}</span><div><div class="label">Total rent</div><div class="value">${money(ownTotalRent)}</div></div></article><article class="card"><span class="card-icon">${icons.meal}</span><div><div class="label">Individual meal cost</div><div class="value">${money(mealCost)}</div></div></article><article class="card"><span class="card-icon">${icons.paid}</span><div><div class="label">Paid</div><div class="value">${money(ownPayments)}</div></div></article><article class="card"><span class="card-icon">${icons.due}</span><div><div class="label">Current month due</div><div class="value">${money(currentDue)}</div></div></article><article class="card"><span class="card-icon">${icons.due}</span><div><div class="label">Previous months due</div><div class="value">${money(pastDue)}</div></div></article><article class="card"><span class="card-icon">${icons.total}</span><div><div class="label">Total due</div><div class="value">${money(totalDue)}</div></div></article></section><section><div class="section-title"><h2>Utilities breakdown</h2></div><div class="table-wrap"><table><thead><tr><th>Utility</th><th>Total</th><th>Your share</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No utilities</td></tr>'}</tbody></table></div></section><aside class="note"><span class="note-icon">i</span><span>Individual meal cost = total bazar divided by ${bazarMemberCount} meal members.</span></aside></main><script>window.onafterprint=()=>${popupBlocked ? "window.history.back()" : "window.close()"};</script></body></html>`);
     reportDocument.close();
     if (popupBlocked) {
       const reportBlob = new Blob(
@@ -715,11 +1152,45 @@ function App() {
     if (!supabaseConfigured) return;
     setCloudBusy(true);
     try {
-      const { data: profiles, error: pe } = await supabase
-        .from("profiles")
-        .select("id,full_name,username,role,active,rent,photo_url")
-        .order("full_name");
+      const [
+        { data: profiles, error: pe },
+        monthRow,
+        { data: mealSetting, error: mealSettingError },
+        { data: utilityCountSetting, error: utilityCountError },
+        { data: sharedUtilitySetting, error: sharedUtilityError },
+        { data: monthUtilitySetting, error: monthUtilityError },
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id,full_name,username,role,active,rent,photo_url,last_login_at")
+          .order("full_name"),
+        ensureCloudMonth(label),
+        supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", `meal_active_members_${label}`)
+          .maybeSingle(),
+        supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", "utilities_current_users")
+          .maybeSingle(),
+        supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", "shared_utilities_list")
+          .maybeSingle(),
+        supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", `shared_utilities_list_${label}`)
+          .maybeSingle(),
+      ]);
       if (pe) throw pe;
+      if (mealSettingError) throw mealSettingError;
+      if (utilityCountError) throw utilityCountError;
+      if (sharedUtilityError) throw sharedUtilityError;
+      if (monthUtilityError) throw monthUtilityError;
       const activeProfile = (profiles || []).find(
         (p) => p.id === profileId && p.active,
       );
@@ -727,34 +1198,13 @@ function App() {
         throw new Error("Your profile is inactive or unavailable.");
       // Restore the signed-in member's persisted photo whenever cloud profile data loads.
       setProfilePhoto(activeProfile.photo_url || "");
-      const { data: lastLoginRows, error: lastLoginError } = await supabase
-        .from("profiles")
-        .select("id,last_login_at");
-      if (lastLoginError) {
-        console.warn(
-          "Last-login tracking is unavailable. Run supabase/migrations/20261102_member_last_login.sql:",
-          lastLoginError.message,
-        );
-      }
-      const lastLoginById = new Map(
-        (lastLoginRows || []).map((profile) => [
-          profile.id,
-          profile.last_login_at,
-        ]),
-      );
-      const monthRow = await ensureCloudMonth(label);
       if (!monthRow) throw new Error("Could not load monthly setup.");
-      const { data: mealSetting, error: mealSettingError } = await supabase
-        .from("app_settings").select("value").eq("key", `meal_active_members_${label}`).maybeSingle();
-      if (mealSettingError) throw mealSettingError;
       let savedMealIds = [];
       try { savedMealIds = JSON.parse(mealSetting?.value || "[]"); } catch { savedMealIds = []; }
       if (Array.isArray(savedMealIds)) setMealActiveIds(savedMealIds);
-      const { data: utilityCountSetting, error: utilityCountError } = await supabase.from("app_settings").select("value").eq("key", "utilities_current_users").maybeSingle();
-      if (utilityCountError) throw utilityCountError;
       const savedUtilityCount = Number(utilityCountSetting?.value || 4);
       if (Number.isFinite(savedUtilityCount) && savedUtilityCount > 0) { setUtilityMemberCount(savedUtilityCount); setUtilityMemberCountInput(String(savedUtilityCount)); }
-      const [catsRes, payRes, bazRes, cashRes, utilityPaidResult] = await Promise.all([
+      const [catsRes, payRes, bazRes, cashRes, utilityPaidResult, lastLoginResult] = await Promise.all([
         supabase
           .from("expense_categories")
           .select("*")
@@ -779,9 +1229,24 @@ function App() {
           .select("value")
           .eq("key", `utility_paid_status_${label}`)
           .maybeSingle(),
+        activeProfile.role === "admin"
+          ? supabase.from("profiles").select("id,last_login_at")
+          : Promise.resolve({ data: [], error: null }),
       ]);
       for (const r of [catsRes, payRes, bazRes, cashRes, utilityPaidResult])
         if (r.error) throw r.error;
+      if (lastLoginResult.error) {
+        console.warn(
+          "Last-login tracking is unavailable. Run supabase/migrations/20261102_member_last_login.sql:",
+          lastLoginResult.error.message,
+        );
+      }
+      const lastLoginById = new Map(
+        (lastLoginResult.data || []).map((profile) => [
+          profile.id,
+          profile.last_login_at,
+        ]),
+      );
       let savedUtilityPaidStatus = {};
       try {
         const parsedUtilityStatus = JSON.parse(utilityPaidResult.data?.value || "{}");
@@ -800,15 +1265,9 @@ function App() {
         active: p.active,
         rent: Number(p.rent || 0),
         photo_url: p.photo_url || "",
-        lastLoginAt: lastLoginById.get(p.id) || null,
+        lastLoginAt: p.last_login_at || lastLoginById.get(p.id) || null,
         paid: 0,
       }));
-      const { data: sharedUtilitySetting, error: sharedUtilityError } = await supabase
-        .from("app_settings").select("value").eq("key", "shared_utilities_list").maybeSingle();
-      if (sharedUtilityError) throw sharedUtilityError;
-      const { data: monthUtilitySetting, error: monthUtilityError } = await supabase
-        .from("app_settings").select("value").eq("key", `shared_utilities_list_${label}`).maybeSingle();
-      if (monthUtilityError) throw monthUtilityError;
       let sharedUtilities = null;
       try { sharedUtilities = JSON.parse(monthUtilitySetting?.value || sharedUtilitySetting?.value || "null"); } catch { sharedUtilities = null; }
       if (!Array.isArray(sharedUtilities)) {
@@ -909,6 +1368,7 @@ function App() {
       setCount(Number(monthRow.current_count || 0));
       setSelected(monthRow.current_members || []);
       setCloudMonthId(monthRow.id);
+      return activeProfile;
     } catch (err) {
       setError(err.message || "Could not load shared data from Supabase.");
       throw err;
@@ -952,15 +1412,10 @@ function App() {
         refresh_token: data.refresh_token,
       });
       if (sessionError) throw sessionError;
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("id,full_name,username,role,active,rent,photo_url")
-        .eq("id", data.user.id)
-        .single();
-      if (profileError)
-        throw new Error(`Could not load your profile: ${profileError.message}`);
-      if (!profile || !profile.active)
-        throw new Error("Your profile is inactive. Contact the admin.");
+      setSession({ id: data.user.id });
+      const profile = await loadCloudData(data.user.id, month);
+      if (!profile)
+        throw new Error("Could not load your profile. Contact the admin.");
       const mapped = {
         id: profile.id,
         name: profile.full_name,
@@ -970,8 +1425,6 @@ function App() {
         rent: Number(profile.rent || 0),
         paid: 0,
       };
-      setSession({ id: mapped.id });
-      await loadCloudData(mapped.id, month);
       setPage(mapped.role === "member" ? "my-account" : "overview");
       // Non-critical extras should not keep the login button in its loading state.
       // The app is already routed to the user's page; load these in the background.
@@ -1567,13 +2020,11 @@ function App() {
   async function repostNotice(n) {
     if (!admin || !(await askConfirm("Repost this notice to all members? They will receive it again.", "Repost notice?"))) return;
     try {
-      const { error } = await supabase.from("notices").insert({
-        title: n.title || "Notice",
-        body: n.body || "",
-        image_url: n.image_url || null,
-        created_by: user.id,
-        status: "published",
-      });
+      const { error } = await supabase
+        .from("notices")
+        .update({ created_at: new Date().toISOString() })
+        .eq("id", n.id)
+        .eq("status", "published");
       if (error) throw error;
       await loadNotices(false);
       setBazarSuccessToast("Notice reposted successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600);
@@ -1604,51 +2055,133 @@ function App() {
       if (error) throw error;
       const saved = data || [];
       setPaymentOptions(
-        paymentDefaults.map((d) => ({
-          ...d,
-          ...(saved.find((x) => x.provider === d.provider) || {}),
-        })),
+        [
+          ...paymentDefaults.map((d) => ({
+            ...d,
+            ...(saved.find((x) => x.provider === d.provider) || {}),
+          })),
+          ...saved
+            .filter((option) => !paymentDefaults.some((d) => d.provider === option.provider))
+            .map((option) => ({
+              ...option,
+              account_name: option.account_name || "",
+              account_number: option.account_number || "",
+              instructions: option.instructions || "",
+              enabled: option.enabled !== false,
+              logo_url: option.logo_url || "",
+            })),
+        ],
       );
       setPaymentOptionsError("");
+      return true;
     } catch (e) {
       setPaymentOptionsError(
         "Payment options database is not set up yet. Run PAYMENT-OPTIONS-SETUP.sql in Supabase SQL Editor.",
       );
       console.warn("Could not load payment options:", e.message);
+      return false;
     }
   }
-  async function savePaymentOptions(e) {
+  function openPaymentEditor(mode) {
+    setPaymentOptionsError("");
+    setPaymentEditorMode(mode);
+    setPaymentEditorForm(
+      mode === "add"
+        ? {
+            provider: "",
+            label: "",
+            account_name: "",
+            account_number: "",
+            instructions: "",
+            enabled: true,
+            logo_url: "",
+          }
+        : { ...(paymentOptions[0] || paymentDefaults[0]) },
+    );
+  }
+  async function savePaymentEditor(e) {
     e.preventDefault();
     if (!admin) return;
     setPaymentOptionsBusy(true);
     setPaymentOptionsError("");
     try {
-      const payload = paymentOptions.map((o, i) => ({
-        provider: o.provider,
-        label: o.label,
-        account_name: o.account_name.trim(),
-        account_number: o.account_number.trim(),
-        instructions: o.instructions.trim(),
-        enabled: !!o.enabled,
-        logo_url: o.logo_url || "",
-        sort_order: i,
+      const label = paymentEditorForm.label.trim();
+      const provider =
+        paymentEditorMode === "add"
+          ? label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || `custom_${Date.now()}`
+          : paymentEditorForm.provider;
+      if (!label || !provider) throw new Error("Enter a payment option name.");
+      if (
+        paymentEditorMode === "add" &&
+        paymentOptions.some((option) => option.provider === provider)
+      ) {
+        throw new Error("A payment option with this name already exists.");
+      }
+      const payload = {
+        provider,
+        label,
+        account_name: paymentEditorForm.account_name.trim(),
+        account_number: paymentEditorForm.account_number.trim(),
+        instructions: paymentEditorForm.instructions.trim(),
+        enabled: !!paymentEditorForm.enabled,
+        logo_url: paymentEditorForm.logo_url.trim(),
+        sort_order:
+          paymentEditorMode === "add"
+            ? paymentOptions.length
+            : Math.max(0, paymentOptions.findIndex((o) => o.provider === provider)),
         updated_by: user.id,
-      }));
+      };
       const { error } = await supabase
         .from("payment_options")
         .upsert(payload, { onConflict: "provider" });
       if (error) throw error;
-      await loadPaymentOptions();
-      alert(
-        "Payment options saved. All members can now see the updated details.",
-      );
+      if (!(await loadPaymentOptions())) return;
+      setPaymentEditorMode("");
+      setPaymentEditorForm(null);
     } catch (e) {
-      setPaymentOptionsError(
-        e.message ||
-          "Could not save payment options. Run PAYMENT-OPTIONS-SETUP.sql first.",
-      );
+      setPaymentOptionsError(e.message || "Could not save this payment option.");
     } finally {
       setPaymentOptionsBusy(false);
+    }
+  }
+  function openContactEditor(mode) {
+    setContactError("");
+    setContactForm(
+      mode === "edit" && contactRows[0]
+        ? {
+            id: contactRows[0].id,
+            category: contactRows[0].category,
+            name: contactRows[0].name,
+            phone: contactRows[0].phone,
+          }
+        : { id: "", category: "Flatmate", name: "", phone: "" },
+    );
+    setContactModalOpen(true);
+  }
+  async function saveContact(e) {
+    e.preventDefault();
+    setContactBusy(true);
+    setContactError("");
+    try {
+      const payload = {
+        category: contactForm.category,
+        name: contactForm.name.trim(),
+        phone: contactForm.phone.trim(),
+      };
+      const result = contactForm.id
+        ? await supabase.from("member_contacts").update(payload).eq("id", contactForm.id).select().single()
+        : await supabase.from("member_contacts").insert(payload).select().single();
+      if (result.error) throw result.error;
+      setContactRows((rows) =>
+        contactForm.id
+          ? rows.map((row) => row.id === contactForm.id ? result.data : row)
+          : [...rows, result.data],
+      );
+      setContactModalOpen(false);
+    } catch (error) {
+      setContactError("Could not save contact: " + error.message);
+    } finally {
+      setContactBusy(false);
     }
   }
   function PaymentBrand({ provider, logoUrl }) {
@@ -1693,6 +2226,315 @@ function App() {
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = "monthly-hisab-" + month + ".csv";
     a.click();
+  }
+  function exportMemberBill(member) {
+    if (previousDueLoading) {
+      alert("Previous months balance is still loading. Please try again in a moment.");
+      return;
+    }
+
+    const reportWindow = window.open("", "_blank", "width=900,height=900");
+    const popupBlocked = !reportWindow;
+    const reportDocument = reportWindow
+      ? reportWindow.document
+      : document.implementation.createHTMLDocument("Monthly Bill");
+    const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[character]));
+    const rentAndUtilities = memberRentShare(member);
+    const mealCost = memberMealShare(member);
+    const rentPaid = memberRentPaid(member.id);
+    const mealPaid = memberMealPaid(member.id);
+    const totalPaid = rentPaid + mealPaid;
+    const currentCharges = rentAndUtilities + mealCost;
+    const previousBalance = previousDueByUser[member.id] || 0;
+    const rentUtilitiesDue = rentAndUtilities - rentPaid;
+    const mealBalance = mealCost - mealPaid;
+    const currentBalance = rentUtilitiesDue + mealBalance;
+    const finalBalance = currentBalance + previousBalance;
+    const signedMoney = (amount) =>
+      amount < 0 ? `−${money(Math.abs(amount))}` : money(amount);
+    const generatedDate = new Intl.DateTimeFormat("en-US", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    }).format(new Date());
+    const rentDueColor = rentUtilitiesDue < 0 ? "credit" : "positive";
+    const mealDueColor = mealBalance < 0 ? "credit" : "positive";
+    const escapeSvg = (value) => escapeHtml(value);
+    const imageText = (x, y, value, options = {}) =>
+      `<text x="${x}" y="${y}" fill="${options.fill || "#17231f"}" font-family="Arial, sans-serif" font-size="${options.size || 22}" font-weight="${options.weight || 400}" text-anchor="${options.anchor || "start"}">${escapeSvg(value)}</text>`;
+    const imageMoney = (x, y, value, options = {}) =>
+      imageText(x, y, money(value), { ...options, anchor: options.anchor || "end", weight: options.weight || 700 });
+    const billSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1450" viewBox="0 0 1200 1450">
+      <defs>
+        <linearGradient id="green" x2="1" y2="1"><stop stop-color="#0c9d59"/><stop offset="1" stop-color="#004c32"/></linearGradient>
+        <linearGradient id="soft" x2="1" y2="1"><stop stop-color="#fbfdfb"/><stop offset="1" stop-color="#f0f7ef"/></linearGradient>
+        <linearGradient id="warm" x2="1" y2="1"><stop stop-color="#fffdfa"/><stop offset="1" stop-color="#fff4e2"/></linearGradient>
+      </defs>
+      <rect width="1200" height="1450" fill="#fff"/>
+      <rect x="52" y="38" width="54" height="54" rx="15" fill="url(#green)"/>
+      <path d="M66 64 79 53l13 11M69 62v18h20V62m-13 18v-9h7v9" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
+      ${imageText(122, 64, "Monthly Hisab", { size: 25, weight: 700 })}
+      ${imageText(122, 86, "Shared Home Expense Manager", { size: 15, fill: "#61716b" })}
+      <rect x="916" y="42" width="232" height="48" rx="24" fill="#f6fbf7" stroke="#e1eee5"/>
+      <g transform="translate(944 56)" fill="none" stroke="#087343" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1h11l5 5v20H2z"/><path d="M12 1v6h6M6 13h8M6 18h8"/></g>
+      ${imageText(1052, 73, "Monthly Bill", { size: 17, weight: 700, anchor: "middle", fill: "#153c2c" })}
+      <rect x="58" y="148" width="6" height="96" rx="3" fill="#22bd61"/>
+      ${imageText(92, 192, "Monthly Bill", { size: 48, weight: 700 })}
+      ${imageText(92, 228, month, { size: 25, fill: "#57645f" })}
+      <rect x="800" y="146" width="348" height="88" rx="20" fill="#eff7ef" stroke="#e3efe5"/>
+      <g transform="translate(824 172)" fill="none" stroke="#087343" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="10" r="6"/><path d="M3 32v-3a12 12 0 0 1 24 0v3"/></g>
+      ${imageText(836, 181, "Member", { size: 17, fill: "#495c53" })}
+      ${imageText(836, 214, member.name, { size: 27, weight: 700 })}
+      ${[
+        ["Total Bill", currentCharges, "url(#soft)", "#e0eee4", "#078343"],
+        ["Total Paid", totalPaid, "#eff8f3", "#d8eee4", "#078454"],
+        ["Previous Balance", previousBalance, "url(#warm)", "#f6e8cd", "#aa3b30"],
+        ["Final Due", finalBalance, "url(#green)", "#07824b", "#fff"],
+      ].map(([label, amount, fill, border, color], index) => {
+        const x = 52 + index * 279;
+        const value = Number(amount);
+        const cardColor = label === "Previous Balance" && value < 0 ? "#08732f" : color;
+        return `<rect x="${x}" y="274" width="260" height="156" rx="20" fill="${fill}" stroke="${border}"/>
+          <circle cx="${x + 31}" cy="309" r="19" fill="${label === "Final Due" ? "#ffffff22" : "#e7f6e9"}"/>
+          <g transform="translate(${x + 17} 295)" fill="none" stroke="${label === "Final Due" ? "#fff" : index === 2 ? "#bb7600" : "#078343"}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            ${[
+              '<path d="m14 2 12 7-12 7L2 9l12-7Z"/><path d="m2 14 12 7 12-7m-24 5 12 7 12-7"/>',
+              '<rect x="2" y="5" width="24" height="19" rx="3"/><path d="M2 11h24m-6 7h.01"/>',
+              '<path d="M3 13a11 11 0 1 0 3-8l-3 3"/><path d="M3 2v6h6m5-1v6l4 2"/>',
+              '<ellipse cx="14" cy="6" rx="11" ry="4"/><path d="M3 6v7c0 2 5 4 11 4 2 0 4-.3 6-1m-17-3v7c0 2 5 4 11 4 2 0 4-.3 6-1m0-16c6 0 11 2 11 4v13c0 2-5 4-11 4s-11-2-11-4"/>',
+            ][index]}
+          </g>
+          ${imageText(x + 20, 356, label, { size: 18, fill: label === "Final Due" ? "#fff" : "#45534d" })}
+          ${imageText(x + 20, 400, signedMoney(value), { size: 29, weight: 700, fill: cardColor })}`;
+      }).join("")}
+      <rect x="52" y="462" width="536" height="250" rx="22" fill="#fff" stroke="#e0e6e2"/>
+      <rect x="612" y="462" width="536" height="250" rx="22" fill="#fff" stroke="#e0e6e2"/>
+      <circle cx="87" cy="500" r="22" fill="#e9f7e9"/><circle cx="647" cy="500" r="22" fill="#e9f7e9"/>
+      <g transform="translate(72 485)" fill="none" stroke="#087343" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m2 12 13-10 13 10"/><path d="M5 10v17h20V10m-13 17V16h7v11"/></g>
+      <g transform="translate(632 485)" fill="none" stroke="#087343" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2v10m-4-10v5a4 4 0 0 0 8 0V2m-4 10v15m13-25v25m0-25c5 3 5 10 0 13"/></g>
+      ${imageText(122, 508, "Rent & Utilities", { size: 22, weight: 700 })}
+      ${imageText(682, 508, "Meal (Food)", { size: 22, weight: 700 })}
+      <path d="M76 531h488M636 531h488" stroke="#edf0ed"/>
+      ${imageText(82, 569, "Room Rent + Utilities Share", { size: 17 })}
+      ${imageMoney(558, 569, rentAndUtilities, { size: 19 })}
+      <rect x="76" y="585" width="488" height="43" rx="11" fill="#f0f7ef"/>
+      ${imageText(91, 613, "Paid", { size: 17, fill: "#21602e" })}
+      ${imageMoney(548, 613, rentPaid, { size: 19, fill: "#08732f" })}
+      ${imageText(82, 672, "Due (This Month)", { size: 17, weight: 700 })}
+      ${imageText(558, 672, signedMoney(rentUtilitiesDue), { size: 19, weight: 700, fill: rentUtilitiesDue < 0 ? "#08732f" : "#18231f", anchor: "end" })}
+      ${imageText(642, 569, "Meal Cost (Your Share)", { size: 17 })}
+      ${imageMoney(1118, 569, mealCost, { size: 19 })}
+      <rect x="636" y="585" width="488" height="43" rx="11" fill="#f0f7ef"/>
+      ${imageText(651, 613, "Meal Paid", { size: 17, fill: "#21602e" })}
+      ${imageMoney(1108, 613, mealPaid, { size: 19, fill: "#08732f" })}
+      ${imageText(642, 672, "Balance / Credit", { size: 17, weight: 700 })}
+      ${imageText(1118, 672, signedMoney(mealBalance), { size: 19, weight: 700, fill: mealBalance < 0 ? "#08732f" : "#18231f", anchor: "end" })}
+      <rect x="52" y="738" width="690" height="323" rx="22" fill="#fff" stroke="#e0e6e2"/>
+      <rect x="766" y="738" width="382" height="323" rx="22" fill="#fff" stroke="#e0e6e2"/>
+      <circle cx="87" cy="778" r="22" fill="#e9f7e9"/><circle cx="801" cy="778" r="22" fill="#e9f7e9"/>
+      <g transform="translate(74 764)" fill="none" stroke="#087343" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 25V14m7 11V5m7 20v-9m7 9V2"/></g>
+      <g transform="translate(788 764)" fill="none" stroke="#087343" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="25" height="21" rx="3"/><path d="M2 10h25m-7 8h.01"/></g>
+      ${imageText(122, 786, "Summary", { size: 22, weight: 700 })}
+      ${imageText(836, 786, "Payment Breakdown", { size: 21, weight: 700 })}
+      <path d="M76 809h642M790 809h334" stroke="#edf0ed"/>
+      ${imageText(90, 847, "Rent & Utilities Due", { size: 17 })}
+      ${imageText(704, 847, signedMoney(rentUtilitiesDue), { size: 18, anchor: "end" })}
+      ${imageText(90, 889, "Meal Balance (Credit)", { size: 17 })}
+      ${imageText(704, 889, signedMoney(mealBalance), { size: 18, anchor: "end" })}
+      <rect x="76" y="905" width="642" height="43" rx="11" fill="#edf6ec"/>
+      ${imageText(91, 933, "This Month Balance", { size: 17, weight: 700 })}
+      ${imageText(704, 933, signedMoney(currentBalance), { size: 19, weight: 700, fill: "#08732f", anchor: "end" })}
+      ${imageText(90, 979, "Previous Month Balance (Credit)", { size: 17 })}
+      ${imageText(704, 979, signedMoney(previousBalance), { size: 18, anchor: "end" })}
+      <rect x="76" y="995" width="642" height="48" rx="12" fill="url(#green)"/>
+      ${imageText(96, 1026, "Final Balance Due", { size: 21, weight: 700, fill: "#fff" })}
+      ${imageText(700, 1026, signedMoney(finalBalance), { size: 24, weight: 700, fill: "#fff", anchor: "end" })}
+      ${imageText(806, 847, "Rent Paid", { size: 17 })}
+      ${imageMoney(1108, 847, rentPaid, { size: 18 })}
+      <path d="M790 865h334" stroke="#edf0ed"/>
+      ${imageText(806, 905, "Meal Paid", { size: 17 })}
+      ${imageMoney(1108, 905, mealPaid, { size: 18 })}
+      <rect x="790" y="922" width="334" height="52" rx="12" fill="#edf6ec"/>
+      ${imageText(806, 954, "Total Paid", { size: 17, weight: 700, fill: "#08732f" })}
+      ${imageMoney(1108, 954, totalPaid, { size: 20, fill: "#08732f" })}
+      <rect x="52" y="1086" width="1096" height="104" rx="22" fill="#eff8ef"/>
+      <circle cx="91" cy="1138" r="22" fill="#e0f4e3"/>
+      <circle cx="91" cy="1138" r="12" fill="none" stroke="#087343" stroke-width="2.5"/>
+      <path d="M91 1136v9m0-14h.01" stroke="#087343" stroke-width="2.5" stroke-linecap="round"/>
+      ${imageText(129, 1135, `Amount Due: ${signedMoney(finalBalance)}`, { size: 24, weight: 700, fill: "#075d2b" })}
+      ${imageText(129, 1164, finalBalance > 0 ? "Please clear the due amount at your earliest convenience." : "Your account has a credit balance.", { size: 16 })}
+      <path d="m930 1155 55-48 54 48v36h-109v-36Z" fill="#fff9e8" stroke="#14864d" stroke-width="5" stroke-linejoin="round"/>
+      <path d="m915 1154 70-61 70 61-9 10-61-53-61 53-9-10Z" fill="#078c4a"/>
+      <path d="M1001 1112v-23h17v37" fill="#168e4a" stroke="#087342" stroke-width="4"/>
+      <path d="M968 1160h33v33h-33z" fill="#fff1c9" stroke="#16884b" stroke-width="3"/>
+      <path d="M984 1161v31m-15-16h31" stroke="#e8a72e" stroke-width="2"/>
+      ${imageText(600, 1255, `Generated by Monthly Hisab  ·  ${generatedDate}`, { size: 15, anchor: "middle", fill: "#69756f" })}
+    </svg>`;
+    const jpgFilename = `monthly-bill-${month}-${member.name}`
+      .replace(/[^a-z0-9-]+/gi, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase();
+    reportDocument.open();
+    reportDocument.write(`<!doctype html><html><head><meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Monthly Bill · ${escapeHtml(month)} · ${escapeHtml(member.name)}</title>
+      <style>
+        *{box-sizing:border-box}
+        @page{size:A4;margin:10mm}
+        body{margin:0;padding:30px 32px;color:#17231f;background:#fff;font:14px/1.4 Arial,"Segoe UI",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        .sheet{max-width:1120px;margin:0 auto;position:relative}
+        .toolbar{display:flex;justify-content:flex-end;margin-bottom:12px}
+        .toolbar button{border:0;border-radius:10px;padding:10px 16px;background:#087747;color:#fff;font-weight:700;cursor:pointer}
+        .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:42px}
+        .brand{display:flex;align-items:center;gap:12px}
+        .brand-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:linear-gradient(145deg,#2dc774,#00633d);color:white;box-shadow:0 5px 12px #076b4230}
+        .brand-mark svg{width:27px;height:27px}
+        .brand-title{font:700 20px Georgia,serif;color:#111d1a}
+        .brand-subtitle{margin-top:2px;color:#61716b;font-size:11px}
+        .bill-pill{display:flex;align-items:center;gap:8px;padding:9px 15px;border:1px solid #e1eee5;border-radius:25px;background:#f6fbf7;color:#153c2c;font-weight:700;box-shadow:0 4px 12px #173a2510}
+        .bill-pill svg{width:17px;height:17px;color:#087343}
+        .headline{display:grid;grid-template-columns:1fr 218px;align-items:center;gap:22px;margin-bottom:24px}
+        .title-block{border-left:5px solid #22bd61;padding:2px 0 2px 27px}
+        h1{margin:0;color:#101a18;font:700 36px/1.1 Georgia,serif;letter-spacing:-.7px}
+        .month{margin-top:5px;color:#57645f;font-size:19px}
+        .member-card{display:flex;align-items:center;gap:14px;min-height:70px;padding:12px 18px;border:1px solid #e3efe5;border-radius:17px;background:#eff7ef}
+        .member-icon{width:30px;height:30px;color:#087343;flex:none}
+        .member-caption{font-size:12px;color:#495c53}
+        .member-name{margin-top:2px;font-size:21px;font-weight:750;color:#111c19;overflow-wrap:anywhere}
+        .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin-bottom:24px}
+        .stat{min-height:112px;padding:14px 16px;border:1px solid #e0eee4;border-radius:17px;background:linear-gradient(140deg,#fbfdfb,#f0f7ef);box-shadow:0 5px 13px #163c2010}
+        .stat:nth-child(2){background:linear-gradient(140deg,#fbfdfc,#eaf7f1);border-color:#d8eee4}
+        .stat:nth-child(3){background:linear-gradient(140deg,#fffdfa,#fff4e2);border-color:#f6e8cd}
+        .stat.final{background:linear-gradient(145deg,#0c9d59,#004c32);border-color:#07824b;color:#fff}
+        .stat-icon{display:grid;place-items:center;width:39px;height:39px;margin-bottom:6px;border-radius:13px;background:#e7f6e9;color:#078343}
+        .stat:nth-child(2) .stat-icon{background:#e7f7ef;color:#078454}
+        .stat:nth-child(3) .stat-icon{background:#fff3dc;color:#bb7600}
+        .stat.final .stat-icon{background:transparent;color:#fff}
+        .stat-icon svg{width:26px;height:26px}
+        .stat-label{color:#45534d;font-size:13px}
+        .stat-value{margin-top:2px;color:#111b19;font-size:25px;font-weight:750;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+        .stat:nth-child(3) .stat-value{color:#aa3b30}
+        .stat.final .stat-label,.stat.final .stat-value{color:white}
+        .two-columns{display:grid;grid-template-columns:1fr 1fr;gap:17px;margin-bottom:18px}
+        .panel{padding:13px 15px;border:1px solid #e0e6e2;border-radius:18px;background:#fff;box-shadow:0 5px 14px #112c1a0c}
+        .panel-title{display:flex;align-items:center;gap:11px;padding-bottom:8px;margin-bottom:3px;border-bottom:1px solid #edf0ed;color:#15201d;font-size:18px;font-weight:750}
+        .panel-icon{display:grid;place-items:center;width:39px;height:39px;border-radius:13px;background:#e9f7e9;color:#087343}
+        .panel-icon svg{width:26px;height:26px}
+        .line{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:38px;padding:8px 10px;border-bottom:1px solid #edf0ed;color:#25332e}
+        .line strong{font-size:16px;color:#18231f;font-variant-numeric:tabular-nums}
+        .line.paid{margin:2px -1px;padding:8px 11px;border:0;border-radius:10px;background:#f0f7ef;color:#21602e}
+        .line.paid strong,.positive{color:#08732f!important}
+        .line.due{border-bottom:0;font-weight:750}
+        .line.due strong{font-weight:750}
+        .credit{color:#08732f!important}
+        .lower-grid{display:grid;grid-template-columns:1.45fr .85fr;gap:17px}
+        .summary-panel,.payment-panel{min-height:226px}
+        .summary-panel .line,.payment-panel .line{min-height:35px;padding:7px 10px}
+        .line.highlight{margin:3px 0;border:0;border-radius:10px;background:#edf6ec;font-weight:750}
+        .line.final-line{margin:5px 0 0;padding:11px 13px;border:0;border-radius:11px;background:linear-gradient(110deg,#15965b,#004d34);color:#fff;font-size:18px;font-weight:750}
+        .line.final-line strong{color:#fff;font-size:22px}
+        .amount-due{position:relative;display:flex;align-items:center;gap:12px;min-height:70px;margin-top:19px;padding:12px 170px 12px 18px;overflow:hidden;border-radius:17px;background:linear-gradient(100deg,#eff8ef,#e9f6ec);color:#075d2b}
+        .amount-icon{display:grid;place-items:center;width:38px;height:38px;flex:none;border-radius:12px;background:#e0f4e3}
+        .amount-icon svg{width:25px;height:25px}
+        .amount-title{font-size:18px;font-weight:750}
+        .amount-note{margin-top:3px;color:#263a30;font-size:12px}
+        .house-art{position:absolute;right:13px;bottom:0;width:148px;height:91px}
+        footer{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:24px;color:#69756f;font-size:11px}
+        footer:before,footer:after{content:"";height:1px;flex:1;background:#dce4df}
+        footer strong{color:#087343}
+        @media(max-width:650px){body{padding:18px}.topbar{margin-bottom:28px}.headline{grid-template-columns:1fr;gap:13px}.member-card{max-width:none}.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stat{min-height:102px;padding:11px}.stat-value{font-size:21px}.two-columns,.lower-grid{grid-template-columns:1fr;gap:11px}.summary-panel,.payment-panel{min-height:0}.bill-pill{font-size:12px}h1{font-size:31px}.amount-due{padding-right:128px}.house-art{right:4px;width:116px;height:78px}.amount-title{font-size:16px}.amount-note{font-size:11px}}
+        @media print{body{padding:0}.toolbar{display:none}.sheet{max-width:none}.topbar{margin-bottom:25px}.headline{margin-bottom:18px}.stats{gap:9px;margin-bottom:18px}.stat{min-height:100px;padding:11px}.two-columns{gap:12px;margin-bottom:12px}.panel{padding:10px 12px}.summary-panel,.payment-panel{min-height:0}.amount-due{margin-top:14px}footer{margin-top:16px}}
+      </style></head><body lang="en"><main class="sheet">
+        <div class="toolbar">${popupBlocked ? '<button onclick="window.history.back()">Back to app</button>' : ""}<button id="save-jpg" type="button" onclick="saveBillAsJpg()">Save as JPG</button><button onclick="window.print()">Save as PDF / Print</button></div>
+        <header class="topbar">
+          <div class="brand"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg></div><div><div class="brand-title">Monthly Hisab</div><div class="brand-subtitle">Shared Home Expense Manager</div></div></div>
+          <div class="bill-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7m-7 4h7"/></svg>Monthly Bill</div>
+        </header>
+        <div class="headline">
+          <div class="title-block"><h1>Monthly Bill</h1><div class="month">${escapeHtml(month)}</div></div>
+          <div class="member-card"><svg class="member-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><div><div class="member-caption">Member</div><div class="member-name">${escapeHtml(member.name)}</div></div></div>
+        </div>
+        <div class="stats">
+          <article class="stat"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></svg></div><div class="stat-label">Total Bill</div><div class="stat-value">${money(currentCharges)}</div></article>
+          <article class="stat"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18m-4 5h.01M7 3h10"/></svg></div><div class="stat-label">Total Paid</div><div class="stat-value">${money(totalPaid)}</div></article>
+          <article class="stat"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5m4-1v5l3 2"/></svg></div><div class="stat-label">Previous Balance</div><div class="stat-value">${signedMoney(previousBalance)}</div></article>
+          <article class="stat final"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v5c0 1.7 3.6 3 8 3s8-1.3 8-3V5m-16 5v5c0 1.7 3.6 3 8 3m8-8v5c0 1.7-3.6 3-8 3m-8-3v4c0 1.7 3.6 3 8 3"/></svg></div><div class="stat-label">Final Due</div><div class="stat-value">${signedMoney(finalBalance)}</div></article>
+        </div>
+        <div class="two-columns">
+          <section class="panel"><div class="panel-title"><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg></span>Rent &amp; Utilities</div>
+            <div class="line"><span>Room Rent + Utilities Share</span><strong>${money(rentAndUtilities)}</strong></div>
+            <div class="line paid"><span>Paid</span><strong>${money(rentPaid)}</strong></div>
+            <div class="line due"><span>Due (This Month)</span><strong class="${rentDueColor}">${signedMoney(rentUtilitiesDue)}</strong></div>
+          </section>
+          <section class="panel"><div class="panel-title"><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v7m-3-7v4a3 3 0 0 0 6 0V3m-3 7v11M17 3v18m0-18c3 2 3 7 0 9"/></svg></span>Meal (Food)</div>
+            <div class="line"><span>Meal Cost (Your Share)</span><strong>${money(mealCost)}</strong></div>
+            <div class="line paid"><span>Meal Paid</span><strong>${money(mealPaid)}</strong></div>
+            <div class="line due"><span>Balance / Credit</span><strong class="${mealDueColor}">${signedMoney(mealBalance)}</strong></div>
+          </section>
+        </div>
+        <div class="lower-grid">
+          <section class="panel summary-panel"><div class="panel-title"><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/></svg></span>Summary</div>
+            <div class="line"><span>Rent &amp; Utilities Due</span><strong>${signedMoney(rentUtilitiesDue)}</strong></div>
+            <div class="line"><span>Meal Balance (Credit)</span><strong>${signedMoney(mealBalance)}</strong></div>
+            <div class="line highlight"><span>This Month Balance</span><strong>${signedMoney(currentBalance)}</strong></div>
+            <div class="line"><span>Previous Month Balance (Credit)</span><strong>${signedMoney(previousBalance)}</strong></div>
+            <div class="line final-line"><span>Final Balance Due</span><strong>${signedMoney(finalBalance)}</strong></div>
+          </section>
+          <section class="panel payment-panel"><div class="panel-title"><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18m-4 5h.01"/></svg></span>Payment Breakdown</div>
+            <div class="line"><span>Rent Paid</span><strong>${money(rentPaid)}</strong></div>
+            <div class="line"><span>Meal Paid</span><strong>${money(mealPaid)}</strong></div>
+            <div class="line highlight"><span>Total Paid</span><strong class="positive">${money(totalPaid)}</strong></div>
+          </section>
+        </div>
+        <div class="amount-due"><span class="amount-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg></span><div><div class="amount-title">Amount Due: ${signedMoney(finalBalance)}</div><div class="amount-note">${finalBalance > 0 ? "Please clear the due amount at your earliest convenience." : "Your account has a credit balance."}</div></div><svg class="house-art" viewBox="0 0 160 100" fill="none" aria-hidden="true"><path d="M5 88c22-7 36-4 53 0 20 5 41 5 58-1 16-5 27-4 39 1v12H5V88Z" fill="#B9E8A6"/><path d="m31 62 34-31 34 31v31H31V62Z" fill="#FFF9E8" stroke="#14864D" stroke-width="5" stroke-linejoin="round"/><path d="m21 62 44-40 44 40-7 7-37-33-37 33-7-7Z" fill="#078C4A"/><path d="M84 34V18h13v28" fill="#168E4A" stroke="#087342" stroke-width="4" stroke-linejoin="round"/><path d="M53 67h23v26H53z" fill="#FFF1C9" stroke="#16884B" stroke-width="3"/><path d="M64.5 68v24M54 80h21" stroke="#E8A72E" stroke-width="2"/><path d="M16 87c-8-10-4-20 2-23 7 5 9 14 4 22m-8 0c-2-12 2-19 9-21m-4 21h14" stroke="#36A84C" stroke-width="4" stroke-linecap="round"/><path d="M125 88c-5-9-2-17 4-20 7 5 8 13 3 20m-7 0c-2-10 2-16 8-18m-6 18h16" stroke="#36A84C" stroke-width="4" stroke-linecap="round"/><circle cx="21" cy="80" r="7" fill="#84D66F"/><circle cx="133" cy="78" r="8" fill="#78CE64"/></svg></div>
+        <footer>Generated by <strong>Monthly Hisab</strong> · ${escapeHtml(generatedDate)}</footer>
+      </main><script>
+        async function saveBillAsJpg() {
+          const button = document.getElementById("save-jpg");
+          button.disabled = true;
+          button.textContent = "Creating JPG…";
+          try {
+            const image = new Image();
+            image.src = URL.createObjectURL(new Blob([${JSON.stringify(billSvg)}], { type: "image/svg+xml;charset=utf-8" }));
+            await image.decode();
+            const canvas = document.createElement("canvas");
+            canvas.width = image.naturalWidth;
+            canvas.height = image.naturalHeight;
+            const context = canvas.getContext("2d");
+            if (!context) throw new Error("Could not prepare the image canvas.");
+            context.fillStyle = "#ffffff";
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(image, 0, 0);
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95));
+            if (!blob) throw new Error("Could not convert the bill to JPG.");
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = ${JSON.stringify(jpgFilename + ".jpg")};
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          } catch (error) {
+            alert("Could not save the bill as JPG: " + error.message);
+          } finally {
+            button.disabled = false;
+            button.textContent = "Save as JPG";
+          }
+        }
+      </script></body></html>`);
+    reportDocument.close();
+    if (popupBlocked) {
+      const reportBlob = new Blob(
+        [`<!doctype html>${reportDocument.documentElement.outerHTML}`],
+        { type: "text/html" },
+      );
+      window.location.assign(URL.createObjectURL(reportBlob));
+    }
   }
   async function exportMemberLastMonthBill(member) {
     const reportWindow = window.open("", "_blank");
@@ -2179,9 +3021,10 @@ function App() {
           >
             {resetMode ? "Back to login" : "Forgot password?"}
           </button>
+          <img className="login-mobile-cottage" src="/login-cottage.png" alt="" />
+          <div className="login-footer-credit">Designed &amp; developed by <strong>Rahat</strong> · Monthly Hisab</div>
         </form>
         </div>
-        <div className="login-footer-credit">Designed &amp; developed by <strong>Rahat</strong> · Monthly Hisab</div>
       </div>
     );
   const nav = [
@@ -2189,6 +3032,7 @@ function App() {
     ["my-account", "My Account", Wallet],
     ["bazar", "Monthly Bazar", Receipt],
     ["contacts", "Contacts", Users],
+    ["inbox", "Inbox", MessageCircle],
     ...(!admin ? [["pay-rent", "Pay your rent", Wallet]] : []),
     ...(admin
       ? [
@@ -2198,16 +3042,15 @@ function App() {
                 ["members", "Members", Users],
                 ["expenses", "Utilities", Receipt],
                 ["payments", "Payments & Cash", ArrowDownRight],
-                ["payment-options", "Payment Options", Wallet],
+                ["payment-options", "Payments & Contacts", Wallet],
                 ["notices", "Notices", Bell],
-                ["contact-management", "Contact Management", Users],
               ]
             : []),
         ]
       : []),
   ];
   return (
-    <div className="app">
+    <div className="app premium-theme">
       <aside className={menu ? "sidebar open" : "sidebar"}>
         <div className="brand">
           <div className="brand-mark">
@@ -2218,7 +3061,9 @@ function App() {
             <small>Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</small>
           </div>
           <button
-            className="icon-btn mobile-close"
+            className="icon-btn mobile-close bazar-action"
+            type="button"
+            aria-label="Close navigation menu"
             onClick={() => setMenu(false)}
           >
             <X />
@@ -2238,7 +3083,6 @@ function App() {
                 "cash",
                 "notices",
                 "payment-options",
-                "contact-management",
               ].includes(key)
                 ? " admin-subitem"
                 : "") +
@@ -2255,6 +3099,11 @@ function App() {
           >
             <Icon size={18} />
             {label}
+            {key === "inbox" && inboxUnreadCount > 0 && (
+              <span className="inbox-nav-badge" aria-label={`${inboxUnreadCount} unread messages`}>
+                {inboxUnreadCount > 99 ? "99+" : inboxUnreadCount}
+              </span>
+            )}
             {key === "admin-toggle" && (
               <span className="nav-chevron">{adminOpen ? "−" : "+"}</span>
             )}
@@ -2263,14 +3112,18 @@ function App() {
         <div className="sidebar-bottom">
           <div className="sidebar-account-row">
             <div className="sidebar-account-card">
-              <button className="profile profile-trigger" type="button" onClick={() => { setProfileOpen(true); setProfileError(""); setProfileMessage(""); }}>
-                {profilePhoto ? <img className="avatar profile-avatar-image" src={profilePhoto} alt="" /> : <div className="avatar">{user.name[0]}</div>}
+              <button className="profile profile-trigger premium-sidebar-profile" type="button" onClick={() => { setProfileOpen(true); setProfileError(""); setProfileMessage(""); }}>
+                <span className="sidebar-profile-avatar">
+                  {profilePhoto ? <img className="avatar profile-avatar-image" src={profilePhoto} alt="" /> : <span className="avatar">{user.name[0]}</span>}
+                  <i aria-hidden="true" />
+                </span>
                 <span className="profile-trigger-info">
                   <b>{user.name}</b>
-                  <small>{admin ? "Administrator" : "Member"}</small>
+                  <small><span className="sidebar-role-dot" />{admin ? "Administrator" : "Member"}</small>
                 </span>
+                <ChevronRight className="sidebar-profile-chevron" size={16} aria-hidden="true" />
               </button>
-              <button className="sidebar-logout-btn" type="button" aria-label="Logout" title="Logout" onClick={(e) => { e.stopPropagation(); logout(); }}><LogOut size={18}/></button>
+              <button className="sidebar-logout-btn bazar-action" type="button" aria-label="Logout" title="Logout" onClick={(e) => { e.stopPropagation(); logout(); }}><LogOut size={18}/></button>
             </div>
           </div>
         </div>
@@ -2282,7 +3135,7 @@ function App() {
               <div><span className="eyebrow">YOUR ACCOUNT</span><h2>Profile settings</h2><p>Photo, email and password</p></div>
               <div className="profile-modal-header-actions">
                 
-                <button className="icon-btn" type="button" aria-label="Close profile settings" onClick={() => setProfileOpen(false)}><X size={18}/></button>
+                <button className="icon-btn bazar-action" type="button" aria-label="Close profile settings" onClick={() => setProfileOpen(false)}><X size={18}/></button>
               </div>
             </header>
             <section className="panel profile-settings-panel">
@@ -2309,13 +3162,19 @@ function App() {
           </section>
         </div>
       )}
-      <main className="main">
-        <header className={page === "my-account" ? "account-header" : ""}>
-          <button className="icon-btn menu-btn" onClick={() => setMenu(true)}>
-            <Menu />
+      <main className={page === "overview" ? "main overview-page" : page === "my-account" ? "main my-account-page" : page === "contacts" ? "main contacts-page" : page === "inbox" ? "main inbox-page" : page === "pay-rent" ? "main pay-rent-app-page" : page === "bazar" ? "main bazar-page" : "main"}>
+        <header className={`${page === "my-account" ? "account-header " : ""}${page === "overview" ? "overview-page-header" : ""}`}>
+          <button
+            type="button"
+            className="icon-btn menu-btn"
+            aria-label="Open navigation menu"
+            onClick={() => setMenu(true)}
+          >
+            <Menu size={22} strokeWidth={2.25} />
           </button>
           {page !== "my-account" && (
-            <div>
+            <div className={page === "overview" ? "overview-page-heading" : "app-page-heading"}>
+              {page === "inbox" && <span className="inbox-page-mark"><MessageCircle size={23} /></span>}
               <h2>{nav.find((x) => x[0] === page)?.[1] || "My Account"}</h2>
               <p>Manage your home, one month at a time.</p>
             </div>
@@ -2352,7 +3211,7 @@ function App() {
                         {noticeReadBusy ? "Saving…" : "Read all notifications"}
                       </button>
                       <button
-                        className="icon-btn"
+                        className="icon-btn bazar-action"
                         onClick={() => setNoticePanelOpen(false)}
                         aria-label="Close notifications"
                       >
@@ -2397,18 +3256,76 @@ function App() {
             >
               {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
             </button>
-            <select
-              value={month}
-              onChange={async (e) => {
-                const v = e.target.value;
-                setMonth(v);
-                if (session?.id) await loadCloudData(session.id, v);
-              }}
-            >
-              {monthChoices.map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
+            <div className="month-picker" ref={monthPickerRef}>
+              <button
+                type="button"
+                className="month-picker-trigger"
+                ref={monthPickerTriggerRef}
+                aria-haspopup="listbox"
+                aria-expanded={monthMenuOpen}
+                aria-controls="month-picker-options"
+                onClick={() => setMonthMenuOpen((open) => !open)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setMonthMenuOpen(false);
+                  if (event.key === "ArrowDown" && !monthMenuOpen) {
+                    event.preventDefault();
+                    setMonthMenuOpen(true);
+                    requestAnimationFrame(() => monthPickerRef.current?.querySelector('[role="option"]')?.focus());
+                  }
+                }}
+              >
+                <CalendarDays size={17} aria-hidden="true" />
+                <span>{month}</span>
+                <ChevronRight className={`month-picker-chevron${monthMenuOpen ? " is-open" : ""}`} size={16} aria-hidden="true" />
+              </button>
+              {monthMenuOpen && (
+                <div
+                  className="month-picker-menu"
+                  id="month-picker-options"
+                  role="listbox"
+                  aria-label="Select month"
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      setMonthMenuOpen(false);
+                      monthPickerTriggerRef.current?.focus();
+                      return;
+                    }
+                    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+                    event.preventDefault();
+                    const options = Array.from(event.currentTarget.querySelectorAll('[role="option"]'));
+                    const currentIndex = options.indexOf(document.activeElement);
+                    const nextIndex = event.key === "Home"
+                      ? 0
+                      : event.key === "End"
+                        ? options.length - 1
+                        : (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+                    options[nextIndex]?.focus();
+                  }}
+                >
+                  <span className="month-picker-label">SELECT MONTH</span>
+                  {monthChoices.map((choice) => (
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={month === choice}
+                      className={`month-picker-option${month === choice ? " is-selected" : ""}`}
+                      key={choice}
+                      onClick={async () => {
+                        setMonth(choice);
+                        setMonthMenuOpen(false);
+                        requestAnimationFrame(() => monthPickerTriggerRef.current?.focus());
+                        if (session?.id) await loadCloudData(session.id, choice);
+                      }}
+                    >
+                      <CalendarDays size={16} aria-hidden="true" />
+                      <span>{choice}</span>
+                      {month === choice && <CheckCircle2 size={16} aria-hidden="true" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </header>
         {page === "overview" && admin && (
@@ -2478,13 +3395,16 @@ function App() {
               />
             </div>
             <div className="grid-two">
-              <section className="panel">
-                <PanelHead
-                  title="Member balances"
-                  sub="Rent includes room rent + utilities; meal cost is shared separately"
-                />
+              <section className="panel member-balances-panel overview-member-panel">
+                <div className="overview-panel-heading">
+                  <span className="overview-panel-icon"><Users size={20} /></span>
+                  <PanelHead
+                    title="Member balances"
+                    sub="Rent includes room rent + utilities; meal cost is shared separately"
+                  />
+                </div>
                 <div className="table-wrap">
-                  <table>
+                  <table className="member-balances-table">
                     <thead>
                       <tr>
                         <th>Member</th>
@@ -2501,11 +3421,22 @@ function App() {
                         <tr>
                           <td>
                             <div className="person">
-                              <span className="avatar small">
-                                {x.u.name[0]}
-                              </span>
+                              {x.u.photo_url ? (
+                                <img
+                                  className="avatar small profile-avatar-image"
+                                  src={x.u.photo_url}
+                                  alt=""
+                                />
+                              ) : (
+                                <span className="avatar small">
+                                  {x.u.name[0]}
+                                </span>
+                              )}
                               <b>{x.u.name}</b>
                             </div>
+                            <span className="mobile-due">
+                              {money(memberDue(x.u) + (previousDueByUser[x.u.id] || 0))}
+                            </span>
                           </td>
                           <td>{money(memberRentShare(x.u))}</td>
                           <td>{money(memberMealShare(x.u))}</td>
@@ -2519,11 +3450,14 @@ function App() {
                   </table>
                 </div>
               </section>
-              <section className="panel">
-                <PanelHead
-                  title="Utilities breakdown"
-                  sub="Utilities are shared among current members"
-                />
+              <section className="panel overview-utilities-panel">
+                <div className="overview-panel-heading">
+                  <span className="overview-panel-icon"><Zap size={20} /></span>
+                  <PanelHead
+                    title="Utilities breakdown"
+                    sub="Utilities are shared among current members"
+                  />
+                </div>
                 {utilityCategories.map((c) => (
                   <div className={`break-row utility-payment-row${utilityPaidStatus[c.name] ? " is-paid" : ""}`} key={c.id || c.name}>
                     <label className="utility-payment-check">
@@ -2611,8 +3545,11 @@ function App() {
                 hint={`${money(previousDueByUser[user.id] ?? previousDue)} + ${money(ownDue)}`}
               />
             </div>
-            <section className="panel">
-              <PanelHead title="Your monthly breakdown" sub={month} />
+            <section className="panel account-breakdown-panel">
+              <div className="overview-panel-heading">
+                <span className="overview-panel-icon"><Zap size={20} /></span>
+                <PanelHead title="Your monthly breakdown" sub={month} />
+              </div>
               {utilityCategories.filter((c) => c.shared).length > 0 ? (
                 utilityCategories
                   .filter((c) => c.shared)
@@ -2621,10 +3558,13 @@ function App() {
                       className="break-row expense-detail-row"
                       key={c.id || c.name}
                     >
-                      <span>
+                      <span className="account-expense-icon">
+                        {React.createElement(getUtilityIcon(c.name), { size: 17 })}
+                      </span>
+                      <div className="account-expense-info">
                         {c.name}
                         <small>Full expense: {money(c.amount)}</small>
-                      </span>
+                      </div>
                       <div className="expense-share">
                         <small>Your share</small>
                         <b>
@@ -2643,7 +3583,8 @@ function App() {
                 </p>
               )}
               <div className="break-row expense-detail-row">
-                <span>Room rent</span>
+                <span className="account-expense-icon"><Home size={17} /></span>
+                <div className="account-expense-info">Room rent</div>
                 <div className="expense-share">
                   <small>Amount</small>
                   <b>{money(ownRent)}</b>
@@ -2670,10 +3611,13 @@ function App() {
         )}
         {page === "pay-rent" && user.role === "member" && (
           <section className="panel member-payment-options pay-rent-page">
-            <PanelHead
-              title="Pay your rent"
-              sub="Use one of the payment methods configured by the admin"
-            />
+            <div className="pay-rent-heading">
+              <span className="pay-rent-heading-icon"><Wallet size={27} strokeWidth={2} /></span>
+              <div>
+                <h3>Pay your rent</h3>
+                <p>Use one of the payment methods configured by the admin</p>
+              </div>
+            </div>
             {paymentOptions.filter((o) => o.enabled && o.account_number)
               .length ? (
               <div className="payment-method-grid">
@@ -2681,10 +3625,12 @@ function App() {
                   .filter((o) => o.enabled && o.account_number)
                   .map((o) => (
                     <article className="payment-method-card" key={o.provider}>
-                      <PaymentBrand
-                        provider={o.provider}
-                        logoUrl={o.logo_url}
-                      />
+                      <div className="pay-rent-brand">
+                        <PaymentBrand
+                          provider={o.provider}
+                          logoUrl={o.logo_url}
+                        />
+                      </div>
                       <div className="payment-method-info">
                         <b>{o.label}</b>
                         <strong>{o.account_number}</strong>
@@ -2696,6 +3642,7 @@ function App() {
                       <button
                         className="secondary copy-payment"
                         type="button"
+                        aria-label={`Copy ${o.label} account number`}
                         onClick={() => {
                           navigator.clipboard
                             ?.writeText(o.account_number)
@@ -2707,15 +3654,16 @@ function App() {
                             );
                         }}
                       >
-                        Copy
+                        <Copy size={17} /> Copy
                       </button>
                     </article>
                   ))}
               </div>
             ) : (
-              <p className="hint">
-                Payment details will appear here once the admin configures them.
-              </p>
+              <div className="pay-rent-empty-state">
+                <Wallet size={22} />
+                <p>Payment details will appear here once the admin configures them.</p>
+              </div>
             )}
           </section>
         )}
@@ -2786,9 +3734,9 @@ function App() {
                         <td>
                           <button
                             className="icon-btn member-report-download"
-                            title={`Download ${u.name} previous month bill`}
-                            aria-label={`Download ${u.name} previous month bill`}
-                            onClick={() => exportMemberLastMonthBill(u)}
+                            title={`Download ${u.name} ${month} bill`}
+                            aria-label={`Download ${u.name} ${month} bill`}
+                            onClick={() => exportMemberBill(u)}
                           >
                             <Download size={16} />
                           </button>
@@ -2803,7 +3751,7 @@ function App() {
                               <Edit size={16} />
                             </button>
                             <button
-                              className="icon-btn danger member-delete-action"
+                              className="icon-btn danger member-delete-action bazar-action"
                               title="Deactivate"
                               onClick={() => removeUser(u.id)}
                             >
@@ -2833,7 +3781,7 @@ function App() {
                     <h2 id="member-modal-title">{editId ? "Edit member" : "Add member"}</h2>
                     <p>Login details and individual rent</p>
                   </div>
-                  <button type="button" className="icon-btn member-modal-close" aria-label="Close member form" onClick={() => setShowMemberModal(false)}><X size={19} /></button>
+                  <button type="button" className="icon-btn member-modal-close bazar-action" aria-label="Close member form" onClick={() => setShowMemberModal(false)}><X size={19} /></button>
                 </header>
                 <form className="member-modal-form" onSubmit={saveUser}>
                   <label>Full name<input value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} required /></label>
@@ -2843,7 +3791,7 @@ function App() {
                   <label>Room rent (৳)<input type="number" min="0" value={newUser.rent} onChange={(e) => setNewUser({ ...newUser, rent: e.target.value })} /></label>
                   <label>Role<select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}><option value="member">Member</option><option value="admin">Admin</option></select></label>
                   <div className="member-modal-actions">
-                    <button type="button" className="secondary" onClick={() => { setShowMemberModal(false); setEditId(null); }}>Cancel</button>
+                    <button type="button" className="secondary member-modal-cancel bazar-action" onClick={() => { setShowMemberModal(false); setEditId(null); }}>Cancel</button>
                     <button className="primary" type="submit">{editId ? "Update member" : "Add member"}</button>
                   </div>
                 </form>
@@ -2855,7 +3803,28 @@ function App() {
         {page === "expenses" && admin && (
           <div className="utilities-layout-step1">
             <section className="panel utilities-history-panel">
-              <div className="utilities-history-head"><PanelHead title="Utilities list" sub={`${month} · ${utilityMemberCount} current users`} /><button type="button" className="primary" onClick={() => setShowAddUtility(true)}><Plus size={16}/> Add Utility</button></div>
+              <div className="utilities-history-head">
+                <PanelHead title="Utilities list" sub={`${month} · ${utilityMemberCount} current users`} />
+                <div className="utilities-header-actions">
+                  <form onSubmit={saveUtilityMemberCount} className="utilities-member-inline">
+                    <label htmlFor="utilities-current-members">Current members</label>
+                    <input
+                      id="utilities-current-members"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={utilityMemberCountInput}
+                      onChange={(e) => setUtilityMemberCountInput(e.target.value)}
+                      required
+                    />
+                    <button type="submit" className="utilities-member-save" disabled={utilityMemberCountSaving}>
+                      {utilityMemberCountSaving ? "Saving…" : "Save"}
+                    </button>
+                    {utilityMemberCountMessage && <small role="status">{utilityMemberCountMessage}</small>}
+                  </form>
+                  <button type="button" className="primary" onClick={() => setShowAddUtility(true)}><Plus size={16}/> Add Utility</button>
+                </div>
+              </div>
 
               {utilityCategories.map((c, i) => (
                 <div className="break-row">
@@ -2866,7 +3835,7 @@ function App() {
                   <b>{money(c.amount)}</b>
                   <button className="icon-btn secondary" type="button" aria-label={`Edit ${c.name}`} onClick={() => setUtilityEditModal({ originalName: c.name, name: c.name, amount: String(c.amount), shared: !!c.shared })}><Edit size={15} /></button>
                   <button
-                    className="icon-btn danger"
+                    className="icon-btn danger bazar-action"
                     onClick={async () => {
                       if (!admin) return;
                       if (!(await askConfirm(`Are you sure you want to delete "${c.name}" from ${month}?`, "Delete utility?"))) return;
@@ -2905,7 +3874,7 @@ function App() {
                 <label className="check"><input type="checkbox" checked={expenseForm.shared} onChange={(e) => setExpenseForm({ ...expenseForm, shared: e.target.checked })} /> Split among current members</label>
                 <button className="primary full">{editingUtilityName ? "Save changes" : <><Plus size={16} /> Add utility</>}</button>
               </form>
-              <button type="button" className="secondary full" onClick={() => setShowAddUtility(false)}>Close</button>
+              <button type="button" className="secondary full bazar-action" onClick={() => setShowAddUtility(false)}>Close</button>
             </section>
           </div>
         )}
@@ -2924,6 +3893,12 @@ function App() {
                 }));
                 setShowAddPayment(true);
               }}><Plus size={16} /> Add Payment</button>
+              {db.payments.filter((p) => p.month === month).length === 0 && (
+                <div className="payments-empty-state" role="status">
+                  <strong>No rent payments yet</strong>
+                  <span>Payments for {month} will appear here.</span>
+                </div>
+              )}
               {db.payments
                 .filter((p) => p.month === month)
                 .map((p) => (
@@ -2938,7 +3913,7 @@ function App() {
                     <b className="green-text">{money(p.amount)}</b>
                     <div className="row-actions">
                       <button type="button" className="icon-btn" title="Edit payment" aria-label="Edit payment" onClick={() => editPayment(p)}><Edit size={15} /></button>
-                      <button type="button" className="icon-btn danger-text" title="Delete payment" aria-label="Delete payment" onClick={() => deletePayment(p)}><Trash2 size={15} /></button>
+                      <button type="button" className="icon-btn danger-text bazar-action" title="Delete payment" aria-label="Delete payment" onClick={() => deletePayment(p)}><Trash2 size={15} /></button>
                     </div>
                   </div>
                 ))}
@@ -2961,6 +3936,12 @@ function App() {
               }}>
                 <Plus size={16} /> Add Cash
               </button>
+              {(db.contributions || []).filter((c) => c.month === month).length === 0 && (
+                <div className="payments-empty-state" role="status">
+                  <strong>No cash contributions yet</strong>
+                  <span>Contributions for {month} will appear here.</span>
+                </div>
+              )}
               {(db.contributions || [])
                 .filter((c) => c.month === month)
                 .map((c) => (
@@ -2975,7 +3956,7 @@ function App() {
                     <b className="green-text">{money(c.amount)}</b>
                     <div className="row-actions">
                       <button type="button" className="icon-btn" title="Edit contribution" aria-label="Edit contribution" onClick={() => editCash(c)}><Edit size={15} /></button>
-                      <button type="button" className="icon-btn danger-text" title="Delete contribution" aria-label="Delete contribution" onClick={() => deleteCash(c)}><Trash2 size={15} /></button>
+                      <button type="button" className="icon-btn danger-text bazar-action" title="Delete contribution" aria-label="Delete contribution" onClick={() => deleteCash(c)}><Trash2 size={15} /></button>
                     </div>
                   </div>
                 ))}
@@ -2987,7 +3968,7 @@ function App() {
             <section className="modal panel form-panel rent-payment-modal cash-contribution-modal" role="dialog" aria-modal="true" aria-label="Add cash contribution" onClick={(e) => e.stopPropagation()}>
               <div className="cash-modal-heading">
                 <PanelHead title={cashForm.id ? "Edit cash contribution" : "Add cash contribution"} sub="Money given for future monthly bazar" />
-                <button type="button" className="icon-btn" aria-label="Close" onClick={() => setShowAddCash(false)}>×</button>
+                <button type="button" className="icon-btn bazar-action" aria-label="Close" onClick={() => setShowAddCash(false)}>×</button>
               </div>
               <form onSubmit={addCash}>
                 <label>
@@ -3057,7 +4038,7 @@ function App() {
             <div onClick={(e) => e.stopPropagation()}>
               <section className="modal panel form-panel rent-payment-modal" role="dialog" aria-modal="true" aria-label={paymentForm.id ? "Edit rent payment" : "Record rent payment"}>
                 <PanelHead title={paymentForm.id ? "Edit rent payment" : "Record rent payment"} sub="Admin records money received from a member" />
-                <button type="button" className="icon-btn" aria-label="Close" onClick={() => setShowAddPayment(false)}>×</button>
+                <button type="button" className="icon-btn bazar-action" aria-label="Close" onClick={() => setShowAddPayment(false)}>×</button>
                 <form onSubmit={addPayment}>
                 <label>
                   Date
@@ -3233,7 +4214,11 @@ function App() {
             <div className="bazar-layout-full">
               <section className="panel bazar-history-panel">
                 <div className="bazar-history-head">
-                <PanelHead title="Monthly bazar history" sub={`${month} · purchases only`} />
+                <div className="bazar-history-title">
+                  <span className="bazar-history-icon"><ShoppingBasket size={21} /></span>
+                  <span className="bazar-history-divider" aria-hidden="true" />
+                  <PanelHead title="Monthly bazar history" sub={`${month} · purchases only`} />
+                </div>
                 <button type="button" className="primary" onClick={() => {
                   setBazarForm((form) => ({ ...form, date: todayForDateInput() }));
                   setShowAddBazar(true);
@@ -3267,13 +4252,7 @@ function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {monthBazar
-                        .filter(
-                          (b) =>
-                            bazarFilter === "all" ||
-                            (bazarFilter === "cash-in-hand" ? b.paidFromCash : !b.paidFromCash && b.paidBy === bazarFilter),
-                        )
-                        .map((b) => (
+                      {filteredMonthBazar.length ? filteredMonthBazar.map((b) => (
                           <tr key={b.id}>
                             <td>{b.date}</td>
                             <td>
@@ -3297,10 +4276,10 @@ function App() {
                                 ? "Cash in Hand"
                                 : db.users.find((u) => u.id === b.paidBy)?.name || "Member"}
                             </td>
-                            <td>{money(b.amount)}</td>
+                            <td className="bazar-history-amount">{money(b.amount)}</td>
                             <td className="row-actions">
                               <button
-                                className="icon-btn"
+                                className="icon-btn bazar-view-action"
                                 title="Details"
                                 aria-label="View bazar details"
                                 onClick={() => setBazarDetailsEntry(b)}
@@ -3310,14 +4289,14 @@ function App() {
                               {(admin || (!b.paidFromCash && b.paidBy === user?.id)) && (
                                 <>
                                   <button
-                                    className="icon-btn"
+                                    className="icon-btn bazar-edit-action"
                                     title="Edit"
                                     onClick={() => editBazar(b)}
                                   >
                                     <Edit size={15} />
                                   </button>
                                   <button
-                                    className="icon-btn danger-text"
+                                    className="icon-btn danger-text bazar-action"
                                     title="Delete"
                                     onClick={() => deleteBazar(b)}
                                   >
@@ -3327,7 +4306,17 @@ function App() {
                               )}
                             </td>
                           </tr>
-                        ))}
+                        )) : (
+                          <tr className="bazar-history-empty-row">
+                            <td colSpan="5">
+                              <div className="bazar-history-empty">
+                                <span><Receipt size={19} /></span>
+                                <strong>{monthBazar.length ? "No purchases for this filter" : "No bazar entries yet"}</strong>
+                                <small>{monthBazar.length ? "Choose another member to see their purchases." : `Add a purchase to start ${month}'s history.`}</small>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                     </tbody>
                   </table>
                 </div>
@@ -3397,7 +4386,7 @@ function App() {
                 </form>
 
               </section>
-              <button type="button" className="secondary full" onClick={()=>setShowAddBazar(false)}>Close</button>
+              <button type="button" className="secondary full bazar-action" onClick={()=>setShowAddBazar(false)}>Close</button>
             </div></div>}
             {bazarEditEntry && (
               <div className="modal-backdrop" role="presentation">
@@ -3409,7 +4398,7 @@ function App() {
                       <div className="bazar-edit-item-row" key={index}>
                         <label>Item {index + 1}<input value={row.item} placeholder={`Item ${index + 1}`} onChange={(e) => setBazarEditEntry((old) => ({...old, editItems:old.editItems.map((it,i)=>i===index?{...it,item:e.target.value}:it)}))}/></label>
                         <label>Price (৳)<input type="number" min="0" step="0.01" value={row.price} placeholder="0.00" onChange={(e) => setBazarEditEntry((old) => ({...old, editItems:old.editItems.map((it,i)=>i===index?{...it,price:e.target.value}:it)}))}/></label>
-                        <button type="button" className="danger-text icon-btn" aria-label={`Remove item ${index+1}`} disabled={bazarEditEntry.editItems.length===1} onClick={() => setBazarEditEntry((old) => ({...old,editItems:old.editItems.filter((_,i)=>i!==index)}))}><Trash2 size={15}/></button>
+                        <button type="button" className="danger-text icon-btn bazar-action" aria-label={`Remove item ${index+1}`} disabled={bazarEditEntry.editItems.length===1} onClick={() => setBazarEditEntry((old) => ({...old,editItems:old.editItems.filter((_,i)=>i!==index)}))}><Trash2 size={15}/></button>
                       </div>
                     ))}
                     <button type="button" className="secondary full" onClick={() => setBazarEditEntry((old) => ({...old,editItems:[...old.editItems,{item:"",price:""}]}))}>＋ Add item</button>
@@ -3417,7 +4406,7 @@ function App() {
                     <div className="bazar-edit-total"><span>Total</span><strong>{money((bazarEditEntry.editItems||[]).reduce((sum,row)=>sum+(Number(row.price)||0),0))}</strong></div>
                   </div>
                   <div className="bazar-edit-actions">
-                    <button type="button" className="secondary" onClick={() => setBazarEditEntry(null)}>Cancel</button>
+                    <button type="button" className="secondary bazar-action" onClick={() => setBazarEditEntry(null)}>Cancel</button>
                     <button type="button" className="primary" onClick={saveBazarEdit}>Save changes</button>
                   </div>
                 </section>
@@ -3451,7 +4440,7 @@ function App() {
                     </table>
                   </div>
                   <div className="total-row"><b>Total</b><b>{money(bazarDetailsEntry.amount)}</b></div>
-                  <button type="button" className="secondary full bazar-details-close" onClick={() => setBazarDetailsEntry(null)}>Close</button>
+                  <button type="button" className="secondary full bazar-details-close bazar-action" onClick={() => setBazarDetailsEntry(null)}>Close</button>
                 </section>
               </div>
             )}
@@ -3464,8 +4453,8 @@ function App() {
                   <h3>Delete bazar entry?</h3>
                   <p>This entry will be permanently removed. This action cannot be undone.</p>
                   <div className="delete-confirm-actions">
-                    <button className="secondary" onClick={() => setPendingBazarDelete(null)}>Cancel</button>
-                    <button className="danger" onClick={async () => { const entry=pendingBazarDelete; try { const {error}=await supabase.from("bazar_entries").delete().eq("id",entry.id); if(error) throw error; setPendingBazarDelete(null); await loadCloudData(user.id,month); setBazarSuccessToast("Bazar deleted successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600); } catch(e) { alert("Could not delete bazar: "+e.message); } }}>Delete entry</button>
+                    <button className="secondary bazar-action" onClick={() => setPendingBazarDelete(null)}>Cancel</button>
+                    <button className="danger bazar-action" onClick={async () => { const entry=pendingBazarDelete; try { const {error}=await supabase.from("bazar_entries").delete().eq("id",entry.id); if(error) throw error; setPendingBazarDelete(null); await loadCloudData(user.id,month); setBazarSuccessToast("Bazar deleted successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600); } catch(e) { alert("Could not delete bazar: "+e.message); } }}>Delete entry</button>
                   </div>
                 </section>
               </div>
@@ -3479,153 +4468,15 @@ function App() {
               <h3>{confirmDialog.title}</h3>
               <p>{confirmDialog.message}</p>
               <div className="delete-confirm-actions">
-                <button className="secondary close-red" onClick={() => { confirmDialog.resolve(false); setConfirmDialog(null); }}>Cancel</button>
-                <button className="danger" onClick={() => { confirmDialog.resolve(true); setConfirmDialog(null); }}>Confirm</button>
+                <button className="secondary close-red bazar-action" onClick={() => { confirmDialog.resolve(false); setConfirmDialog(null); }}>Cancel</button>
+                <button className="danger bazar-action" onClick={() => { confirmDialog.resolve(true); setConfirmDialog(null); }}>Confirm</button>
               </div>
             </section>
           </div>
         )}
         {page === "payment-options" && admin && (
-          <div className="grid-two payment-options-admin">
-            <section className="panel form-panel">
-              <PanelHead
-                title="Payment options"
-                sub="Manage the account details shown to every member"
-              />
-              <form onSubmit={savePaymentOptions}>
-                {paymentOptions.map((o, i) => (
-                  <div className="payment-config-row" key={o.provider}>
-                    <div className="payment-config-title">
-                      <PaymentBrand
-                        provider={o.provider}
-                        logoUrl={o.logo_url}
-                      />
-                      <b>{o.label}</b>
-                      <label className="check payment-enabled">
-                        <input
-                          type="checkbox"
-                          checked={!!o.enabled}
-                          onChange={(e) =>
-                            setPaymentOptions((items) =>
-                              items.map((x, j) =>
-                                j === i
-                                  ? { ...x, enabled: e.target.checked }
-                                  : x,
-                              ),
-                            )
-                          }
-                        />{" "}
-                        Show to members
-                      </label>
-                    </div>
-                    <label>
-                      Account / wallet number
-                      <input
-                        value={o.account_number}
-                        onChange={(e) =>
-                          setPaymentOptions((items) =>
-                            items.map((x, j) =>
-                              j === i
-                                ? { ...x, account_number: e.target.value }
-                                : x,
-                            ),
-                          )
-                        }
-                        placeholder={
-                          o.provider === "brac_bank" ||
-                          o.provider === "islami_bank"
-                            ? "Bank account number"
-                            : "Mobile banking number"
-                        }
-                      />
-                    </label>
-                    <label>
-                      Account name (optional)
-                      <input
-                        value={o.account_name}
-                        onChange={(e) =>
-                          setPaymentOptions((items) =>
-                            items.map((x, j) =>
-                              j === i
-                                ? { ...x, account_name: e.target.value }
-                                : x,
-                            ),
-                          )
-                        }
-                        placeholder="Name on account"
-                      />
-                    </label>
-                    <label>
-                      Payment instruction
-                      <input
-                        value={o.instructions}
-                        onChange={(e) =>
-                          setPaymentOptions((items) =>
-                            items.map((x, j) =>
-                              j === i
-                                ? { ...x, instructions: e.target.value }
-                                : x,
-                            ),
-                          )
-                        }
-                        placeholder="e.g. Send Money / Account transfer"
-                      />
-                    </label>
-                    <label>
-                      Payment logo URL (optional)
-                      <input
-                        type="url"
-                        value={o.logo_url || ""}
-                        onChange={(e) =>
-                          setPaymentOptions((items) =>
-                            items.map((x, j) =>
-                              j === i ? { ...x, logo_url: e.target.value } : x,
-                            ),
-                          )
-                        }
-                        placeholder="https://example.com/logo.png"
-                      />
-                    </label>
-                    <label>
-                      Or upload logo image
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          if (file.size > 500 * 1024) {
-                            alert("Please choose a logo smaller than 500 KB.");
-                            e.target.value = "";
-                            return;
-                          }
-                          const reader = new FileReader();
-                          reader.onload = () =>
-                            setPaymentOptions((items) =>
-                              items.map((x, j) =>
-                                j === i
-                                  ? {
-                                      ...x,
-                                      logo_url: String(reader.result || ""),
-                                    }
-                                  : x,
-                              ),
-                            );
-                          reader.readAsDataURL(file);
-                        }}
-                      />
-                    </label>
-                  </div>
-                ))}
-                {paymentOptionsError && (
-                  <div className="error">{paymentOptionsError}</div>
-                )}
-                <button className="primary full" disabled={paymentOptionsBusy}>
-                  {paymentOptionsBusy ? "Saving…" : "Save payment options"}
-                </button>
-              </form>
-            </section>
-            <section className="panel">
+          <>
+            <section className="panel payments-contacts-panel payments-member-preview">
               <PanelHead
                 title="Member preview"
                 sub="Only enabled methods with a number are displayed"
@@ -3663,115 +4514,516 @@ function App() {
                 These details are shared with active household users. Never
                 enter a PIN, password, or OTP here.
               </p>
+              <div className="payments-preview-actions">
+                <button type="button" className="primary" onClick={() => openPaymentEditor("add")}>
+                  <Plus size={16} /> Add Payment Option
+                </button>
+                <button type="button" className="secondary" onClick={() => openPaymentEditor("edit")}>
+                  <Edit size={15} /> Edit Payment Option
+                </button>
+              </div>
             </section>
-          </div>
+            {paymentEditorMode && paymentEditorForm && (
+              <div className="modal-backdrop payment-option-editor-backdrop">
+                <section className="panel payment-option-editor-modal" role="dialog" aria-modal="true" aria-labelledby="payment-editor-title">
+                  <header className="payment-option-editor-heading">
+                    <div>
+                      <h2 id="payment-editor-title">
+                        {paymentEditorMode === "add" ? "Add payment option" : "Edit payment option"}
+                      </h2>
+                      <p>These details are shown to active members.</p>
+                    </div>
+                    <button type="button" className="icon-btn bazar-action" aria-label="Close payment editor" onClick={() => { setPaymentEditorMode(""); setPaymentEditorForm(null); }}>
+                      <X size={18} />
+                    </button>
+                  </header>
+                  <form className="payment-option-editor-form" onSubmit={savePaymentEditor}>
+                    {paymentEditorMode === "edit" && (
+                      <label>
+                        Payment option
+                        <select
+                          value={paymentEditorForm.provider}
+                          onChange={(event) => {
+                            const selected = paymentOptions.find((option) => option.provider === event.target.value);
+                            if (selected) setPaymentEditorForm({ ...selected });
+                          }}
+                        >
+                          {paymentOptions.map((option) => (
+                            <option key={option.provider} value={option.provider}>{option.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    <label>
+                      Payment option name
+                      <input
+                        value={paymentEditorForm.label}
+                        onChange={(event) => setPaymentEditorForm({ ...paymentEditorForm, label: event.target.value })}
+                        required
+                      />
+                    </label>
+                    <label>
+                      Account / wallet number
+                      <input
+                        value={paymentEditorForm.account_number}
+                        onChange={(event) => setPaymentEditorForm({ ...paymentEditorForm, account_number: event.target.value })}
+                        placeholder="Enter account or wallet number"
+                      />
+                    </label>
+                    <label>
+                      Account name (optional)
+                      <input
+                        value={paymentEditorForm.account_name}
+                        onChange={(event) => setPaymentEditorForm({ ...paymentEditorForm, account_name: event.target.value })}
+                        placeholder="Name on account"
+                      />
+                    </label>
+                    <label>
+                      Payment instruction
+                      <input
+                        value={paymentEditorForm.instructions}
+                        onChange={(event) => setPaymentEditorForm({ ...paymentEditorForm, instructions: event.target.value })}
+                        placeholder="e.g. Send Money / Account transfer"
+                      />
+                    </label>
+                    <label>
+                      Logo URL (optional)
+                      <input
+                        type="text"
+                        value={paymentEditorForm.logo_url}
+                        onChange={(event) => setPaymentEditorForm({ ...paymentEditorForm, logo_url: event.target.value })}
+                        placeholder="https://example.com/logo.png"
+                      />
+                    </label>
+                    <label className="payment-editor-logo-upload">
+                      Or upload logo image
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          if (file.size > 500 * 1024) {
+                            setPaymentOptionsError("Please choose a logo smaller than 500 KB.");
+                            event.target.value = "";
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = () => setPaymentEditorForm((current) => ({
+                            ...current,
+                            logo_url: String(reader.result || ""),
+                          }));
+                          reader.onerror = () => setPaymentOptionsError("Could not read the selected logo image.");
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    <label className="payment-editor-enabled">
+                      <input
+                        type="checkbox"
+                        checked={!!paymentEditorForm.enabled}
+                        onChange={(event) => setPaymentEditorForm({ ...paymentEditorForm, enabled: event.target.checked })}
+                      />
+                      Show to members
+                    </label>
+                    {paymentOptionsError && <div className="error">{paymentOptionsError}</div>}
+                    <div className="payment-option-editor-actions">
+                      <button type="button" className="secondary bazar-action" onClick={() => { setPaymentEditorMode(""); setPaymentEditorForm(null); }}>Cancel</button>
+                      <button type="submit" className="primary" disabled={paymentOptionsBusy}>
+                        {paymentOptionsBusy ? "Saving…" : paymentEditorMode === "add" ? "Add payment option" : "Save changes"}
+                      </button>
+                    </div>
+                  </form>
+                </section>
+              </div>
+            )}
+          </>
         )}
         {page === "contacts" && (
           <section className="panel contacts-directory">
-            <PanelHead title="Member Contacts" sub="Flatmate, caretaker, maid and emergency contacts" />
+            <div className="contacts-directory-heading">
+              <span className="contacts-directory-mark"><Users size={24} /></span>
+              <div><h3>Member Contacts</h3><p>Flatmate, caretaker, maid and emergency contacts</p></div>
+            </div>
             {["Flatmate", "Caretaker", "Maid", "Emergency"].map(category => {
               const rows = contactRows.filter(c => c.category === category);
-              return <section className="contact-section contact-category-card" key={category}>
-                <div className="contact-category-heading"><span className="contact-category-icon"><Users size={17}/></span><h3>{category}</h3><small>{rows.length} {rows.length === 1 ? "contact" : "contacts"}</small></div>
-                {rows.length ? rows.map(c => <div className="contact-person-card" key={c.id}><div className="contact-person-avatar"><Users size={16}/></div><div className="contact-person-info"><b>{c.name}</b><a href={"tel:" + c.phone}>{c.phone}</a></div><a className="contact-call-btn" href={"tel:" + c.phone}>Call</a></div>) : <p className="muted">No contacts added.</p>}
+              const CategoryIcon = category === "Caretaker" ? Home : category === "Maid" ? Brush : category === "Emergency" ? Bell : Users;
+              return <section className={`contact-section contact-category-card category-${category.toLowerCase()} ${rows.length < 3 ? "few-contacts" : "many-contacts"}`} key={category}>
+                <div className="contact-category-heading"><span className="contact-category-icon"><CategoryIcon size={20}/></span><h3>{category}</h3><small>{rows.length} {rows.length === 1 ? "contact" : "contacts"}</small></div>
+                {rows.length ? <div className="contact-people-grid">{rows.map(c => <div className="contact-person-card" key={c.id}><div className="contact-person-avatar">{c.name?.trim()?.[0]?.toUpperCase() || "?"}</div><div className="contact-person-info"><b>{c.name}</b><a href={"tel:" + c.phone}>{c.phone}</a></div><a className="contact-call-btn" href={"tel:" + c.phone} aria-label={`Call ${c.name}`}><Phone size={15}/></a></div>)}</div> : <p className="muted">No contacts added.</p>}
               </section>;
             })}
           </section>
         )}
-        {page === "contact-management" && admin && (
-          <div className="grid-two">
-            <section className="panel form-panel">
-              <PanelHead title="Contact Management" sub="Add or update contacts visible to all members" />
-              <form onSubmit={async e => {
-                e.preventDefault(); setContactBusy(true);
-                const payload = { category: contactForm.category, name: contactForm.name.trim(), phone: contactForm.phone.trim() };
-                const result = contactForm.id
-                  ? await supabase.from("member_contacts").update(payload).eq("id", contactForm.id).select().single()
-                  : await supabase.from("member_contacts").insert(payload).select().single();
-                setContactBusy(false);
-                if (result.error) { alert("Could not save contact: " + result.error.message); return; }
-                setContactRows(rows => contactForm.id ? rows.map(r => r.id === contactForm.id ? result.data : r) : [...rows, result.data]);
-                setContactForm({ id: "", category: "Flatmate", name: "", phone: "" });
-              }}>
-                <label>Section<select value={contactForm.category} onChange={e => setContactForm({...contactForm,category:e.target.value})}>{["Flatmate","Caretaker","Maid","Emergency"].map(x=><option key={x}>{x}</option>)}</select></label>
-                <label>Name<input value={contactForm.name} onChange={e=>setContactForm({...contactForm,name:e.target.value})} required /></label>
-                <label>Phone number<input type="tel" value={contactForm.phone} onChange={e=>setContactForm({...contactForm,phone:e.target.value})} required /></label>
-                <button className="primary" disabled={contactBusy}>{contactBusy ? "Saving…" : contactForm.id ? "Update contact" : "Add contact"}</button>
-                {contactForm.id && <button type="button" className="secondary" onClick={()=>setContactForm({id:"",category:"Flatmate",name:"",phone:""})}>Cancel edit</button>}
-              </form>
-            </section>
-            <section className="panel"><PanelHead title="Saved contacts" sub="Manage the contacts members can see" />
-              {contactRows.map(c=><div className="break-row" key={c.id}><span><b>{c.name}</b><small>{c.category} · {c.phone}</small></span><div className="row-actions"><button className="icon-btn" onClick={()=>setContactForm({id:c.id,category:c.category,name:c.name,phone:c.phone})}><Edit size={15}/></button><button className="icon-btn danger-text" onClick={async()=>{if(!(await askConfirm(`Delete ${c.name || "this contact"}? This cannot be undone.`, "Delete contact?")))return;const {error}=await supabase.from("member_contacts").delete().eq("id",c.id);if(error)alert(error.message);else setContactRows(rows=>rows.filter(r=>r.id!==c.id));}}><Trash2 size={15}/></button></div></div>)}
-            </section>
-          </div>
-        )}
-        {page === "notices" && admin && (
-          <div className="grid-two">
-            <section className="panel form-panel">
-              <PanelHead
-                title="Direct Posting Notice"
-                sub="Write a notice, save it as draft, or publish it to members"
-              />
-              <button
-                type="button"
-                className="secondary full notice-compose-toggle"
-                onClick={() => setNoticeComposerOpen((open) => !open)}
-                aria-expanded={noticeComposerOpen}
-              >
-                {noticeComposerOpen ? "Close notice composer" : "Compose notice"}
-              </button>
-              {noticeComposerOpen && <form onSubmit={postNotice}>
-                <label>
-                  Notice title
-                  <input
-                    value={noticeForm.title}
-                    onChange={(e) =>
-                      setNoticeForm({ ...noticeForm, title: e.target.value })
-                    }
-                    placeholder="e.g. Rent payment reminder"
-                  />
-                </label>
-                <label>
-                  Message
-                  <textarea
-                    rows="5"
-                    value={noticeForm.body}
-                    onChange={(e) =>
-                      setNoticeForm({ ...noticeForm, body: e.target.value })
-                    }
-                    placeholder="Everyone must pay rent by the 10th..."
-                  />
-                </label>
-                <label>
-                  Photo (optional)
-                  <input
-                    id="notice-image-input"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) =>
-                      setNoticeImage(e.target.files?.[0] || null)
-                    }
-                  />
-                </label>
-                {noticeImage && (
-                  <div className="notice-file-name">
-                    Selected: {noticeImage.name}
+        {page === "inbox" && (
+          <section className="panel inbox-panel">
+            <div className="inbox-panel-heading">
+              <span className="inbox-panel-mark"><MessageCircle size={23} /></span>
+              <div><h3>Inbox</h3><p>Private messages between household members</p></div>
+            </div>
+            {inboxError && <div className="error inbox-error" role="alert">{inboxError}</div>}
+            <div className="inbox-layout">
+              <aside className="inbox-member-list" aria-label="Member conversations">
+                <h3>Members</h3>
+                {inboxPeers.length ? inboxPeers.map((member) => {
+                  const unread = inboxMessages.filter(
+                    (message) =>
+                      message.sender_id === member.id &&
+                      message.recipient_id === session.id &&
+                      !message.read_at,
+                  ).length;
+                  const latestMessage = [...inboxMessages].reverse().find(
+                    (message) =>
+                      (message.sender_id === member.id && message.recipient_id === session.id) ||
+                      (message.sender_id === session.id && message.recipient_id === member.id),
+                  );
+                  const isOnline = inboxOnlineIds.includes(member.id);
+                  return (
+                    <button
+                      type="button"
+                      key={member.id}
+                      className={`inbox-member${selectedInboxMemberId === member.id ? " selected" : ""}${isOnline ? " is-online" : ""}`}
+                      onClick={() => void selectInboxMember(member.id)}
+                      aria-label={`${member.name}${member.active ? "" : " (inactive)"}`}
+                    >
+                      <span className={`inbox-avatar-wrap${isOnline ? " is-online" : ""}`}>
+                        {member.photo_url ? (
+                          <img className="inbox-avatar inbox-avatar-image" src={member.photo_url} alt="" />
+                        ) : (
+                          <span className="inbox-avatar">{member.name?.[0]?.toUpperCase() || "M"}</span>
+                        )}
+                        {isOnline && <i className="inbox-online-dot" aria-label="Online" title="Online" />}
+                      </span>
+                      <span className="inbox-member-copy">
+                        <b>{member.name}</b>
+                        <small className="inbox-member-status">
+                          <span>{isOnline ? "Online" : `Last active ${formatLastActive(member.lastLoginAt)}`}</span>
+                          {!latestMessage && <span className="inbox-member-preview">Start a conversation</span>}
+                          {latestMessage && <span className="inbox-member-preview">{latestMessage.body || latestMessage.attachment_name || "Attachment"}</span>}
+                        </small>
+                      </span>
+                      {unread > 0 && <span className="inbox-unread-count">{unread > 99 ? "99+" : unread}</span>}
+                    </button>
+                  );
+                }) : <p className="muted inbox-no-members">No other active members found.</p>}
+              </aside>
+              <section className="inbox-conversation" aria-label="Message conversation">
+                {selectedInboxMember ? (
+                  <>
+                    <header className="inbox-conversation-header">
+                      <span className={`inbox-avatar-wrap inbox-header-avatar${inboxOnlineIds.includes(selectedInboxMember.id) ? " is-online" : ""}`}>
+                        {selectedInboxMember.photo_url ? (
+                          <img className="inbox-avatar inbox-avatar-image" src={selectedInboxMember.photo_url} alt="" />
+                        ) : (
+                          <span className="inbox-avatar">{selectedInboxMember.name?.[0]?.toUpperCase() || "M"}</span>
+                        )}
+                        {inboxOnlineIds.includes(selectedInboxMember.id) && <i className="inbox-online-dot" aria-label="Online" title="Online" />}
+                      </span>
+                      <div className={`inbox-conversation-person${inboxOnlineIds.includes(selectedInboxMember.id) ? " is-online" : ""}`}>
+                        <b>{selectedInboxMember.name}</b>
+                        <small>
+                          {inboxOnlineIds.includes(selectedInboxMember.id)
+                            ? "Online"
+                            : `Last active ${formatLastActive(selectedInboxMember.lastLoginAt)}`}
+                        </small>
+                      </div>
+                      <div className="inbox-conversation-actions">
+                        <button
+                          type="button"
+                          className="inbox-conversation-menu"
+                          aria-label="Conversation options"
+                          aria-expanded={inboxMenuOpen}
+                          onClick={() => setInboxMenuOpen((open) => !open)}
+                        >
+                          <MoreVertical size={19} />
+                        </button>
+                        {inboxMenuOpen && (
+                          <div className="inbox-conversation-menu-popover" role="menu">
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => void loadInboxMedia()}
+                              disabled={inboxMediaBusy || inboxDeleteBusy}
+                            >
+                              <Images size={16} />
+                              {inboxMediaBusy ? "Loading media…" : "Media"}
+                            </button>
+                            <button
+                              type="button"
+                              className="delete-conversation-action"
+                              role="menuitem"
+                              onClick={() => void deleteInboxConversation()}
+                              disabled={inboxDeleteBusy || inboxMediaBusy}
+                            >
+                              <Trash2 size={16} />
+                              {inboxDeleteBusy ? "Deleting…" : "Delete conversation"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </header>
+                    <div className="inbox-message-list" aria-live="polite">
+                      {selectedConversation.length ? selectedConversation.map((message) => (
+                        <article
+                          key={message.id}
+                          className={`inbox-message${message.sender_id === session.id ? " sent" : " received"}`}
+                        >
+                          {message.body && <p>{message.body}</p>}
+                          {message.attachment_url && (
+                            <a
+                              className="inbox-attachment"
+                              href={message.attachment_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label={`Open attachment ${message.attachment_name}`}
+                            >
+                              {message.attachment_type?.startsWith("image/") ? (
+                                <img src={message.attachment_url} alt={message.attachment_name} />
+                              ) : (
+                                <span className="inbox-file-chip">
+                                  <FileText size={17} />
+                                  <span>{message.attachment_name}</span>
+                                </span>
+                              )}
+                            </a>
+                          )}
+                          {message.attachment_path && !message.attachment_url && (
+                            <span className="inbox-file-chip inbox-file-unavailable" role="status">
+                              <FileText size={17} />
+                              <span>
+                                {message.attachment_name || "Attachment"}
+                                <small>File unavailable in storage</small>
+                              </span>
+                            </span>
+                          )}
+                          <span className="inbox-message-meta">
+                            <time dateTime={message.created_at}>{new Date(message.created_at).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}</time>
+                            {message.sender_id === session.id && <CheckCheck size={16} aria-label={message.read_at ? "Read" : "Sent"} />}
+                          </span>
+                        </article>
+                      )) : <p className="inbox-empty-thread">No messages yet. Send a message to start the conversation.</p>}
+                    </div>
+                    {selectedInboxMember.active ? <form className="inbox-compose" onSubmit={sendInboxMessage}>
+                      <input
+                        ref={inboxAttachmentInputRef}
+                        className="inbox-file-input"
+                        type="file"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] || null;
+                          if (file && file.size > 10 * 1024 * 1024) {
+                            setInboxError("Choose a file smaller than 10 MB.");
+                            event.target.value = "";
+                            setInboxAttachment(null);
+                            return;
+                          }
+                          setInboxError("");
+                          setInboxAttachment(file);
+                        }}
+                        aria-label="Choose image or file"
+                      />
+                      <button
+                        className="inbox-attach-button"
+                        type="button"
+                        onClick={() => inboxAttachmentInputRef.current?.click()}
+                        disabled={inboxBusy}
+                        aria-label="Attach an image or file"
+                        title="Attach image or file (max 10 MB)"
+                      >
+                        <Paperclip size={18} />
+                      </button>
+                      <div className="inbox-compose-fields">
+                        {inboxAttachment && (
+                          <div className="inbox-pending-attachment">
+                            <FileText size={14} />
+                            <span>{inboxAttachment.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInboxAttachment(null);
+                                if (inboxAttachmentInputRef.current) inboxAttachmentInputRef.current.value = "";
+                              }}
+                              aria-label="Remove attachment"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        )}
+                        <textarea
+                          value={inboxDraft}
+                          onChange={(event) => setInboxDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (
+                              event.key === "Enter" &&
+                              !event.shiftKey &&
+                              !event.nativeEvent.isComposing
+                            ) {
+                              event.preventDefault();
+                              event.currentTarget.form?.requestSubmit();
+                            }
+                          }}
+                          maxLength={2000}
+                          placeholder={`Message ${selectedInboxMember.name}...`}
+                          aria-label="Write a message"
+                        />
+                      </div>
+                      <button className="primary" type="submit" disabled={inboxBusy || (!inboxDraft.trim() && !inboxAttachment)}>
+                        <Send size={16} /> {inboxBusy ? "Sending…" : "Send"}
+                      </button>
+                    </form> : <p className="inbox-inactive-notice">This account is inactive and cannot receive new messages.</p>}
+                  </>
+                ) : (
+                  <div className="inbox-select-prompt">
+                    <MessageCircle size={30} />
+                    <b>Select a member</b>
+                    <span>Choose someone from the list to view or start a conversation.</span>
                   </div>
                 )}
-                {noticeError && <div className="error">{noticeError}</div>}
+              </section>
+            </div>
+            {inboxMediaOpen && (
+              <div
+                className="inbox-media-backdrop"
+                role="presentation"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setInboxMediaOpen(false);
+                }}
+              >
+                <section
+                  className="inbox-media-dialog"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="inbox-media-title"
+                >
+                  <header className="inbox-media-heading">
+                    <div><h3 id="inbox-media-title">Media</h3><p>Photos and files shared with {selectedInboxMember?.name}</p></div>
+                    <button type="button" className="icon-btn" aria-label="Close media" onClick={() => setInboxMediaOpen(false)}>
+                      <X size={18} />
+                    </button>
+                  </header>
+                  {inboxMediaFiles.length ? (
+                    <div className="inbox-media-grid">
+                      {inboxMediaFiles.map((file) => (
+                        <a
+                          className="inbox-media-item"
+                          key={file.id}
+                          href={file.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={file.attachment_name}
+                        >
+                          {file.attachment_type?.startsWith("image/") ? (
+                            <img src={file.url} alt={file.attachment_name} />
+                          ) : (
+                            <span className="inbox-media-file-icon"><FileText size={30} /></span>
+                          )}
+                          <span className="inbox-media-file-name">{file.attachment_name}</span>
+                          <small>{new Date(file.created_at).toLocaleDateString()}</small>
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="inbox-media-empty"><Images size={27} /><p>No photos or files shared yet.</p></div>
+                  )}
+                </section>
+              </div>
+            )}
+          </section>
+        )}
+        {page === "payment-options" && admin && (
+          <>
+          <section className="panel payments-contacts-panel saved-contacts-panel">
+            <div className="saved-contacts-heading">
+              <PanelHead title="Saved contacts" sub="Manage the contacts members can see" />
+              <div className="saved-contacts-actions">
+                <button type="button" className="primary" onClick={() => openContactEditor("add")}>
+                  <Plus size={16} /> Add Contact
+                </button>
+                <button type="button" className="secondary" disabled={!contactRows.length} onClick={() => openContactEditor("edit")}>
+                  <Edit size={15} /> Edit Contact
+                </button>
+              </div>
+            </div>
+            {contactRows.length ? contactRows.map((contact) => (
+              <div className="break-row saved-contact-row" key={contact.id}>
+                <span className="saved-contact-info">
+                  <span className="saved-contact-initial" aria-hidden="true">{contact.name?.[0]?.toUpperCase() || "?"}</span>
+                  <span className="saved-contact-details">
+                    <b>{contact.name}</b>
+                    <span className="saved-contact-meta">
+                      <small className="saved-contact-category">{contact.category}</small>
+                      <small>{contact.phone}</small>
+                    </span>
+                  </span>
+                </span>
                 <div className="row-actions">
-                  <button type="button" className="secondary" disabled={noticeDraftBusy || noticeBusy} onClick={saveNoticeDraft}>{noticeDraftBusy ? "Saving…" : "Save Notice"}</button>
-                  <button className="primary" disabled={noticeBusy || noticeDraftBusy}><Send size={16} />{noticeBusy ? "Publishing…" : "Publish"}</button>
+                  <button type="button" className="icon-btn saved-contact-edit" aria-label={`Edit ${contact.name}`} title="Edit contact" onClick={() => { setContactForm({ id: contact.id, category: contact.category, name: contact.name, phone: contact.phone }); setContactError(""); setContactModalOpen(true); }}>
+                    <Edit size={15} />
+                  </button>
+                  <button type="button" className="icon-btn saved-contact-delete bazar-action" aria-label={`Delete ${contact.name}`} title="Delete contact" onClick={async () => {
+                    if (!(await askConfirm(`Delete ${contact.name || "this contact"}? This cannot be undone.`, "Delete contact?"))) return;
+                    const { error } = await supabase.from("member_contacts").delete().eq("id", contact.id);
+                    if (error) alert("Could not delete contact: " + error.message);
+                    else setContactRows((rows) => rows.filter((row) => row.id !== contact.id));
+                  }}>
+                    <Trash2 size={15} />
+                  </button>
                 </div>
-              </form>}
-            </section>
-            <section className="panel">
-              <PanelHead
-                title="Saved Notices"
-                sub="Drafts and published notices stay here until deleted"
-              />
+              </div>
+            )) : <p className="hint saved-contacts-empty">No contacts saved yet. Add one to get started.</p>}
+          </section>
+          {contactModalOpen && (
+            <div className="modal-backdrop contact-editor-backdrop">
+              <section className="panel contact-editor-modal" role="dialog" aria-modal="true" aria-labelledby="contact-editor-title">
+                <header className="contact-editor-heading">
+                  <div>
+                    <h2 id="contact-editor-title">{contactForm.id ? "Edit contact" : "Add contact"}</h2>
+                    <p>Add or update a contact visible to members.</p>
+                  </div>
+                  <button type="button" className="icon-btn contact-editor-close bazar-action" aria-label="Close contact form" onClick={() => { setContactModalOpen(false); setContactError(""); }}>
+                    <X size={18} />
+                  </button>
+                </header>
+                <form className="contact-editor-form" onSubmit={saveContact}>
+                  {contactForm.id && (
+                    <label>
+                      Saved contact
+                      <select value={contactForm.id} onChange={(event) => {
+                        const selected = contactRows.find((row) => row.id === event.target.value);
+                        if (selected) setContactForm({ id: selected.id, category: selected.category, name: selected.name, phone: selected.phone });
+                      }}>
+                        {contactRows.map((contact) => <option key={contact.id} value={contact.id}>{contact.name} · {contact.category}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  <label>Section<select value={contactForm.category} onChange={(event) => setContactForm({ ...contactForm, category: event.target.value })}>{["Flatmate", "Caretaker", "Maid", "Emergency"].map((category) => <option key={category}>{category}</option>)}</select></label>
+                  <label>Name<input value={contactForm.name} onChange={(event) => setContactForm({ ...contactForm, name: event.target.value })} required /></label>
+                  <label>Phone number<input type="tel" value={contactForm.phone} onChange={(event) => setContactForm({ ...contactForm, phone: event.target.value })} required /></label>
+                  {contactError && <div className="error">{contactError}</div>}
+                  <div className="contact-editor-actions">
+                    <button type="button" className="secondary bazar-action" onClick={() => { setContactModalOpen(false); setContactError(""); }}>Cancel</button>
+                    <button type="submit" className="primary" disabled={contactBusy}>{contactBusy ? "Saving…" : contactForm.id ? "Save changes" : "Add contact"}</button>
+                  </div>
+                </form>
+              </section>
+            </div>
+          )}
+          </>
+        )}
+        {page === "notices" && admin && (
+          <div className="notices-page">
+            <section className="panel notices-admin-panel">
+              <div className="notices-admin-heading">
+                <PanelHead
+                  title="Saved Notices"
+                  sub="Manage drafts and announcements shared with your members"
+                />
+                <button type="button" className="primary notices-add-button" onClick={() => { setNoticeError(""); setNoticeComposerOpen(true); }}>
+                  <Plus size={16} /> Add Notice
+                </button>
+              </div>
               {notices.length ? (
-                notices.map((n) => (
+                <div className="notices-admin-list">
+                {notices.map((n) => (
                   <article className="notice-card" key={n.id}>
                     <div className="notice-card-top">
                       <div>
@@ -3779,19 +5031,78 @@ function App() {
                         <small>{new Date(n.created_at).toLocaleString()}</small>
                       </div>
                       <div className="row-actions">
-                        <small>{n.status === "draft" ? "Draft" : "Published"}</small>
+                        <span className={`notice-status ${n.status === "draft" ? "is-draft" : "is-published"}`}>{n.status === "draft" ? "Draft" : "Published"}</span>
                         {n.status !== "published" && <button className="secondary" onClick={() => publishSavedNotice(n)}>Publish</button>}{n.status === "published" && <button className="secondary" onClick={() => repostNotice(n)}>Repost</button>}
-                        <button className="icon-btn danger" title="Delete notice" onClick={() => deleteNotice(n)}><Trash2 size={16} /></button>
+                        <button className="icon-btn danger bazar-action" title="Delete notice" onClick={() => deleteNotice(n)}><Trash2 size={16} /></button>
                       </div>
                     </div>
                     {n.body && <p>{n.body}</p>}
                     {n.image_url && <img src={n.image_url} alt="Notice" />}
                   </article>
-                ))
+                ))}
+                </div>
               ) : (
-                <p className="notice-empty">No notices posted yet.</p>
+                <div className="notices-admin-empty">
+                  <span className="notices-empty-icon"><Bell size={20} /></span>
+                  <strong>No notices yet</strong>
+                  <p>Add a notice to save a draft or share an announcement with members.</p>
+                </div>
               )}
             </section>
+            {noticeComposerOpen && (
+              <div className="notice-composer-backdrop" role="presentation" onClick={() => !noticeBusy && !noticeDraftBusy && setNoticeComposerOpen(false)}>
+                <section className="panel notice-composer-modal" role="dialog" aria-modal="true" aria-labelledby="notice-composer-title" onClick={(event) => event.stopPropagation()}>
+                  <header className="notice-composer-heading">
+                    <div>
+                      <span className="eyebrow">ANNOUNCEMENT</span>
+                      <h2 id="notice-composer-title">Compose notice</h2>
+                      <p>Save as a draft or publish it for your members.</p>
+                    </div>
+                    <button type="button" className="icon-btn notice-composer-close bazar-action" aria-label="Close notice composer" disabled={noticeBusy || noticeDraftBusy} onClick={() => setNoticeComposerOpen(false)}>
+                      <X size={18} />
+                    </button>
+                  </header>
+                  <form className="notice-composer-form" onSubmit={postNotice}>
+                    <label>
+                      Notice title
+                      <input
+                        value={noticeForm.title}
+                        onChange={(e) => setNoticeForm({ ...noticeForm, title: e.target.value })}
+                        placeholder="e.g. Rent payment reminder"
+                      />
+                    </label>
+                    <label>
+                      Message
+                      <textarea
+                        rows="5"
+                        value={noticeForm.body}
+                        onChange={(e) => setNoticeForm({ ...noticeForm, body: e.target.value })}
+                        placeholder="Write an announcement for your members..."
+                      />
+                    </label>
+                    <label>
+                      Photo <span className="notice-optional-label">Optional</span>
+                      <input
+                        id="notice-image-input"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setNoticeImage(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                    {noticeImage && <div className="notice-file-name">Selected: {noticeImage.name}</div>}
+                    {noticeError && <div className="error">{noticeError}</div>}
+                    <div className="notice-composer-actions">
+                      <button type="button" className="secondary" disabled={noticeDraftBusy || noticeBusy} onClick={saveNoticeDraft}>
+                        {noticeDraftBusy ? "Saving…" : "Save as draft"}
+                      </button>
+                      <button type="submit" className="primary" disabled={noticeBusy || noticeDraftBusy}>
+                        <Send size={15} /> {noticeBusy ? "Publishing…" : "Publish notice"}
+                      </button>
+                    </div>
+                  </form>
+                </section>
+              </div>
+            )}
           </div>
         )}
         {noticeModal &&
@@ -3810,7 +5121,7 @@ function App() {
                     <h2>House announcements</h2>
                   </div>
                   <button
-                    className="icon-btn"
+                    className="icon-btn bazar-action"
                     onClick={() => setNoticeModal(false)}
                     aria-label="Close notices"
                   >
@@ -3868,7 +5179,7 @@ function App() {
                     <label className="check"><input type="checkbox" checked={utilityEditModal.shared} onChange={(e) => setUtilityEditModal(old => ({...old, shared:e.target.checked}))} /> Split among current members</label>
                   </div>
                   <div className="bazar-edit-actions">
-                    <button type="button" className="secondary" onClick={() => setUtilityEditModal(null)}>Cancel</button>
+                    <button type="button" className="secondary bazar-action" onClick={() => setUtilityEditModal(null)}>Cancel</button>
                     <button type="button" className="primary" onClick={saveUtilityEdit}>Save changes</button>
                   </div>
                 </section>
@@ -3931,7 +5242,7 @@ function App() {
               </div>
             </section>
 
-<button type="button" className="secondary full" onClick={()=>setShowAddUtility(false)}>Close</button></div></div>}
+<button type="button" className="secondary full bazar-action" onClick={()=>setShowAddUtility(false)}>Close</button></div></div>}
           </div>
             )}
 
@@ -3965,5 +5276,15 @@ function PanelHead({ title, sub }) {
       </div>
     </div>
   );
+}
+function getUtilityIcon(name) {
+  const category = String(name || "").toLowerCase();
+  if (category.includes("wifi") || category.includes("wi-fi") || category.includes("internet")) return Wifi;
+  if (category.includes("gas")) return Flame;
+  if (category.includes("water")) return Droplets;
+  if (category.includes("lift") || category.includes("elevator")) return ArrowUpDown;
+  if (category.includes("moyla") || category.includes("waste") || category.includes("garbage") || category.includes("trash")) return Trash2;
+  if (category.includes("bua") || category.includes("maid") || category.includes("clean")) return Brush;
+  return Zap;
 }
 createRoot(document.getElementById("root")).render(<App />);

@@ -1,6 +1,6 @@
 -- Monthly Hisab payment methods: admin-managed details visible to authenticated household members.
 create table if not exists public.payment_options (
-  provider text primary key check (provider in ('bkash','nagad','brac_bank','islami_bank')),
+  provider text primary key,
   label text not null,
   account_name text not null default '',
   account_number text not null default '',
@@ -11,6 +11,9 @@ create table if not exists public.payment_options (
   updated_by uuid references public.profiles(id),
   updated_at timestamptz not null default now()
 );
+
+alter table public.payment_options
+  drop constraint if exists payment_options_provider_check;
 
 alter table public.payment_options enable row level security;
 grant select, insert, update, delete on public.payment_options to authenticated;

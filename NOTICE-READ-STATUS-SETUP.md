@@ -13,6 +13,7 @@ Open `SUPABASE-NOTICES-SETUP.sql` in Supabase SQL Editor and run the whole SQL s
 - The popover includes **Read all notifications** as an explicit action.
 - The login notice dialog's close and “Mark all as read” actions also save the read state.
 - Admins can post/delete notices; read receipts are tracked for members.
+- Reposting a published notice updates its publication timestamp and resets its read state for members, without creating another notice row.
 
 ## Build
 
