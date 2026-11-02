@@ -4326,12 +4326,38 @@ function App() {
                 </div>
               </section>
             </div>
-            {showAddBazar && <div className="modal-backdrop" role="presentation"><div onClick={(e)=>e.stopPropagation()}>
-              <section className="modal panel form-panel" role="dialog" aria-modal="true" aria-labelledby="add-bazar-title">
-                <PanelHead
-                  title="Add bazar"
-                  sub="Date auto-fills today. Enter items and total paid."
-                />
+            {showAddBazar && <div
+              className="modal-backdrop add-bazar-backdrop"
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setShowAddBazar(false);
+              }}
+            >
+              <section
+                className="modal panel form-panel add-bazar-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="add-bazar-title"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setShowAddBazar(false);
+                }}
+              >
+                <div className="panel-head add-bazar-modal-heading">
+                  <div>
+                    <h3 id="add-bazar-title">Add bazar</h3>
+                    <p>Date auto-fills today. Enter items and total paid.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-btn add-bazar-close"
+                    aria-label="Close Add Bazar"
+                    title="Close"
+                    onClick={() => setShowAddBazar(false)}
+                  >
+                    <X size={19} />
+                  </button>
+                </div>
                 <form
                   onSubmit={addBazar}
                   onKeyDown={(e) => {
@@ -4386,8 +4412,7 @@ function App() {
                 </form>
 
               </section>
-              <button type="button" className="secondary full bazar-action" onClick={()=>setShowAddBazar(false)}>Close</button>
-            </div></div>}
+            </div>}
             {bazarEditEntry && (
               <div className="modal-backdrop" role="presentation">
                 <section className="modal panel bazar-edit-modal" role="dialog" aria-modal="true" aria-labelledby="bazar-edit-title" onClick={(e) => e.stopPropagation()}>

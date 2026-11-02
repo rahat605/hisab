@@ -3105,21 +3105,21 @@ table tbody tr { transition: background-color .16s ease; }
 }
 
 /* Premium styling for Add Bazar modal only */
-.modal-backdrop:has(#add-bazar-title){background:rgba(15,27,48,.58)!important;backdrop-filter:blur(7px)!important;padding:20px!important}
-.modal-backdrop:has(#add-bazar-title)>div{width:min(100%,640px)!important;margin:auto!important}
-.modal-backdrop:has(#add-bazar-title) #add-bazar-title{}
-.modal-backdrop:has(#add-bazar-title) .modal.panel.form-panel{width:100%!important;max-width:640px!important;padding:27px 30px!important;border:1px solid rgba(255,255,255,.75)!important;border-radius:24px!important;background:linear-gradient(150deg,#fff 0%,#f9fbff 100%)!important;box-shadow:0 28px 90px rgba(8,23,50,.28)!important}
-.modal-backdrop:has(#add-bazar-title) .panel-head{margin-bottom:22px!important}
-.modal-backdrop:has(#add-bazar-title) .panel-head h2{font-size:22px!important;font-weight:780!important;letter-spacing:-.035em;color:#182b49!important}
-.modal-backdrop:has(#add-bazar-title) .panel-head p{font-size:12px!important;color:#7789a4!important;line-height:1.6;margin-top:7px}
-.modal-backdrop:has(#add-bazar-title) form{gap:15px!important}
-.modal-backdrop:has(#add-bazar-title) form label{font-size:12px!important;font-weight:650!important;color:#40516c!important;gap:7px!important}
-.modal-backdrop:has(#add-bazar-title) input,.modal-backdrop:has(#add-bazar-title) select{min-height:46px!important;border:1px solid #d9e4f3!important;border-radius:12px!important;background:#f8fbff!important;padding:11px 13px!important;color:#243b5b!important;transition:border-color .15s,box-shadow .15s}
-.modal-backdrop:has(#add-bazar-title) input:focus,.modal-backdrop:has(#add-bazar-title) select:focus{outline:none!important;border-color:#8299f8!important;box-shadow:0 0 0 4px rgba(91,112,240,.12)!important;background:#fff!important}
-.modal-backdrop:has(#add-bazar-title) .bazar-item-row{gap:10px!important}
-.modal-backdrop:has(#add-bazar-title) .secondary{border-radius:12px!important;background:#f1f5ff!important;border-color:#dce5ff!important;color:#4b60df!important;font-weight:700}
-.modal-backdrop:has(#add-bazar-title) .primary{border-radius:12px!important;min-height:46px!important;font-weight:750!important;box-shadow:0 7px 18px rgba(76,95,230,.2)!important}
-@media(max-width:600px){.modal-backdrop:has(#add-bazar-title){padding:12px!important}.modal-backdrop:has(#add-bazar-title)>div{width:100%!important}.modal-backdrop:has(#add-bazar-title) .modal.panel.form-panel{padding:20px 17px!important;border-radius:19px!important}.modal-backdrop:has(#add-bazar-title) .panel-head h2{font-size:19px!important}}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title){background:rgba(15,27,48,.58)!important;backdrop-filter:blur(7px)!important;padding:20px!important}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title)>div{width:min(100%,640px)!important;margin:auto!important}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) #add-bazar-title{}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) .modal.panel.form-panel{width:100%!important;max-width:640px!important;padding:27px 30px!important;border:1px solid rgba(255,255,255,.75)!important;border-radius:24px!important;background:linear-gradient(150deg,#fff 0%,#f9fbff 100%)!important;box-shadow:0 28px 90px rgba(8,23,50,.28)!important}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) .panel-head{margin-bottom:22px!important}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) .panel-head h2{font-size:22px!important;font-weight:780!important;letter-spacing:-.035em;color:#182b49!important}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) .panel-head p{font-size:12px!important;color:#7789a4!important;line-height:1.6;margin-top:7px}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) form{gap:15px!important}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) form label{font-size:12px!important;font-weight:650!important;color:#40516c!important;gap:7px!important}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) input,:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) select{min-height:46px!important;border:1px solid #d9e4f3!important;border-radius:12px!important;background:#f8fbff!important;padding:11px 13px!important;color:#243b5b!important;transition:border-color .15s,box-shadow .15s}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) input:focus,:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) select:focus{outline:none!important;border-color:#8299f8!important;box-shadow:0 0 0 4px rgba(91,112,240,.12)!important;background:#fff!important}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) .bazar-item-row{gap:10px!important}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) .secondary{border-radius:12px!important;background:#f1f5ff!important;border-color:#dce5ff!important;color:#4b60df!important;font-weight:700}
+:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) .primary{border-radius:12px!important;min-height:46px!important;font-weight:750!important;box-shadow:0 7px 18px rgba(76,95,230,.2)!important}
+@media(max-width:600px){:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title){padding:12px!important}:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title)>div{width:100%!important}:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) .modal.panel.form-panel{padding:20px 17px!important;border-radius:19px!important}:root:not([data-theme="dark"]) .modal-backdrop:has(#add-bazar-title) .panel-head h2{font-size:19px!important}}
 
 /* Premium refresh: Monthly Bazar history and Add Utility popup only */
 .bazar-history-panel{padding:26px!important;border:1px solid #dce6f5!important;border-radius:23px!important;background:linear-gradient(150deg,#fff,#fbfdff)!important;box-shadow:0 16px 42px rgba(34,67,120,.075)!important}
