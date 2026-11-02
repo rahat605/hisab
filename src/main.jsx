@@ -45,6 +45,7 @@ import {
   MoreVertical,
   CheckCheck,
   Images,
+  Filter,
 } from "lucide-react";
 import "./style.css";
 import "./inbox.css";
@@ -63,6 +64,13 @@ const starter = {
 };
 const money = (n) =>
   "৳" + Number(n || 0).toLocaleString("en-BD", { maximumFractionDigits: 2 });
+const getBazarPayerHue = (id) => {
+  let hash = 0;
+  for (const char of String(id || "member")) {
+    hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  }
+  return Math.abs(hash) % 360;
+};
 const todayForDateInput = () => {
   const today = new Date();
   const month = String(today.getMonth() + 1).padStart(2, "0");
@@ -262,6 +270,11 @@ function App() {
   const [bazarRows, setBazarRows] = useState([{ item: "", price: "" }, { item: "", price: "" }, { item: "", price: "" }]);
   const [bazarDetailsEntry, setBazarDetailsEntry] = useState(null);
   const [bazarEditEntry, setBazarEditEntry] = useState(null);
+  const [bazarActionMenuId, setBazarActionMenuId] = useState(null);
+  const bazarActionMenuRef = useRef(null);
+  const [bazarFilterMenuOpen, setBazarFilterMenuOpen] = useState(false);
+  const bazarFilterRef = useRef(null);
+  const bazarFilterTriggerRef = useRef(null);
   const [bazarSuccessToast, setBazarSuccessToast] = useState("");
   const [pendingBazarDelete, setPendingBazarDelete] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -271,6 +284,22 @@ function App() {
     const filled = next.filter((row) => row.item.trim() && Number(row.price) > 0);
     setBazarForm((form) => ({ ...form, amount: String(filled.reduce((sum, row) => sum + Number(row.price), 0)), items: filled.map((row) => row.item.trim()).join(", ") }));
   };
+  useEffect(() => {
+    if (bazarActionMenuId == null) return undefined;
+    const closeMenuOutside = (event) => {
+      if (!bazarActionMenuRef.current?.contains(event.target)) setBazarActionMenuId(null);
+    };
+    document.addEventListener("pointerdown", closeMenuOutside);
+    return () => document.removeEventListener("pointerdown", closeMenuOutside);
+  }, [bazarActionMenuId]);
+  useEffect(() => {
+    if (!bazarFilterMenuOpen) return undefined;
+    const closeMenuOutside = (event) => {
+      if (!bazarFilterRef.current?.contains(event.target)) setBazarFilterMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeMenuOutside);
+    return () => document.removeEventListener("pointerdown", closeMenuOutside);
+  }, [bazarFilterMenuOpen]);
 
   const [showAddCash, setShowAddCash] = useState(false);
   const [cashForm, setCashForm] = useState({
@@ -308,6 +337,7 @@ function App() {
     [inboxOnlineIds, setInboxOnlineIds] = useState([]),
     [inboxError, setInboxError] = useState(""),
     [selectedInboxMemberId, setSelectedInboxMemberId] = useState(""),
+    [mobileInboxView, setMobileInboxView] = useState("members"),
     [inboxDraft, setInboxDraft] = useState(""),
     [inboxAttachment, setInboxAttachment] = useState(null),
     [inboxBusy, setInboxBusy] = useState(false),
@@ -495,12 +525,16 @@ function App() {
   useEffect(() => {
     if (!inboxPeers.length) {
       setSelectedInboxMemberId("");
+      setMobileInboxView("members");
       return;
     }
     if (!inboxPeers.some((profile) => profile.id === selectedInboxMemberId)) {
       setSelectedInboxMemberId(inboxPeers[0].id);
     }
   }, [db.users, session?.id, selectedInboxMemberId]);
+  useEffect(() => {
+    if (page === "inbox") setMobileInboxView("members");
+  }, [page]);
   useEffect(() => {
     if (!session?.id) {
       setInboxMessages([]);
@@ -856,6 +890,7 @@ function App() {
   }
   async function selectInboxMember(memberId) {
     setSelectedInboxMemberId(memberId);
+    setMobileInboxView("conversation");
     setInboxError("");
     setInboxMenuOpen(false);
     setInboxMediaOpen(false);
@@ -1091,13 +1126,14 @@ function App() {
     };
     reportDocument.open();
     reportDocument.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My Monthly Hisab - ${escapeHtml(month)}</title><style>
-      *{box-sizing:border-box}body{margin:0;padding:40px 32px;background:#fcf9f4;color:#142238;font:400 16px/1.55 Inter,"Aptos","Segoe UI",Arial,sans-serif;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;background-image:radial-gradient(ellipse at 92% 0%,rgba(211,232,216,.55),transparent 34%),radial-gradient(ellipse at 0% 0%,rgba(248,233,218,.5),transparent 32%)}
-      .sheet{max-width:960px;margin:0 auto}.heading{display:flex;align-items:center;gap:20px;margin-bottom:26px}.brand-icon{width:78px;height:78px;display:grid;place-items:center;flex:none;border-radius:22px;background:#e8f3e3;color:#087343}.brand-icon svg{width:42px;height:42px}.divider{height:68px;width:1px;background:#b9b8b2}.heading h1{font:650 clamp(30px,5vw,44px)/1.08 Inter,"Aptos","Segoe UI",Arial,sans-serif;letter-spacing:-.045em;margin:0 0 5px;color:#101e34}.heading p{margin:0;color:#586779;font-size:20px;font-weight:450;letter-spacing:-.025em}
+      @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
+        *{box-sizing:border-box}body{margin:0;padding:40px 32px;background:#fcf9f4;color:#142238;font:400 16px/1.55 "Hind Siliguri",sans-serif;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;background-image:radial-gradient(ellipse at 92% 0%,rgba(211,232,216,.55),transparent 34%),radial-gradient(ellipse at 0% 0%,rgba(248,233,218,.5),transparent 32%)}
+      .sheet{max-width:960px;margin:0 auto}.heading{display:flex;align-items:center;gap:20px;margin-bottom:26px}.brand-icon{width:78px;height:78px;display:grid;place-items:center;flex:none;border-radius:22px;background:#e8f3e3;color:#087343}.brand-icon svg{width:42px;height:42px}.divider{height:68px;width:1px;background:#b9b8b2}.heading h1{font:650 clamp(30px,5vw,44px)/1.08 "Hind Siliguri",sans-serif;letter-spacing:-.045em;margin:0 0 5px;color:#101e34}.heading p{margin:0;color:#586779;font-size:20px;font-weight:450;letter-spacing:-.025em}
       .print{display:inline-flex;align-items:center;gap:10px;margin:2px 0 26px;padding:13px 22px;border:0;border-radius:14px;background:linear-gradient(135deg,#087547,#005d3a);color:white;font-size:16px;font-weight:650;box-shadow:0 6px 13px rgba(0,91,55,.2);cursor:pointer}.print svg{width:20px;height:20px}
-      .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:44px}.card{position:relative;display:flex;align-items:center;gap:18px;min-height:110px;padding:20px 24px;overflow:hidden;border:1px solid #e2ddd5;border-radius:19px;background:rgba(255,255,255,.48);box-shadow:0 7px 17px rgba(42,48,41,.055)}.card:after{position:absolute;content:"";height:4px;left:14px;right:14px;bottom:0;border-radius:4px;background:linear-gradient(90deg,#9fdcb4,#5dc68c,#9fdcb4)}.card-icon{width:56px;height:56px;display:grid;place-items:center;flex:none;border-radius:16px;background:#e7f2e1;color:#087343}.card-icon svg{width:31px;height:31px}.label{color:#536174;font-size:15px;font-weight:500;letter-spacing:-.015em}.value{margin-top:3px;color:#101e34;font:650 30px/1.2 Inter,"Aptos","Segoe UI",Arial,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.045em}
-      .section-title{display:flex;align-items:center;gap:15px;margin:0 0 20px}.section-title:before{content:"";width:6px;height:42px;border-radius:6px;background:#087547}.section-title h2{margin:0;color:#101e34;font:650 32px/1.1 Inter,"Aptos","Segoe UI",Arial,sans-serif;letter-spacing:-.04em}
+      .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:44px}.card{position:relative;display:flex;align-items:center;gap:18px;min-height:110px;padding:20px 24px;overflow:hidden;border:1px solid #e2ddd5;border-radius:19px;background:rgba(255,255,255,.48);box-shadow:0 7px 17px rgba(42,48,41,.055)}.card:after{position:absolute;content:"";height:4px;left:14px;right:14px;bottom:0;border-radius:4px;background:linear-gradient(90deg,#9fdcb4,#5dc68c,#9fdcb4)}.card-icon{width:56px;height:56px;display:grid;place-items:center;flex:none;border-radius:16px;background:#e7f2e1;color:#087343}.card-icon svg{width:31px;height:31px}.label{color:#536174;font-size:15px;font-weight:500;letter-spacing:-.015em}.value{margin-top:3px;color:#101e34;font:650 30px/1.2 "Hind Siliguri",sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.045em}
+      .section-title{display:flex;align-items:center;gap:15px;margin:0 0 20px}.section-title:before{content:"";width:6px;height:42px;border-radius:6px;background:#087547}.section-title h2{margin:0;color:#101e34;font:650 32px/1.1 "Hind Siliguri",sans-serif;letter-spacing:-.04em}
       .table-wrap{overflow:hidden;border:1px solid #e0dbd2;border-radius:17px;background:rgba(255,255,255,.48);box-shadow:0 6px 16px rgba(42,48,41,.05)}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{padding:13px 20px;text-align:left;border-bottom:1px solid #dedbd4}th{background:linear-gradient(90deg,#edf2e8,#e5eee1);font-size:14px;font-weight:650;letter-spacing:.015em;color:#172236}td{font-size:15px;font-weight:450}tbody tr:last-child td{border-bottom:0}td:first-child{width:52%;font-weight:550}.utility-mark{display:inline-grid;place-items:center;width:34px;height:30px;margin-right:13px;border-radius:10px;background:#eaf3e3;color:#087343;font-size:22px;font-weight:700}
-      .note{display:flex;align-items:center;gap:13px;margin:30px 0 0;padding:16px 21px;border-radius:16px;background:#edf2e8;color:#46576a;font-size:16px;font-style:italic}.note-icon{width:25px;height:25px;display:grid;place-items:center;flex:none;border:2px solid #087343;border-radius:50%;color:#087343;font:700 16px Georgia,serif;font-style:normal}
+      .note{display:flex;align-items:center;gap:13px;margin:30px 0 0;padding:16px 21px;border-radius:16px;background:#edf2e8;color:#46576a;font-size:16px;font-style:italic}.note-icon{width:25px;height:25px;display:grid;place-items:center;flex:none;border:2px solid #087343;border-radius:50%;color:#087343;font:700 16px "Hind Siliguri",sans-serif;font-style:normal}
       @page{size:A4;margin:13mm}@media(max-width:620px){body{padding:24px 16px}.brand-icon{width:58px;height:58px;border-radius:17px}.brand-icon svg{width:34px;height:34px}.heading{gap:13px}.divider{height:54px}.heading p{font-size:16px}.cards{gap:10px}.card{min-height:96px;padding:14px 12px;gap:10px;border-radius:15px}.card-icon{width:42px;height:42px;border-radius:12px}.card-icon svg{width:25px;height:25px}.label{font-size:13px}.value{font-size:24px}.section-title h2{font-size:27px}th,td{padding:11px 9px;font-size:13px}.utility-mark{width:27px;margin-right:7px}.note{font-size:14px}}
       @media print{body{padding:0;background:#fcf9f4!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.print{display:none}.sheet{max-width:none}.cards{gap:12px;margin-bottom:32px}.card{min-height:96px;padding:15px 18px;break-inside:avoid}.section-title{break-after:avoid}.table-wrap{break-inside:avoid}.note{break-inside:avoid}}
       </style></head><body><main class="sheet"><header class="heading"><span class="brand-icon">${icons.home}</span><span class="divider"></span><div><h1>My Monthly Hisab</h1><p>${escapeHtml(month)} · ${escapeHtml(reportMember.name)}</p></div></header>${popupBlocked ? '<button class="print" onclick="window.history.back()">Back to app</button>' : ''}<button class="print" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 17v3h14v-3"/></svg>Save as PDF / Print</button><section class="cards"><article class="card"><span class="card-icon">${icons.home}</span><div><div class="label">Total rent</div><div class="value">${money(ownTotalRent)}</div></div></article><article class="card"><span class="card-icon">${icons.meal}</span><div><div class="label">Individual meal cost</div><div class="value">${money(mealCost)}</div></div></article><article class="card"><span class="card-icon">${icons.paid}</span><div><div class="label">Paid</div><div class="value">${money(ownPayments)}</div></div></article><article class="card"><span class="card-icon">${icons.due}</span><div><div class="label">Current month due</div><div class="value">${money(currentDue)}</div></div></article><article class="card"><span class="card-icon">${icons.due}</span><div><div class="label">Previous months due</div><div class="value">${money(pastDue)}</div></div></article><article class="card"><span class="card-icon">${icons.total}</span><div><div class="label">Total due</div><div class="value">${money(totalDue)}</div></div></article></section><section><div class="section-title"><h2>Utilities breakdown</h2></div><div class="table-wrap"><table><thead><tr><th>Utility</th><th>Total</th><th>Your share</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No utilities</td></tr>'}</tbody></table></div></section><aside class="note"><span class="note-icon">i</span><span>Individual meal cost = total bazar divided by ${bazarMemberCount} meal members.</span></aside></main><script>window.onafterprint=()=>${popupBlocked ? "window.history.back()" : "window.close()"};</script></body></html>`);
@@ -2267,7 +2303,7 @@ function App() {
     const mealDueColor = mealBalance < 0 ? "credit" : "positive";
     const escapeSvg = (value) => escapeHtml(value);
     const imageText = (x, y, value, options = {}) =>
-      `<text x="${x}" y="${y}" fill="${options.fill || "#17231f"}" font-family="Arial, sans-serif" font-size="${options.size || 22}" font-weight="${options.weight || 400}" text-anchor="${options.anchor || "start"}">${escapeSvg(value)}</text>`;
+      `<text x="${x}" y="${y}" fill="${options.fill || "#17231f"}" font-family="Hind Siliguri, sans-serif" font-size="${options.size || 22}" font-weight="${options.weight || 400}" text-anchor="${options.anchor || "start"}">${escapeSvg(value)}</text>`;
     const imageMoney = (x, y, value, options = {}) =>
       imageText(x, y, money(value), { ...options, anchor: options.anchor || "end", weight: options.weight || 700 });
     const billSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1450" viewBox="0 0 1200 1450">
@@ -2385,9 +2421,10 @@ function App() {
       <meta name="viewport" content="width=device-width,initial-scale=1">
       <title>Monthly Bill · ${escapeHtml(month)} · ${escapeHtml(member.name)}</title>
       <style>
+        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
         *{box-sizing:border-box}
         @page{size:A4;margin:10mm}
-        body{margin:0;padding:30px 32px;color:#17231f;background:#fff;font:14px/1.4 Arial,"Segoe UI",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        body{margin:0;padding:30px 32px;color:#17231f;background:#fff;font:14px/1.4 "Hind Siliguri",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
         .sheet{max-width:1120px;margin:0 auto;position:relative}
         .toolbar{display:flex;justify-content:flex-end;margin-bottom:12px}
         .toolbar button{border:0;border-radius:10px;padding:10px 16px;background:#087747;color:#fff;font-weight:700;cursor:pointer}
@@ -2395,13 +2432,13 @@ function App() {
         .brand{display:flex;align-items:center;gap:12px}
         .brand-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:linear-gradient(145deg,#2dc774,#00633d);color:white;box-shadow:0 5px 12px #076b4230}
         .brand-mark svg{width:27px;height:27px}
-        .brand-title{font:700 20px Georgia,serif;color:#111d1a}
+        .brand-title{font:700 20px "Hind Siliguri",sans-serif;color:#111d1a}
         .brand-subtitle{margin-top:2px;color:#61716b;font-size:11px}
         .bill-pill{display:flex;align-items:center;gap:8px;padding:9px 15px;border:1px solid #e1eee5;border-radius:25px;background:#f6fbf7;color:#153c2c;font-weight:700;box-shadow:0 4px 12px #173a2510}
         .bill-pill svg{width:17px;height:17px;color:#087343}
         .headline{display:grid;grid-template-columns:1fr 218px;align-items:center;gap:22px;margin-bottom:24px}
         .title-block{border-left:5px solid #22bd61;padding:2px 0 2px 27px}
-        h1{margin:0;color:#101a18;font:700 36px/1.1 Georgia,serif;letter-spacing:-.7px}
+        h1{margin:0;color:#101a18;font:700 36px/1.1 "Hind Siliguri",sans-serif;letter-spacing:-.7px}
         .month{margin-top:5px;color:#57645f;font-size:19px}
         .member-card{display:flex;align-items:center;gap:14px;min-height:70px;padding:12px 18px;border:1px solid #e3efe5;border-radius:17px;background:#eff7ef}
         .member-icon{width:30px;height:30px;color:#087343;flex:none}
@@ -2544,7 +2581,7 @@ function App() {
       : document.implementation.createHTMLDocument("Preparing monthly bill");
     if (reportWindow) {
       reportDocument.write(
-        "<!doctype html><title>Preparing monthly bill</title><p style='font:16px sans-serif;padding:32px'>Preparing monthly bill…</p>",
+        "<!doctype html><title>Preparing monthly bill</title><p style='font:16px \"Hind Siliguri\",sans-serif;padding:32px'>Preparing monthly bill…</p>",
       );
     }
     try {
@@ -2731,9 +2768,10 @@ function App() {
         <html><head><meta charset="utf-8">
         <title>Monthly Bill · ${escapeHtml(reportMonth)} · ${escapeHtml(member.name)}</title>
         <style>
-          *{box-sizing:border-box}
+          @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
+        *{box-sizing:border-box}
           @page{size:A4;margin:13mm}
-          body{margin:0;padding:32px;color:#162a25;background:#fff;font:13px/1.5 "Segoe UI",Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+          body{margin:0;padding:32px;color:#162a25;background:#fff;font:13px/1.5 "Hind Siliguri",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
           .sheet{max-width:920px;margin:0 auto}
           .toolbar{display:flex;justify-content:flex-end;margin-bottom:16px}
           .toolbar button{border:0;border-radius:9px;padding:10px 16px;background:#075d43;color:#fff;font-weight:650;cursor:pointer}
@@ -2742,11 +2780,11 @@ function App() {
           .brand-mark{display:grid;place-items:center;width:54px;height:54px;border-radius:17px;background:#e5f3eb;color:#075d43}
           .brand-mark svg{width:30px;height:30px}
           .brand-copy{border-left:1px solid #dfe8e2;padding-left:18px}
-          h1{margin:0;color:#101820;font:700 32px/1.1 Georgia,serif;letter-spacing:-.7px}
+          h1{margin:0;color:#101820;font:700 32px/1.1 "Hind Siliguri",sans-serif;letter-spacing:-.7px}
           .brand-copy p{margin:5px 0 0;color:#44534f;font-size:15px}
           .member-tag{padding:10px 15px;border:1px solid #e6ebe7;border-radius:24px;color:#38443f;box-shadow:0 4px 14px #10271a0b;font-size:12px}
           .layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(270px,.95fr);align-items:start;gap:22px}
-          .section-title{display:flex;align-items:center;gap:12px;margin:0 0 14px;font:700 25px Georgia,serif;color:#15251f}
+          .section-title{display:flex;align-items:center;gap:12px;margin:0 0 14px;font:700 25px "Hind Siliguri",sans-serif;color:#15251f}
           .section-title:before{content:"";width:4px;height:26px;border-radius:4px;background:#08734f}
           .utility-card,.summary-card,.total-card{border:1px solid #e8ece8;border-radius:17px;background:#fff;box-shadow:0 8px 22px #10271a0a;overflow:hidden}
           table{width:100%;border-collapse:collapse}
@@ -2757,7 +2795,7 @@ function App() {
           .summary{display:grid;gap:10px}
           .total-card{padding:20px 22px;background:linear-gradient(145deg,#f7fbf8,#e8f4ec);border-color:#e1eee5}
           .total-card span{display:block;color:#63716b;font-size:13px}
-          .total-card strong{display:block;margin-top:8px;color:#075d43;font:700 38px/1.1 Georgia,serif;letter-spacing:-.5px}
+          .total-card strong{display:block;margin-top:8px;color:#075d43;font:700 38px/1.1 "Hind Siliguri",sans-serif;letter-spacing:-.5px}
           .summary-card{padding:14px 16px}
           .line{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid #edf0ed;color:#44514b;font-size:12px}
           .line strong{color:#17221e;font-variant-numeric:tabular-nums}
@@ -2881,13 +2919,13 @@ function App() {
     reportDocument.open();
     reportDocument
       .write(`<!doctype html><html><head><meta charset="utf-8"><title>Monthly Hisab · ${esc(month)} Report</title><style>
-   @page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;color:#18233b;font:12px/1.5 Inter,"Segoe UI",Arial,sans-serif;background:#f4f7fc;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{max-width:900px;margin:0 auto;background:white;min-height:100vh}.hero{padding:30px 32px 26px;color:#fff;background:linear-gradient(125deg,#283b91,#4f46e5 55%,#8b5cf6);position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;right:-45px;top:-100px;background:#ffffff20}.brand{font-size:11px;text-transform:uppercase;letter-spacing:2px;font-weight:800;opacity:.85}.hero h1{font-size:29px;line-height:1.15;margin:10px 0 5px}.hero p{margin:0;color:#e4e9ff;font-size:13px}.hero .tag{display:inline-block;margin-top:17px;padding:5px 10px;border:1px solid #ffffff55;border-radius:99px;font-size:10px;font-weight:700}.content{padding:24px 30px 30px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}.stat{border:1px solid #e4e9f4;border-radius:12px;padding:13px;background:linear-gradient(145deg,#fff,#f7f8ff);border-top:3px solid #6366f1}.stat:nth-child(2){border-top-color:#8b5cf6}.stat:nth-child(3){border-top-color:#10b981}.stat:nth-child(4){border-top-color:#f59e0b}.stat span{display:block;color:#66728a;font-size:10px;margin-bottom:7px}.stat strong{font-size:17px;color:#17213a;letter-spacing:-.3px}.section{margin-top:21px;break-inside:avoid}.section h2{font-size:15px;margin:0 0 3px;color:#1e2b49}.section .sub{margin:0 0 10px;color:#77839a;font-size:10px}.section-title{display:flex;align-items:center;gap:9px}.section-title i{display:inline-block;width:4px;height:19px;border-radius:4px;background:linear-gradient(#6366f1,#a78bfa)}table{width:100%;border-collapse:collapse;font-size:10px}th{text-align:left;color:#fff;background:#27356f;padding:9px 8px;font-weight:700}td{padding:8px;border-bottom:1px solid #e8edf5;color:#27344d;vertical-align:top}tbody tr:nth-child(even){background:#f7f9fd}td small{display:block;color:#8a95a8;font-size:9px}.green{color:#059669;font-weight:700}.due{color:#d97706;font-weight:700}.empty{text-align:center;color:#8993a5;padding:14px}.footer{margin-top:26px;padding-top:12px;border-top:1px solid #e8edf5;display:flex;justify-content:space-between;color:#8b95a7;font-size:9px}.footer strong{color:#4f46e5}.printbar{display:flex;justify-content:flex-end;gap:8px;padding:12px 30px;background:#eef2ff}.printbar button{border:0;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer}.printbtn{background:#4f46e5;color:#fff}.closebtn{background:#fff;color:#334155;border:1px solid #dbe2ef!important}@media print{body{background:white}.sheet{max-width:none}.printbar{display:none}.hero{padding:24px 28px}.content{padding:20px 28px}.section{break-inside:avoid}.stats{gap:8px}.stat{padding:10px}.stat strong{font-size:15px}}
+   @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;color:#18233b;font:12px/1.5 "Hind Siliguri",sans-serif;background:#f4f7fc;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{max-width:900px;margin:0 auto;background:white;min-height:100vh}.hero{padding:30px 32px 26px;color:#fff;background:linear-gradient(125deg,#283b91,#4f46e5 55%,#8b5cf6);position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;right:-45px;top:-100px;background:#ffffff20}.brand{font-size:11px;text-transform:uppercase;letter-spacing:2px;font-weight:800;opacity:.85}.hero h1{font-size:29px;line-height:1.15;margin:10px 0 5px}.hero p{margin:0;color:#e4e9ff;font-size:13px}.hero .tag{display:inline-block;margin-top:17px;padding:5px 10px;border:1px solid #ffffff55;border-radius:99px;font-size:10px;font-weight:700}.content{padding:24px 30px 30px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}.stat{border:1px solid #e4e9f4;border-radius:12px;padding:13px;background:linear-gradient(145deg,#fff,#f7f8ff);border-top:3px solid #6366f1}.stat:nth-child(2){border-top-color:#8b5cf6}.stat:nth-child(3){border-top-color:#10b981}.stat:nth-child(4){border-top-color:#f59e0b}.stat span{display:block;color:#66728a;font-size:10px;margin-bottom:7px}.stat strong{font-size:17px;color:#17213a;letter-spacing:-.3px}.section{margin-top:21px;break-inside:avoid}.section h2{font-size:15px;margin:0 0 3px;color:#1e2b49}.section .sub{margin:0 0 10px;color:#77839a;font-size:10px}.section-title{display:flex;align-items:center;gap:9px}.section-title i{display:inline-block;width:4px;height:19px;border-radius:4px;background:linear-gradient(#6366f1,#a78bfa)}table{width:100%;border-collapse:collapse;font-size:10px}th{text-align:left;color:#fff;background:#27356f;padding:9px 8px;font-weight:700}td{padding:8px;border-bottom:1px solid #e8edf5;color:#27344d;vertical-align:top}tbody tr:nth-child(even){background:#f7f9fd}td small{display:block;color:#8a95a8;font-size:9px}.green{color:#059669;font-weight:700}.due{color:#d97706;font-weight:700}.empty{text-align:center;color:#8993a5;padding:14px}.footer{margin-top:26px;padding-top:12px;border-top:1px solid #e8edf5;display:flex;justify-content:space-between;color:#8b95a7;font-size:9px}.footer strong{color:#4f46e5}.printbar{display:flex;justify-content:flex-end;gap:8px;padding:12px 30px;background:#eef2ff}.printbar button{border:0;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer}.printbtn{background:#4f46e5;color:#fff}.closebtn{background:#fff;color:#334155;border:1px solid #dbe2ef!important}@media print{body{background:white}.sheet{max-width:none}.printbar{display:none}.hero{padding:24px 28px}.content{padding:20px 28px}.section{break-inside:avoid}.stats{gap:8px}.stat{padding:10px}.stat strong{font-size:15px}}
    </style></head><body><div class="sheet"><div class="printbar"><button class="closebtn" onclick="${popupBlocked ? "window.history.back()" : "window.close()"}">${popupBlocked ? "Back to app" : "Close report"}</button><button class="printbtn" onclick="window.print()">Save as PDF / Print</button></div><header class="hero"><div class="brand">Monthly Hisab · Household finance</div><h1>Monthly Financial Report</h1><p>${esc(month)} · A clear snapshot of your shared home expenses</p><span class="tag">PREPARED BY RAHAT · ${esc(new Date().toLocaleDateString())}</span></header><main class="content"><div class="stats"><div class="stat"><span>Monthly bazar</span><strong>${money(bazarTotal)}</strong></div><div class="stat"><span>Total rent</span><strong>${money(totalRent)}</strong></div><div class="stat"><span>Rent paid</span><strong>${money(rentPaid)}</strong></div><div class="stat"><span>Cash contributions</span><strong>${money(cashTotal)}</strong></div></div><section class="section"><div class="section-title"><i></i><h2>Member balances</h2></div><p class="sub">Rent, shared expenses, recorded payments and estimated remaining due</p><table><thead><tr><th>Member</th><th>Rent</th><th>Individual meal</th><th>Rent paid</th><th>Meal paid</th><th>Due</th></tr></thead><tbody>${memberRows || tableEmpty}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Expense breakdown</h2></div><p class="sub">Expenses configured for ${esc(month)}</p><table><thead><tr><th>Expense</th><th>Type</th><th>Amount</th></tr></thead><tbody>${expenseRows || '<tr><td colspan="3" class="empty">No expenses configured</td></tr>'}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Monthly bazar history</h2></div><p class="sub">Recorded purchases for ${esc(month)} · total ${money(bazarTotal)}</p><table><thead><tr><th>Date</th><th>Items</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${bazarRows || '<tr><td colspan="4" class="empty">No bazar entries for this month</td></tr>'}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Member payment history</h2></div><p class="sub">Payments recorded by admin</p><table><thead><tr><th>Date</th><th>Member</th><th>Note</th><th>Amount</th></tr></thead><tbody>${paymentRows || '<tr><td colspan="4" class="empty">No payments recorded for this month</td></tr>'}</tbody></table></section><div class="footer"><span>Designed &amp; developed by <strong>Rahat</strong> · Monthly Hisab</span><span>Private household report · ${esc(month)}</span></div></main></div><script>window.addEventListener('load',()=>{document.title='Monthly-Hisab-${esc(month).replace(/[^a-zA-Z0-9-]/g, "-")}-Report'});</script></body></html>`);
     const premiumReportStyles = reportDocument.createElement("style");
     premiumReportStyles.textContent = `
       @page{size:A4;margin:12mm}
       *{box-sizing:border-box}
-      body{background:#f7f8f4;color:#17251f;font-family:"DM Sans","Segoe UI",Arial,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+      body{background:#f7f8f4;color:#17251f;font-family:"Hind Siliguri",sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
       .sheet{max-width:960px;background:#fffefa;border:1px solid #e7e9df;border-radius:18px;overflow:hidden;box-shadow:0 18px 55px rgba(27,52,38,.1)}
       .hero{padding:34px 38px 32px;background:linear-gradient(125deg,#075b40,#087a50 58%,#15946a);color:#fff}
       .hero:after{width:280px;height:280px;right:-60px;top:-130px;background:radial-gradient(circle,#ffffff22,transparent 68%)}
@@ -4220,90 +4258,262 @@ function App() {
                   <PanelHead title="Monthly bazar history" sub={`${month} · purchases only`} />
                 </div>
                 <button type="button" className="primary" onClick={() => {
+                  setBazarActionMenuId(null);
                   setBazarForm((form) => ({ ...form, date: todayForDateInput() }));
                   setShowAddBazar(true);
                 }}><Plus size={16}/> Add Bazar</button>
               </div>
                 <label className="history-filter">
-                  Filter by member
-                  <select
-                    value={bazarFilter}
-                    onChange={(e) => setBazarFilter(e.target.value)}
-                  >
-                    <option value="all">All members</option>
-                    {allActiveUsers.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name}
-                        {u.role === "admin" ? " (Admin)" : ""}
-                      </option>
-                    ))}
-                    <option value="cash-in-hand">Cash in Hand</option>
-                  </select>
+                  <span className="bazar-filter-label"><Filter size={16} aria-hidden="true" /> Filter by member</span>
+                  <span className="bazar-filter-select" ref={bazarFilterRef}>
+                    <Users size={15} aria-hidden="true" />
+                    <button
+                      type="button"
+                      className="bazar-filter-trigger"
+                      ref={bazarFilterTriggerRef}
+                      aria-label="Filter bazar by member"
+                      aria-haspopup="listbox"
+                      aria-expanded={bazarFilterMenuOpen}
+                      aria-controls="bazar-member-filter-options"
+                      onClick={() => setBazarFilterMenuOpen((open) => !open)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") setBazarFilterMenuOpen(false);
+                        if (event.key === "ArrowDown" && !bazarFilterMenuOpen) {
+                          event.preventDefault();
+                          setBazarFilterMenuOpen(true);
+                          requestAnimationFrame(() => bazarFilterRef.current?.querySelector('[role="option"]')?.focus());
+                        }
+                      }}
+                    >
+                      <span>
+                        {bazarFilter === "all"
+                          ? "All members"
+                          : bazarFilter === "cash-in-hand"
+                            ? "Cash in Hand"
+                            : (() => {
+                                const member = allActiveUsers.find((candidate) => candidate.id === bazarFilter);
+                                return member ? `${member.name}${member.role === "admin" ? " (Admin)" : ""}` : "All members";
+                              })()}
+                      </span>
+                    </button>
+                    <ChevronRight className={`bazar-filter-select-chevron${bazarFilterMenuOpen ? " is-open" : ""}`} size={15} aria-hidden="true" />
+                    {bazarFilterMenuOpen && (
+                      <div
+                        className="bazar-filter-menu"
+                        id="bazar-member-filter-options"
+                        role="listbox"
+                        aria-label="Filter by member"
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            setBazarFilterMenuOpen(false);
+                            bazarFilterTriggerRef.current?.focus();
+                            return;
+                          }
+                          if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+                          event.preventDefault();
+                          const options = Array.from(event.currentTarget.querySelectorAll('[role="option"]'));
+                          const currentIndex = options.indexOf(document.activeElement);
+                          const nextIndex = event.key === "Home"
+                            ? 0
+                            : event.key === "End"
+                              ? options.length - 1
+                              : (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+                          options[nextIndex]?.focus();
+                        }}
+                      >
+                        <span className="bazar-filter-menu-label">FILTER BY MEMBER</span>
+                        {[
+                          { value: "all", label: "All members" },
+                          ...allActiveUsers.map((member) => ({
+                            value: member.id,
+                            label: `${member.name}${member.role === "admin" ? " (Admin)" : ""}`,
+                          })),
+                          { value: "cash-in-hand", label: "Cash in Hand" },
+                        ].map((option) => (
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={bazarFilter === option.value}
+                            tabIndex={-1}
+                            className={`bazar-filter-option${bazarFilter === option.value ? " is-selected" : ""}`}
+                            key={option.value}
+                            onClick={() => {
+                              setBazarFilter(option.value);
+                              setBazarFilterMenuOpen(false);
+                              requestAnimationFrame(() => bazarFilterTriggerRef.current?.focus());
+                            }}
+                          >
+                            <Users size={16} aria-hidden="true" />
+                            <span>{option.label}</span>
+                            {bazarFilter === option.value && <CheckCircle2 size={16} aria-hidden="true" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </span>
                 </label>
+                <div className="total-row bazar-total-row">
+                  <b>Total bazar purchased</b>
+                  <b><span>{money(bazarTotal)}</span></b>
+                  <ShoppingBasket className="bazar-total-icon" size={64} aria-hidden="true" />
+                </div>
                 <div className="table-wrap">
                   <table>
                     <thead>
                       <tr>
-                        <th>Date</th>
-                        <th>Items</th>
-                        <th>Paid by</th>
-                        <th>Amount</th>
-                        <th>Actions</th>
+                        <th><CalendarDays size={14} aria-hidden="true" /> Date</th>
+                        <th><ShoppingBasket size={14} aria-hidden="true" /> Items</th>
+                        <th><Users size={14} aria-hidden="true" /> Paid by</th>
+                        <th><Wallet size={14} aria-hidden="true" /> Amount</th>
+                        <th><Zap size={14} aria-hidden="true" /> Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredMonthBazar.length ? filteredMonthBazar.map((b) => (
                           <tr key={b.id}>
-                            <td>{b.date}</td>
                             <td>
-                              {(() => {
-                                const raw = b.items;
-                                let entries = Array.isArray(raw) ? raw : null;
-                                if (!entries && typeof raw === "string") {
-                                  try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) entries = parsed; } catch {}
-                                }
-                                const getName = (entry) => {
-                                  if (typeof entry === "string") return entry.trim();
-                                  if (!entry || typeof entry !== "object") return "";
-                                  const value = entry.item ?? entry.name ?? entry.title;
-                                  return String(typeof value === "string" ? value : (value?.name ?? value?.item ?? "")).trim();
-                                };
-                                return entries ? entries.map(getName).filter(Boolean).join(", ") : String(raw || "");
-                              })()}
+                              <span className="bazar-date-label">{b.date}</span>
+                              <span className="bazar-date-tile">
+                                <small>
+                                  {Number.isNaN(new Date(`${b.date}T00:00:00`).getTime())
+                                    ? ""
+                                    : new Date(`${b.date}T00:00:00`).toLocaleDateString("en-US", { month: "short" })}
+                                </small>
+                                <b>{String(b.date || "").slice(-2)}</b>
+                              </span>
                             </td>
                             <td>
-                              {b.paidFromCash
-                                ? "Cash in Hand"
-                                : db.users.find((u) => u.id === b.paidBy)?.name || "Member"}
+                              <span className="bazar-item-summary">
+                                {(() => {
+                                  const raw = b.items;
+                                  let entries = Array.isArray(raw) ? raw : null;
+                                  if (!entries && typeof raw === "string") {
+                                    try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) entries = parsed; } catch {}
+                                  }
+                                  const getName = (entry) => {
+                                    if (typeof entry === "string") return entry.trim();
+                                    if (!entry || typeof entry !== "object") return "";
+                                    const value = entry.item ?? entry.name ?? entry.title;
+                                    return String(typeof value === "string" ? value : (value?.name ?? value?.item ?? "")).trim();
+                                  };
+                                  return entries ? entries.map(getName).filter(Boolean).join(", ") : String(raw || "");
+                                })()}
+                              </span>
+                            </td>
+                            <td>
+                              <span
+                                className="bazar-paid-by"
+                                style={{
+                                  "--bazar-payer-hue": getBazarPayerHue(
+                                    b.paidFromCash ? "cash-in-hand" : b.paidBy,
+                                  ),
+                                }}
+                              >
+                                <span className="bazar-paid-avatar">
+                                  {(b.paidFromCash ? "Cash" : db.users.find((u) => u.id === b.paidBy)?.name || "Member").slice(0, 1).toUpperCase()}
+                                </span>
+                                {b.paidFromCash
+                                  ? "Cash in Hand"
+                                  : db.users.find((u) => u.id === b.paidBy)?.name || "Member"}
+                              </span>
                             </td>
                             <td className="bazar-history-amount">{money(b.amount)}</td>
                             <td className="row-actions">
-                              <button
-                                className="icon-btn bazar-view-action"
-                                title="Details"
-                                aria-label="View bazar details"
-                                onClick={() => setBazarDetailsEntry(b)}
+                              <div className="bazar-row-actions-desktop">
+                                <button
+                                  type="button"
+                                  className="icon-btn bazar-desktop-action"
+                                  title="View bazar details"
+                                  aria-label={`View bazar details for ${b.date}`}
+                                  onClick={() => setBazarDetailsEntry(b)}
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                {(admin || b.createdBy === user?.id) && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="icon-btn bazar-desktop-action"
+                                      title="Edit bazar entry"
+                                      aria-label={`Edit bazar entry for ${b.date}`}
+                                      onClick={() => editBazar(b)}
+                                    >
+                                      <Edit size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="icon-btn bazar-desktop-action bazar-desktop-action-delete"
+                                      title="Delete bazar entry"
+                                      aria-label={`Delete bazar entry for ${b.date}`}
+                                      onClick={() => void deleteBazar(b)}
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                              <div
+                                className="bazar-row-menu"
+                                ref={bazarActionMenuId === b.id ? bazarActionMenuRef : null}
+                                onBlur={(event) => {
+                                  if (!event.currentTarget.contains(event.relatedTarget)) setBazarActionMenuId(null);
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Escape") setBazarActionMenuId(null);
+                                }}
                               >
-                                <Eye size={15} />
-                              </button>
-                              {(admin || (!b.paidFromCash && b.paidBy === user?.id)) && (
-                                <>
-                                  <button
-                                    className="icon-btn bazar-edit-action"
-                                    title="Edit"
-                                    onClick={() => editBazar(b)}
-                                  >
-                                    <Edit size={15} />
-                                  </button>
-                                  <button
-                                    className="icon-btn danger-text bazar-action"
-                                    title="Delete"
-                                    onClick={() => deleteBazar(b)}
-                                  >
-                                    <Trash2 size={15} />
-                                  </button>
-                                </>
-                              )}
+                                <button
+                                  type="button"
+                                  className="icon-btn bazar-row-menu-trigger"
+                                  title="More actions"
+                                  aria-label={`More actions for bazar entry on ${b.date}`}
+                                  aria-haspopup="menu"
+                                  aria-expanded={bazarActionMenuId === b.id}
+                                  onClick={() => setBazarActionMenuId((openId) => openId === b.id ? null : b.id)}
+                                >
+                                  <MoreVertical size={18} />
+                                </button>
+                                {bazarActionMenuId === b.id && (
+                                  <div className="bazar-row-menu-popover" role="menu">
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      onClick={() => {
+                                        setBazarActionMenuId(null);
+                                        setBazarDetailsEntry(b);
+                                      }}
+                                    >
+                                      <Eye size={16} /> View details
+                                    </button>
+                                    {(admin || b.createdBy === user?.id) && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          role="menuitem"
+                                          onClick={() => {
+                                            setBazarActionMenuId(null);
+                                            editBazar(b);
+                                          }}
+                                        >
+                                          <Edit size={16} /> Edit entry
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="bazar-row-menu-delete"
+                                          role="menuitem"
+                                          onClick={() => {
+                                            setBazarActionMenuId(null);
+                                            void deleteBazar(b);
+                                          }}
+                                        >
+                                          <Trash2 size={16} /> Delete entry
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         )) : (
@@ -4319,10 +4529,6 @@ function App() {
                         )}
                     </tbody>
                   </table>
-                </div>
-                <div className="total-row">
-                  <b>Total bazar purchased</b>
-                  <b>{money(bazarTotal)}</b>
                 </div>
               </section>
             </div>
@@ -4344,6 +4550,7 @@ function App() {
                 }}
               >
                 <div className="panel-head add-bazar-modal-heading">
+                  <span className="add-bazar-modal-mark"><ShoppingBasket size={24} /></span>
                   <div>
                     <h3 id="add-bazar-title">Add bazar</h3>
                     <p>Date auto-fills today. Enter items and total paid.</p>
@@ -4368,14 +4575,17 @@ function App() {
                 >
                   <label>
                     Date
-                    <input
-                      type="date"
-                      value={bazarForm.date}
-                      onChange={(e) =>
-                        setBazarForm({ ...bazarForm, date: e.target.value })
-                      }
-                      required
-                    />
+                    <span className="add-bazar-date-input">
+                      <CalendarDays size={18} aria-hidden="true" />
+                      <input
+                        type="date"
+                        value={bazarForm.date}
+                        onChange={(e) =>
+                          setBazarForm({ ...bazarForm, date: e.target.value })
+                        }
+                        required
+                      />
+                    </span>
                   </label>
                   <div className="bazar-item-list">
               <div className="bazar-item-heading"><span>Item</span><span>Price (৳)</span></div>
@@ -4687,7 +4897,7 @@ function App() {
               <div><h3>Inbox</h3><p>Private messages between household members</p></div>
             </div>
             {inboxError && <div className="error inbox-error" role="alert">{inboxError}</div>}
-            <div className="inbox-layout">
+            <div className={`inbox-layout${mobileInboxView === "conversation" ? " mobile-conversation-open" : ""}`}>
               <aside className="inbox-member-list" aria-label="Member conversations">
                 <h3>Members</h3>
                 {inboxPeers.length ? inboxPeers.map((member) => {
@@ -4736,6 +4946,17 @@ function App() {
                 {selectedInboxMember ? (
                   <>
                     <header className="inbox-conversation-header">
+                      <button
+                        type="button"
+                        className="inbox-mobile-back"
+                        aria-label="Back to member list"
+                        onClick={() => {
+                          setMobileInboxView("members");
+                          setInboxMenuOpen(false);
+                        }}
+                      >
+                        <ChevronRight size={20} />
+                      </button>
                       <span className={`inbox-avatar-wrap inbox-header-avatar${inboxOnlineIds.includes(selectedInboxMember.id) ? " is-online" : ""}`}>
                         {selectedInboxMember.photo_url ? (
                           <img className="inbox-avatar inbox-avatar-image" src={selectedInboxMember.photo_url} alt="" />
@@ -4968,33 +5189,58 @@ function App() {
                 </button>
               </div>
             </div>
-            {contactRows.length ? contactRows.map((contact) => (
-              <div className="break-row saved-contact-row" key={contact.id}>
-                <span className="saved-contact-info">
-                  <span className="saved-contact-initial" aria-hidden="true">{contact.name?.[0]?.toUpperCase() || "?"}</span>
-                  <span className="saved-contact-details">
-                    <b>{contact.name}</b>
-                    <span className="saved-contact-meta">
-                      <small className="saved-contact-category">{contact.category}</small>
-                      <small>{contact.phone}</small>
-                    </span>
-                  </span>
-                </span>
-                <div className="row-actions">
-                  <button type="button" className="icon-btn saved-contact-edit" aria-label={`Edit ${contact.name}`} title="Edit contact" onClick={() => { setContactForm({ id: contact.id, category: contact.category, name: contact.name, phone: contact.phone }); setContactError(""); setContactModalOpen(true); }}>
-                    <Edit size={15} />
-                  </button>
-                  <button type="button" className="icon-btn saved-contact-delete bazar-action" aria-label={`Delete ${contact.name}`} title="Delete contact" onClick={async () => {
-                    if (!(await askConfirm(`Delete ${contact.name || "this contact"}? This cannot be undone.`, "Delete contact?"))) return;
-                    const { error } = await supabase.from("member_contacts").delete().eq("id", contact.id);
-                    if (error) alert("Could not delete contact: " + error.message);
-                    else setContactRows((rows) => rows.filter((row) => row.id !== contact.id));
-                  }}>
-                    <Trash2 size={15} />
-                  </button>
-                </div>
+            {contactRows.length ? (
+              <div className="saved-contacts-groups">
+                {[
+                  "Flatmate",
+                  "Emergency",
+                  "Maid",
+                  "Caretaker",
+                  ...new Set(
+                    contactRows
+                      .map((contact) => contact.category || "Other")
+                      .filter((category) => !["Flatmate", "Caretaker", "Maid", "Emergency"].includes(category)),
+                  ),
+                ].map((category) => {
+                  const groupedContacts = contactRows.filter((contact) => (contact.category || "Other") === category);
+                  if (!groupedContacts.length) return null;
+                  return (
+                    <section className={`saved-contact-group category-${category.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} key={category}>
+                      <header className="saved-contact-group-heading">
+                        <h4>{category}</h4>
+                        <small>{groupedContacts.length} {groupedContacts.length === 1 ? "contact" : "contacts"}</small>
+                      </header>
+                      <div className="saved-contact-group-list">
+                        {groupedContacts.map((contact) => (
+                          <div className="break-row saved-contact-row" key={contact.id}>
+                            <span className="saved-contact-info">
+                              <span className="saved-contact-initial" aria-hidden="true">{contact.name?.[0]?.toUpperCase() || "?"}</span>
+                              <span className="saved-contact-details">
+                                <b>{contact.name}</b>
+                                <span className="saved-contact-meta"><small>{contact.phone}</small></span>
+                              </span>
+                            </span>
+                            <div className="row-actions">
+                              <button type="button" className="icon-btn saved-contact-edit" aria-label={`Edit ${contact.name}`} title="Edit contact" onClick={() => { setContactForm({ id: contact.id, category: contact.category, name: contact.name, phone: contact.phone }); setContactError(""); setContactModalOpen(true); }}>
+                                <Edit size={15} />
+                              </button>
+                              <button type="button" className="icon-btn saved-contact-delete bazar-action" aria-label={`Delete ${contact.name}`} title="Delete contact" onClick={async () => {
+                                if (!(await askConfirm(`Delete ${contact.name || "this contact"}? This cannot be undone.`, "Delete contact?"))) return;
+                                const { error } = await supabase.from("member_contacts").delete().eq("id", contact.id);
+                                if (error) alert("Could not delete contact: " + error.message);
+                                else setContactRows((rows) => rows.filter((row) => row.id !== contact.id));
+                              }}>
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
               </div>
-            )) : <p className="hint saved-contacts-empty">No contacts saved yet. Add one to get started.</p>}
+            ) : <p className="hint saved-contacts-empty">No contacts saved yet. Add one to get started.</p>}
           </section>
           {contactModalOpen && (
             <div className="modal-backdrop contact-editor-backdrop">
@@ -5055,14 +5301,35 @@ function App() {
                         <h3>{n.title || "Notice"}</h3>
                         <small>{new Date(n.created_at).toLocaleString()}</small>
                       </div>
-                      <div className="row-actions">
-                        <span className={`notice-status ${n.status === "draft" ? "is-draft" : "is-published"}`}>{n.status === "draft" ? "Draft" : "Published"}</span>
-                        {n.status !== "published" && <button className="secondary" onClick={() => publishSavedNotice(n)}>Publish</button>}{n.status === "published" && <button className="secondary" onClick={() => repostNotice(n)}>Repost</button>}
-                        <button className="icon-btn danger bazar-action" title="Delete notice" onClick={() => deleteNotice(n)}><Trash2 size={16} /></button>
-                      </div>
                     </div>
                     {n.body && <p>{n.body}</p>}
                     {n.image_url && <img src={n.image_url} alt="Notice" />}
+                    <div className="notice-card-footer">
+                      <span className={`notice-status ${n.status === "draft" ? "is-draft" : "is-published"}`}>
+                        {n.status === "draft" ? "Draft" : "Published"}
+                      </span>
+                      <div className="notice-card-actions">
+                        {n.status !== "published" && (
+                          <button type="button" className="secondary" onClick={() => publishSavedNotice(n)}>
+                            Publish
+                          </button>
+                        )}
+                        {n.status === "published" && (
+                          <button type="button" className="secondary" onClick={() => repostNotice(n)}>
+                            Repost
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="icon-btn danger bazar-action notice-delete-button"
+                          title="Delete notice"
+                          aria-label="Delete notice"
+                          onClick={() => deleteNotice(n)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
                   </article>
                 ))}
                 </div>
