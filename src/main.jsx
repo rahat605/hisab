@@ -633,7 +633,10 @@ function App() {
   function exportMyAccountPdf() {
     if (previousDueLoading) { alert("Previous months due is still loading. Please try again in a moment."); return; }
     const popup = window.open("", "_blank", "width=900,height=700");
-    if (!popup) { alert("Please allow pop-ups to export your account PDF."); return; }
+    const popupBlocked = !popup;
+    const reportDocument = popup
+      ? popup.document
+      : document.implementation.createHTMLDocument("My Monthly Hisab");
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     }[character]));
@@ -649,7 +652,8 @@ function App() {
       due: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18m-5 5h.01"/></svg>',
       total: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18m5-13H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
     };
-    popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My Monthly Hisab - ${escapeHtml(month)}</title><style>
+    reportDocument.open();
+    reportDocument.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My Monthly Hisab - ${escapeHtml(month)}</title><style>
       *{box-sizing:border-box}body{margin:0;padding:40px 32px;background:#fcf9f4;color:#142238;font:400 16px/1.55 Inter,"Aptos","Segoe UI",Arial,sans-serif;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;background-image:radial-gradient(ellipse at 92% 0%,rgba(211,232,216,.55),transparent 34%),radial-gradient(ellipse at 0% 0%,rgba(248,233,218,.5),transparent 32%)}
       .sheet{max-width:960px;margin:0 auto}.heading{display:flex;align-items:center;gap:20px;margin-bottom:26px}.brand-icon{width:78px;height:78px;display:grid;place-items:center;flex:none;border-radius:22px;background:#e8f3e3;color:#087343}.brand-icon svg{width:42px;height:42px}.divider{height:68px;width:1px;background:#b9b8b2}.heading h1{font:650 clamp(30px,5vw,44px)/1.08 Inter,"Aptos","Segoe UI",Arial,sans-serif;letter-spacing:-.045em;margin:0 0 5px;color:#101e34}.heading p{margin:0;color:#586779;font-size:20px;font-weight:450;letter-spacing:-.025em}
       .print{display:inline-flex;align-items:center;gap:10px;margin:2px 0 26px;padding:13px 22px;border:0;border-radius:14px;background:linear-gradient(135deg,#087547,#005d3a);color:white;font-size:16px;font-weight:650;box-shadow:0 6px 13px rgba(0,91,55,.2);cursor:pointer}.print svg{width:20px;height:20px}
@@ -659,8 +663,15 @@ function App() {
       .note{display:flex;align-items:center;gap:13px;margin:30px 0 0;padding:16px 21px;border-radius:16px;background:#edf2e8;color:#46576a;font-size:16px;font-style:italic}.note-icon{width:25px;height:25px;display:grid;place-items:center;flex:none;border:2px solid #087343;border-radius:50%;color:#087343;font:700 16px Georgia,serif;font-style:normal}
       @page{size:A4;margin:13mm}@media(max-width:620px){body{padding:24px 16px}.brand-icon{width:58px;height:58px;border-radius:17px}.brand-icon svg{width:34px;height:34px}.heading{gap:13px}.divider{height:54px}.heading p{font-size:16px}.cards{gap:10px}.card{min-height:96px;padding:14px 12px;gap:10px;border-radius:15px}.card-icon{width:42px;height:42px;border-radius:12px}.card-icon svg{width:25px;height:25px}.label{font-size:13px}.value{font-size:24px}.section-title h2{font-size:27px}th,td{padding:11px 9px;font-size:13px}.utility-mark{width:27px;margin-right:7px}.note{font-size:14px}}
       @media print{body{padding:0;background:#fcf9f4!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.print{display:none}.sheet{max-width:none}.cards{gap:12px;margin-bottom:32px}.card{min-height:96px;padding:15px 18px;break-inside:avoid}.section-title{break-after:avoid}.table-wrap{break-inside:avoid}.note{break-inside:avoid}}
-      </style></head><body><main class="sheet"><header class="heading"><span class="brand-icon">${icons.home}</span><span class="divider"></span><div><h1>My Monthly Hisab</h1><p>${escapeHtml(month)} · ${escapeHtml(user.name)}</p></div></header><button class="print" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 17v3h14v-3"/></svg>Save as PDF / Print</button><section class="cards"><article class="card"><span class="card-icon">${icons.home}</span><div><div class="label">Total rent</div><div class="value">${money(ownTotalRent)}</div></div></article><article class="card"><span class="card-icon">${icons.meal}</span><div><div class="label">Individual meal cost</div><div class="value">${money(mealCost)}</div></div></article><article class="card"><span class="card-icon">${icons.paid}</span><div><div class="label">Paid</div><div class="value">${money(ownPayments)}</div></div></article><article class="card"><span class="card-icon">${icons.due}</span><div><div class="label">Current month due</div><div class="value">${money(currentDue)}</div></div></article><article class="card"><span class="card-icon">${icons.due}</span><div><div class="label">Previous months due</div><div class="value">${money(pastDue)}</div></div></article><article class="card"><span class="card-icon">${icons.total}</span><div><div class="label">Total due</div><div class="value">${money(totalDue)}</div></div></article></section><section><div class="section-title"><h2>Utilities breakdown</h2></div><div class="table-wrap"><table><thead><tr><th>Utility</th><th>Total</th><th>Your share</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No utilities</td></tr>'}</tbody></table></div></section><aside class="note"><span class="note-icon">i</span><span>Individual meal cost = total bazar divided by ${bazarMemberCount} meal members.</span></aside></main><script>window.onafterprint=()=>window.close();</script></body></html>`);
-    popup.document.close();
+      </style></head><body><main class="sheet"><header class="heading"><span class="brand-icon">${icons.home}</span><span class="divider"></span><div><h1>My Monthly Hisab</h1><p>${escapeHtml(month)} · ${escapeHtml(user.name)}</p></div></header>${popupBlocked ? '<button class="print" onclick="window.history.back()">Back to app</button>' : ''}<button class="print" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 17v3h14v-3"/></svg>Save as PDF / Print</button><section class="cards"><article class="card"><span class="card-icon">${icons.home}</span><div><div class="label">Total rent</div><div class="value">${money(ownTotalRent)}</div></div></article><article class="card"><span class="card-icon">${icons.meal}</span><div><div class="label">Individual meal cost</div><div class="value">${money(mealCost)}</div></div></article><article class="card"><span class="card-icon">${icons.paid}</span><div><div class="label">Paid</div><div class="value">${money(ownPayments)}</div></div></article><article class="card"><span class="card-icon">${icons.due}</span><div><div class="label">Current month due</div><div class="value">${money(currentDue)}</div></div></article><article class="card"><span class="card-icon">${icons.due}</span><div><div class="label">Previous months due</div><div class="value">${money(pastDue)}</div></div></article><article class="card"><span class="card-icon">${icons.total}</span><div><div class="label">Total due</div><div class="value">${money(totalDue)}</div></div></article></section><section><div class="section-title"><h2>Utilities breakdown</h2></div><div class="table-wrap"><table><thead><tr><th>Utility</th><th>Total</th><th>Your share</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No utilities</td></tr>'}</tbody></table></div></section><aside class="note"><span class="note-icon">i</span><span>Individual meal cost = total bazar divided by ${bazarMemberCount} meal members.</span></aside></main><script>window.onafterprint=()=>${popupBlocked ? "window.history.back()" : "window.close()"};</script></body></html>`);
+    reportDocument.close();
+    if (popupBlocked) {
+      const reportBlob = new Blob(
+        [`<!doctype html>${reportDocument.documentElement.outerHTML}`],
+        { type: "text/html" },
+      );
+      window.location.assign(URL.createObjectURL(reportBlob));
+    }
   }
   async function saveMealMemberCount() {
     if (!supabaseConfigured) { setMealMemberMessage("Connect Supabase to save this setting."); return; }
@@ -1685,13 +1696,15 @@ function App() {
   }
   async function exportMemberLastMonthBill(member) {
     const reportWindow = window.open("", "_blank");
-    if (!reportWindow) {
-      alert("Please allow pop-ups to generate the monthly bill.");
-      return;
+    const popupBlocked = !reportWindow;
+    const reportDocument = reportWindow
+      ? reportWindow.document
+      : document.implementation.createHTMLDocument("Preparing monthly bill");
+    if (reportWindow) {
+      reportDocument.write(
+        "<!doctype html><title>Preparing monthly bill</title><p style='font:16px sans-serif;padding:32px'>Preparing monthly bill…</p>",
+      );
     }
-    reportWindow.document.write(
-      "<!doctype html><title>Preparing monthly bill</title><p style='font:16px sans-serif;padding:32px'>Preparing monthly bill…</p>",
-    );
     try {
       if (!supabaseConfigured) throw new Error("Supabase is not configured.");
       const previousMonthDate = new Date();
@@ -1871,8 +1884,8 @@ function App() {
         )
         .join("");
       const generatedDate = new Date().toLocaleDateString();
-      reportWindow.document.open();
-      reportWindow.document.write(`<!doctype html>
+      reportDocument.open();
+      reportDocument.write(`<!doctype html>
         <html><head><meta charset="utf-8">
         <title>Monthly Bill · ${escapeHtml(reportMonth)} · ${escapeHtml(member.name)}</title>
         <style>
@@ -1916,7 +1929,7 @@ function App() {
           @media print{body{padding:0}.toolbar{display:none}.header{margin-top:0}.layout{grid-template-columns:minmax(0,1.3fr) minmax(260px,.9fr)}footer{margin-top:34px}}
         </style></head>
         <body><main class="sheet">
-          <div class="toolbar"><button onclick="window.print()">Save as PDF / Print</button></div>
+          <div class="toolbar">${popupBlocked ? '<button onclick="window.history.back()">Back to app</button>' : ''}<button onclick="window.print()">Save as PDF / Print</button></div>
           <header class="header">
             <div class="brand"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M25 6C15 6 8 10 7 19c-.4 3.8 2.3 6.5 6 6 9-1 13-8 12-19Z" stroke="currentColor" stroke-width="2.5"/><path d="M8 24 20 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></div>
               <div class="brand-copy"><h1>Monthly Bill</h1><p>Monthly Hisab</p></div></div>
@@ -1942,9 +1955,16 @@ function App() {
           </div>
           <footer><span>Monthly Hisab · ${escapeHtml(reportMonth)}</span><span>Generated ${escapeHtml(generatedDate)}</span></footer>
         </main></body></html>`);
-      reportWindow.document.close();
+      reportDocument.close();
+      if (popupBlocked) {
+        const reportBlob = new Blob(
+          [`<!doctype html>${reportDocument.documentElement.outerHTML}`],
+          { type: "text/html" },
+        );
+        window.location.assign(URL.createObjectURL(reportBlob));
+      }
     } catch (error) {
-      reportWindow.close();
+      if (reportWindow) reportWindow.close();
       alert(`Could not generate ${member.name}'s previous-month bill: ${error.message}`);
     }
   }
