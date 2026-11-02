@@ -62,6 +62,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    const { error: lastLoginError } = await adminClient
+      .from("profiles")
+      .update({ last_login_at: new Date().toISOString() })
+      .eq("id", profile.id);
+    if (lastLoginError) {
+      console.warn(
+        "Could not record last login. Apply the member last-login migration:",
+        lastLoginError.message,
+      );
+    }
+
     return new Response(JSON.stringify({
       access_token: signedIn.session.access_token,
       refresh_token: signedIn.session.refresh_token,
@@ -69,7 +80,8 @@ Deno.serve(async (req) => {
       token_type: signedIn.session.token_type,
       user: { id: profile.id, username: profile.username },
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  } catch {
+  } catch (error) {
+    console.error("Username login failed:", error);
     return new Response(JSON.stringify({ error: "Unable to sign in. Try again." }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

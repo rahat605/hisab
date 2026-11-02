@@ -12,6 +12,7 @@ create table if not exists public.profiles (
   role text not null default 'member' check (role in ('admin','member')),
   active boolean not null default true,
   rent numeric(12,2) not null default 0 check (rent >= 0),
+  last_login_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -40,6 +41,7 @@ create table if not exists public.rent_payments (
   month_id uuid not null references public.months(id) on delete cascade,
   user_id uuid not null references public.profiles(id),
   amount numeric(12,2) not null check (amount > 0),
+  payment_type text not null default 'rent' check (payment_type in ('rent','meal')),
   note text not null default 'Rent payment',
   paid_at date not null default current_date,
   created_by uuid not null references public.profiles(id),

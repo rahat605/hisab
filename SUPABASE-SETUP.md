@@ -10,12 +10,13 @@ These are browser-visible client settings. Never use a `service_role` or secret 
 ## Database
 1. Open Supabase > SQL Editor > New query.
 2. Paste `supabase-schema.sql` and run it.
-3. In Authentication > Users, create accounts for the four household users.
-4. For each Auth user, add a matching row in `public.profiles` with the same UUID:
+3. For an existing database, also run `supabase/migrations/20261102_rent_payment_type.sql` and `supabase/migrations/20261102_member_last_login.sql` before deploying this version. They add payment classification and member last-login tracking while preserving available historical data.
+4. In Authentication > Users, create accounts for the four household users.
+5. For each Auth user, add a matching row in `public.profiles` with the same UUID:
    - Rahat: role `admin`
    - Mahir, Shad, Uttom: role `member`
    - set username and rent as needed.
-5. Use strong individual passwords. Do not reuse the old demo passwords.
+6. Use strong individual passwords. Do not reuse the old demo passwords.
 
 Example profile insert (replace UUIDs and review values first):
 ```sql
@@ -53,6 +54,8 @@ If you do not want to manage four real email addresses, an alternative is to use
 Both functions must be deployed before username login and the forgot-password button can work:
 - `supabase/functions/username-login/index.ts`
 - `supabase/functions/username-password-reset/index.ts`
+
+Deploy `username-login` again after applying the last-login migration so successful logins update each member's `last_login_at`.
 
 Set secrets for the functions in Supabase:
 - `SUPABASE_URL`
