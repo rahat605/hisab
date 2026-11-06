@@ -11,7 +11,7 @@ import {
   Trash2,
   Edit,
   CalendarDays,
-  ArrowUpRight,
+  ArrowRight,
   ArrowDownRight,
   Home,
   ChartNoAxesColumn,
@@ -46,6 +46,7 @@ import {
   CheckCheck,
   Images,
   Filter,
+  Layers3,
 } from "lucide-react";
 import "./style.css";
 import "./inbox.css";
@@ -61,7 +62,16 @@ const starter = {
   expenses: [],
   bazars: [],
   contributions: [],
+  settlements: [],
 };
+const FLAT_RENT_NAME = "Flat rent";
+const isFlatRentName = (value) =>
+  String(value || "").trim().toLowerCase() === FLAT_RENT_NAME.toLowerCase();
+const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
+const hasMoney = (value) => Math.abs(roundMoney(value)) >= 0.01;
+const isMissingSettlementTableError = (error) =>
+  ["42P01", "PGRST205"].includes(error?.code) ||
+  /member_settlements|schema cache/i.test(String(error?.message || ""));
 const money = (n) =>
   "৳" + Number(n || 0).toLocaleString("en-BD", { maximumFractionDigits: 2 });
 const getBazarPayerHue = (id) => {
@@ -119,7 +129,7 @@ function App() {
   const [page, setPage] = useState(() => {
     const validPages = new Set([
       "overview", "my-account", "bazar", "contacts", "pay-rent",
-      "members", "expenses", "payments", "payment-options", "notices", "inbox",
+      "settlements", "members", "expenses", "payments", "payment-options", "notices", "inbox",
     ]);
     try {
       const savedPage = session?.id && sessionStorage.getItem("bh-page");
@@ -234,6 +244,9 @@ function App() {
   const [utilityMemberCountMessage, setUtilityMemberCountMessage] = useState("");
   const [utilityPaidStatus, setUtilityPaidStatus] = useState({});
   const [utilityPaidSaving, setUtilityPaidSaving] = useState(false);
+  const [flatRentInput, setFlatRentInput] = useState("");
+  const [flatRentSaving, setFlatRentSaving] = useState(false);
+  const [flatRentMessage, setFlatRentMessage] = useState("");
   const [editingUtilityName, setEditingUtilityName] = useState("");
   const [utilityEditModal, setUtilityEditModal] = useState(null);
   const [showAddUtility, setShowAddUtility] = useState(false);
@@ -309,6 +322,19 @@ function App() {
     amount: "",
     paidBy: "u1",
     note: "Cash contribution",
+  });
+  const [showSettlementModal, setShowSettlementModal] = useState(false);
+  const [settlementBusy, setSettlementBusy] = useState(false);
+  const [settlementPlanBusy, setSettlementPlanBusy] = useState(false);
+  const [settlementLoadError, setSettlementLoadError] = useState("");
+  const [settlementForm, setSettlementForm] = useState({
+    sourceType: "cash_contribution",
+    fromUserId: "",
+    toUserId: "",
+    amount: "",
+    date: todayForDateInput(),
+    status: "completed",
+    note: "Meal balance settlement",
   });
   const [editId, setEditId] = useState(null),
     [bazarFilter, setBazarFilter] = useState("all"),
@@ -448,20 +474,27 @@ function App() {
         const pastMonths = (monthsRows || []).filter((m) => monthIndex(m.label) > septemberBaseline && monthIndex(m.label) < currentIndex);
         const balances = Object.fromEntries((db.users || []).map((member) => [member.id, 0]));
         for (const past of pastMonths) {
-          const [cat, pay, baz, cash, meal, utilityList] = await Promise.all([
+          const [cat, pay, baz, cash, settlements, meal, utilityList] = await Promise.all([
             supabase.from("expense_categories").select("name,amount,shared").eq("month_id", past.id),
             supabase.from("rent_payments").select("user_id,amount,note").eq("month_id", past.id),
             supabase.from("bazar_entries").select("amount,paid_by,paid_from_cash").eq("month_id", past.id),
             supabase.from("cash_contributions").select("amount,paid_by").eq("month_id", past.id),
+            supabase.from("member_settlements").select("amount,from_user_id,to_user_id,source_type,status").eq("month_id", past.id),
             supabase.from("app_settings").select("value").eq("key", `meal_active_members_${past.label}`).maybeSingle(),
             supabase.from("app_settings").select("value").eq("key", `shared_utilities_list_${past.label}`).maybeSingle(),
           ]);
           for (const result of [cat,pay,baz,cash,meal,utilityList]) if (result.error) throw result.error;
+          if (settlements.error && !isMissingSettlementTableError(settlements.error)) {
+            throw settlements.error;
+          }
+          const completedPastSettlements = settlements.error
+            ? []
+            : (settlements.data || []).filter((entry) => entry.status === "completed");
           let mealIds=[]; try { mealIds=JSON.parse(meal.data?.value || "[]"); } catch {}
           let utilityItems=null; try { utilityItems=JSON.parse(utilityList.data?.value || "null"); } catch {}
           const categories=cat.data || [];
           const utilities=Array.isArray(utilityItems) ? utilityItems : categories.filter(c=>String(c.name||"").toLowerCase()!=="bazar").map(c=>({name:c.name,amount:c.amount,shared:c.shared}));
-          const sharedTotal=utilities.filter(c=>c.shared).reduce((sum,c)=>sum+Number(c.amount||0),0);
+          const sharedTotal=utilities.filter(c=>c.shared&&!isFlatRentName(c.name)).reduce((sum,c)=>sum+Number(c.amount||0),0);
           const utilityShare=sharedTotal / Math.max(1, Number(utilityMemberCount||4));
           const bazarTotal=(baz.data||[]).reduce((sum,b)=>sum+Number(b.amount||0),0);
           for (const member of (db.users || [])) {
@@ -469,7 +502,9 @@ function App() {
             const payments=(pay.data||[]).filter(x=>x.user_id===member.id).reduce((sum,x)=>sum+Number(x.amount||0),0);
             const mealCredits=(baz.data||[]).filter(b=>!b.paid_from_cash&&b.paid_by===member.id).reduce((sum,b)=>sum+Number(b.amount||0),0);
             const cashCredits=(cash.data||[]).filter(c=>c.paid_by===member.id).reduce((sum,c)=>sum+Number(c.amount||0),0);
-            balances[member.id] += Number(member.rent||0) + utilityShare + mealCost - payments - mealCredits - cashCredits;
+            const directSettled=(completedPastSettlements||[]).filter(entry=>entry.source_type==="direct"&&entry.from_user_id===member.id).reduce((sum,entry)=>sum+Number(entry.amount||0),0);
+            const refundsReceived=(completedPastSettlements||[]).filter(entry=>entry.to_user_id===member.id).reduce((sum,entry)=>sum+Number(entry.amount||0),0);
+            balances[member.id] += Number(member.rent||0) + utilityShare + mealCost - payments - mealCredits - cashCredits - directSettled + refundsReceived;
           }
         }
         const rounded = Object.fromEntries(Object.entries(balances).map(([id, amount]) => [id, Math.ceil(amount)]));
@@ -613,6 +648,34 @@ function App() {
     (u) => selected.includes(u.id) && u.active && u.role === "member",
   );
   const monthBazar = (db.bazars || []).filter((b) => b.month === month);
+  const monthSettlements = (db.settlements || []).filter(
+    (settlement) => settlement.month === month,
+  );
+  const completedSettlements = monthSettlements.filter(
+    (settlement) => settlement.status === "completed",
+  );
+  const pendingSettlements = monthSettlements.filter(
+    (settlement) => settlement.status === "pending",
+  );
+  const directSettlementPaidBy = (uid, includePending = false) =>
+    monthSettlements
+      .filter(
+        (settlement) =>
+          settlement.fromUserId === uid &&
+          settlement.sourceType === "direct" &&
+          (settlement.status === "completed" ||
+            (includePending && settlement.status === "pending")),
+      )
+      .reduce((sum, settlement) => sum + Number(settlement.amount || 0), 0);
+  const settlementReceivedBy = (uid, includePending = false) =>
+    monthSettlements
+      .filter(
+        (settlement) =>
+          settlement.toUserId === uid &&
+          (settlement.status === "completed" ||
+            (includePending && settlement.status === "pending")),
+      )
+      .reduce((sum, settlement) => sum + Number(settlement.amount || 0), 0);
   const filteredMonthBazar = monthBazar.filter((b) =>
     bazarFilter === "all" ||
     (bazarFilter === "cash-in-hand" ? b.paidFromCash : !b.paidFromCash && b.paidBy === bazarFilter),
@@ -622,16 +685,46 @@ function App() {
   const utilityCategories = db.categories.filter(
     (c) => c.name.toLowerCase() !== "bazar",
   );
-  const utilitiesTotal = utilityCategories.reduce(
+  const flatRentCategory = utilityCategories.find((category) =>
+    isFlatRentName(category.name),
+  );
+  const flatRentAmount = Number(flatRentCategory?.amount || 0);
+  const regularUtilityCategories = utilityCategories.filter(
+    (category) => !isFlatRentName(category.name),
+  );
+  const dividedUtilityCategories = regularUtilityCategories.filter(
+    (category) => category.shared,
+  );
+  const utilitiesTotal = regularUtilityCategories.reduce(
     (s, c) => s + Number(c.amount || 0),
     0,
   );
-  const utilitiesPerMember = utilityMemberCount > 0 ? utilitiesTotal / utilityMemberCount : 0;
+  const sharedUtilitiesTotal = dividedUtilityCategories.reduce(
+    (sum, category) => sum + Number(category.amount || 0),
+    0,
+  );
+  const utilitiesPaidTotal = utilityCategories.reduce(
+    (sum, category) => {
+      const statusKey = isFlatRentName(category.name)
+        ? FLAT_RENT_NAME
+        : category.name;
+      return utilityPaidStatus[statusKey]
+        ? sum + Number(category.amount || 0)
+        : sum;
+    },
+    0,
+  );
+  const utilitiesPerMember = utilityMemberCount > 0 ? sharedUtilitiesTotal / utilityMemberCount : 0;
   const bazarMemberCount = mealActiveIds.length;
   const individualMealCost = bazarMemberCount > 0 ? Math.ceil(bazarTotal / bazarMemberCount) : 0;
   const sharedTotal =
     db.categories
-      .filter((c) => c.shared && c.name.toLowerCase() !== "bazar")
+      .filter(
+        (c) =>
+          c.shared &&
+          c.name.toLowerCase() !== "bazar" &&
+          !isFlatRentName(c.name),
+      )
       .reduce((s, c) => s + Number(c.amount || 0), 0) +
     (monthBazar.length
       ? bazarTotal
@@ -645,12 +738,30 @@ function App() {
       .reduce((s, b) => s + Number(b.amount || 0), 0) +
     (db.contributions || [])
       .filter((c) => c.month === month && c.paidBy === uid)
-      .reduce((s, c) => s + Number(c.amount || 0), 0);
+      .reduce((s, c) => s + Number(c.amount || 0), 0) +
+    directSettlementPaidBy(uid) -
+    settlementReceivedBy(uid);
+  const cashContributionsTotal = (db.contributions || [])
+    .filter((contribution) => contribution.month === month)
+    .reduce((sum, contribution) => sum + Number(contribution.amount || 0), 0);
+  const cashBazarSpent = monthBazar
+    .filter((entry) => entry.paidFromCash)
+    .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const completedCashSettlementTotal = completedSettlements
+    .filter((settlement) => settlement.sourceType === "cash_contribution")
+    .reduce((sum, settlement) => sum + Number(settlement.amount || 0), 0);
+  const pendingCashSettlementTotal = pendingSettlements
+    .filter((settlement) => settlement.sourceType === "cash_contribution")
+    .reduce((sum, settlement) => sum + Number(settlement.amount || 0), 0);
+  const cashInHand = roundMoney(
+    cashContributionsTotal - cashBazarSpent - completedCashSettlementTotal,
+  );
   const expensesPaidTotal =
     monthBazar.reduce((s, b) => s + Number(b.amount || 0), 0) +
     (db.contributions || [])
       .filter((c) => c.month === month)
-      .reduce((s, c) => s + Number(c.amount || 0), 0);
+      .reduce((s, c) => s + Number(c.amount || 0), 0) -
+    completedCashSettlementTotal;
   const perMember = selected.length ? sharedTotal / selected.length : 0;
   const ownRent = Number(user?.rent || 0);
   const ownPayments =
@@ -678,6 +789,7 @@ function App() {
   const rentPaid = monthPayments
     .filter((p) => p.type === "rent")
     .reduce((s, p) => s + Number(p.amount), 0);
+  const rentInHand = rentPaid - utilitiesPaidTotal;
   const memberRentPaid = (uid) =>
     monthPayments
       .filter((p) => p.userId === uid && p.type === "rent")
@@ -695,6 +807,120 @@ function App() {
     mealActiveIds.includes(u.id) ? individualMealCost : 0;
   const memberDue = (u) =>
     memberRentShare(u) + memberMealShare(u) - memberRentPaid(u.id) - memberMealPaid(u.id);
+  const memberMealBalance = (member, includePending = false) => {
+    const completedBalance = memberMealShare(member) - memberMealPaid(member.id);
+    if (!includePending) return roundMoney(completedBalance);
+    const pendingDirectPaid =
+      directSettlementPaidBy(member.id, true) - directSettlementPaidBy(member.id);
+    const pendingReceived =
+      settlementReceivedBy(member.id, true) - settlementReceivedBy(member.id);
+    return roundMoney(completedBalance - pendingDirectPaid + pendingReceived);
+  };
+  const memberCashContribution = (uid) =>
+    (db.contributions || [])
+      .filter(
+        (contribution) =>
+          contribution.month === month && contribution.paidBy === uid,
+      )
+      .reduce((sum, contribution) => sum + Number(contribution.amount || 0), 0);
+  const cashSettlementAllocatedBy = (uid, includePending = true) =>
+    monthSettlements
+      .filter(
+        (settlement) =>
+          settlement.fromUserId === uid &&
+          settlement.sourceType === "cash_contribution" &&
+          (settlement.status === "completed" ||
+            (includePending && settlement.status === "pending")),
+      )
+      .reduce((sum, settlement) => sum + Number(settlement.amount || 0), 0);
+  const availableContributionForSettlement = (uid) =>
+    Math.max(
+      0,
+      roundMoney(memberCashContribution(uid) - cashSettlementAllocatedBy(uid)),
+    );
+  const settlementBalanceRows = allActiveUsers.map((member) => ({
+    member,
+    mealCost: memberMealShare(member),
+    mealPaid: memberMealPaid(member.id),
+    balance: memberMealBalance(member),
+    projectedBalance: memberMealBalance(member, true),
+  }));
+  const buildAutoSettlementSuggestions = () => {
+    const balances = new Map(
+      settlementBalanceRows.map((row) => [row.member.id, row.projectedBalance]),
+    );
+    const suggestions = [];
+    let cashCapacity = Math.max(
+      0,
+      roundMoney(cashInHand - pendingCashSettlementTotal),
+    );
+    const contributors = allActiveUsers
+      .map((member) => ({
+        member,
+        remaining: availableContributionForSettlement(member.id),
+      }))
+      .filter((entry) => hasMoney(entry.remaining));
+    const creditors = allActiveUsers
+      .map((member) => ({ member, remaining: balances.get(member.id) || 0 }))
+      .filter((entry) => entry.remaining < -0.009)
+      .sort((a, b) => a.remaining - b.remaining);
+
+    for (const contributor of contributors) {
+      for (const creditor of creditors) {
+        if (!hasMoney(contributor.remaining) || !hasMoney(cashCapacity)) break;
+        if (creditor.remaining >= -0.009) continue;
+        if (contributor.member.id === creditor.member.id) continue;
+        const amount = roundMoney(
+          Math.min(
+            contributor.remaining,
+            Math.abs(creditor.remaining),
+            cashCapacity,
+          ),
+        );
+        if (!hasMoney(amount)) continue;
+        suggestions.push({
+          sourceType: "cash_contribution",
+          fromUserId: contributor.member.id,
+          toUserId: creditor.member.id,
+          amount,
+        });
+        contributor.remaining = roundMoney(contributor.remaining - amount);
+        creditor.remaining = roundMoney(creditor.remaining + amount);
+        cashCapacity = roundMoney(cashCapacity - amount);
+        balances.set(creditor.member.id, creditor.remaining);
+      }
+    }
+
+    const debtors = allActiveUsers
+      .map((member) => ({ member, remaining: balances.get(member.id) || 0 }))
+      .filter((entry) => entry.remaining > 0.009)
+      .sort((a, b) => b.remaining - a.remaining);
+    const remainingCreditors = allActiveUsers
+      .map((member) => ({ member, remaining: balances.get(member.id) || 0 }))
+      .filter((entry) => entry.remaining < -0.009)
+      .sort((a, b) => a.remaining - b.remaining);
+    for (const debtor of debtors) {
+      for (const creditor of remainingCreditors) {
+        if (!hasMoney(debtor.remaining)) break;
+        if (creditor.remaining >= -0.009) continue;
+        if (debtor.member.id === creditor.member.id) continue;
+        const amount = roundMoney(
+          Math.min(debtor.remaining, Math.abs(creditor.remaining)),
+        );
+        if (!hasMoney(amount)) continue;
+        suggestions.push({
+          sourceType: "direct",
+          fromUserId: debtor.member.id,
+          toUserId: creditor.member.id,
+          amount,
+        });
+        debtor.remaining = roundMoney(debtor.remaining - amount);
+        creditor.remaining = roundMoney(creditor.remaining + amount);
+      }
+    }
+    return suggestions;
+  };
+  const settlementSuggestions = buildAutoSettlementSuggestions();
   const expensesPaid =
     monthPayments
       .filter((p) => p.type === "meal")
@@ -1108,7 +1334,7 @@ function App() {
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     }[character]));
-    const rows = utilityCategories.filter((category) => category.shared).map((category) => `<tr><td><span class="utility-mark" aria-hidden="true">⌁</span>${escapeHtml(category.name)}</td><td>${money(category.amount)}</td><td>${money(utilityMemberCount > 0 ? Math.ceil(Number(category.amount || 0) / utilityMemberCount) : 0)}</td></tr>`).join("");
+    const rows = utilityCategories.filter((category) => category.shared && !isFlatRentName(category.name)).map((category) => `<tr><td><span class="utility-mark" aria-hidden="true">⌁</span>${escapeHtml(category.name)}</td><td>${money(category.amount)}</td><td>${money(utilityMemberCount > 0 ? Math.ceil(Number(category.amount || 0) / utilityMemberCount) : 0)}</td></tr>`).join("");
     const reportMember = reportUser;
     const ownTotalRent = Number(reportUser.rent || 0) + utilitiesPerMember;
     const mealCost = mealActiveIds.includes(reportUser.id) ? individualMealCost : 0;
@@ -1132,12 +1358,12 @@ function App() {
       @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
         *{box-sizing:border-box}body{margin:0;padding:40px 32px;background:#fcf9f4;color:#142238;font:400 16px/1.55 "Hind Siliguri",sans-serif;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;background-image:radial-gradient(ellipse at 92% 0%,rgba(211,232,216,.55),transparent 34%),radial-gradient(ellipse at 0% 0%,rgba(248,233,218,.5),transparent 32%)}
       .sheet{max-width:960px;margin:0 auto}.heading{display:flex;align-items:center;gap:20px;margin-bottom:26px}.brand-icon{width:78px;height:78px;display:grid;place-items:center;flex:none;border-radius:22px;background:#e8f3e3;color:#087343}.brand-icon svg{width:42px;height:42px}.divider{height:68px;width:1px;background:#b9b8b2}.heading h1{font:650 clamp(30px,5vw,44px)/1.08 "Hind Siliguri",sans-serif;letter-spacing:-.045em;margin:0 0 5px;color:#101e34}.heading p{margin:0;color:#586779;font-size:20px;font-weight:450;letter-spacing:-.025em}
-      .print{display:inline-flex;align-items:center;gap:10px;margin:2px 0 26px;padding:13px 22px;border:0;border-radius:14px;background:linear-gradient(135deg,#087547,#005d3a);color:white;font-size:16px;font-weight:650;box-shadow:0 6px 13px rgba(0,91,55,.2);cursor:pointer}.print svg{width:20px;height:20px}
-      .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:44px}.card{position:relative;display:flex;align-items:center;gap:18px;min-height:110px;padding:20px 24px;overflow:hidden;border:1px solid #e2ddd5;border-radius:19px;background:rgba(255,255,255,.48);box-shadow:0 7px 17px rgba(42,48,41,.055)}.card:after{position:absolute;content:"";height:4px;left:14px;right:14px;bottom:0;border-radius:4px;background:linear-gradient(90deg,#9fdcb4,#5dc68c,#9fdcb4)}.card-icon{width:56px;height:56px;display:grid;place-items:center;flex:none;border-radius:16px;background:#e7f2e1;color:#087343}.card-icon svg{width:31px;height:31px}.label{color:#536174;font-size:15px;font-weight:500;letter-spacing:-.015em}.value{margin-top:3px;color:#101e34;font:650 30px/1.2 "Hind Siliguri",sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.045em}
+      .print{display:inline-flex;align-items:center;gap:10px;margin:2px 0 26px;padding:13px 22px;border:0;border-radius:14px;background:linear-gradient(135deg,#087547,#005d3a);color:white;font-size:17px;font-weight:650;box-shadow:0 6px 13px rgba(0,91,55,.2);cursor:pointer}.print svg{width:20px;height:20px}
+      .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:44px}.card{position:relative;display:flex;align-items:center;gap:18px;min-height:110px;padding:20px 24px;overflow:hidden;border:1px solid #e2ddd5;border-radius:19px;background:rgba(255,255,255,.48);box-shadow:0 7px 17px rgba(42,48,41,.055)}.card:after{position:absolute;content:"";height:4px;left:14px;right:14px;bottom:0;border-radius:4px;background:linear-gradient(90deg,#9fdcb4,#5dc68c,#9fdcb4)}.card-icon{width:56px;height:56px;display:grid;place-items:center;flex:none;border-radius:16px;background:#e7f2e1;color:#087343}.card-icon svg{width:31px;height:31px}.label{color:#536174;font-size:16px;font-weight:500;letter-spacing:-.015em}.value{margin-top:3px;color:#101e34;font:650 30px/1.2 "Hind Siliguri",sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.045em}
       .section-title{display:flex;align-items:center;gap:15px;margin:0 0 20px}.section-title:before{content:"";width:6px;height:42px;border-radius:6px;background:#087547}.section-title h2{margin:0;color:#101e34;font:650 32px/1.1 "Hind Siliguri",sans-serif;letter-spacing:-.04em}
-      .table-wrap{overflow:hidden;border:1px solid #e0dbd2;border-radius:17px;background:rgba(255,255,255,.48);box-shadow:0 6px 16px rgba(42,48,41,.05)}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{padding:13px 20px;text-align:left;border-bottom:1px solid #dedbd4}th{background:linear-gradient(90deg,#edf2e8,#e5eee1);font-size:14px;font-weight:650;letter-spacing:.015em;color:#172236}td{font-size:15px;font-weight:450}tbody tr:last-child td{border-bottom:0}td:first-child{width:52%;font-weight:550}.utility-mark{display:inline-grid;place-items:center;width:34px;height:30px;margin-right:13px;border-radius:10px;background:#eaf3e3;color:#087343;font-size:22px;font-weight:700}
-      .note{display:flex;align-items:center;gap:13px;margin:30px 0 0;padding:16px 21px;border-radius:16px;background:#edf2e8;color:#46576a;font-size:16px;font-style:italic}.note-icon{width:25px;height:25px;display:grid;place-items:center;flex:none;border:2px solid #087343;border-radius:50%;color:#087343;font:700 16px "Hind Siliguri",sans-serif;font-style:normal}
-      @page{size:A4;margin:13mm}@media(max-width:620px){body{padding:24px 16px}.brand-icon{width:58px;height:58px;border-radius:17px}.brand-icon svg{width:34px;height:34px}.heading{gap:13px}.divider{height:54px}.heading p{font-size:16px}.cards{gap:10px}.card{min-height:96px;padding:14px 12px;gap:10px;border-radius:15px}.card-icon{width:42px;height:42px;border-radius:12px}.card-icon svg{width:25px;height:25px}.label{font-size:13px}.value{font-size:24px}.section-title h2{font-size:27px}th,td{padding:11px 9px;font-size:13px}.utility-mark{width:27px;margin-right:7px}.note{font-size:14px}}
+      .table-wrap{overflow:hidden;border:1px solid #e0dbd2;border-radius:17px;background:rgba(255,255,255,.48);box-shadow:0 6px 16px rgba(42,48,41,.05)}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{padding:13px 20px;text-align:left;border-bottom:1px solid #dedbd4}th{background:linear-gradient(90deg,#edf2e8,#e5eee1);font-size:15px;font-weight:650;letter-spacing:.015em;color:#172236}td{font-size:16px;font-weight:450}tbody tr:last-child td{border-bottom:0}td:first-child{width:52%;font-weight:550}.utility-mark{display:inline-grid;place-items:center;width:34px;height:30px;margin-right:13px;border-radius:10px;background:#eaf3e3;color:#087343;font-size:22px;font-weight:700}
+      .note{display:flex;align-items:center;gap:13px;margin:30px 0 0;padding:16px 21px;border-radius:16px;background:#edf2e8;color:#46576a;font-size:17px;font-style:italic}.note-icon{width:25px;height:25px;display:grid;place-items:center;flex:none;border:2px solid #087343;border-radius:50%;color:#087343;font:700 16px "Hind Siliguri",sans-serif;font-style:normal}
+      @page{size:A4;margin:13mm}@media(max-width:620px){body{padding:24px 16px}.brand-icon{width:58px;height:58px;border-radius:17px}.brand-icon svg{width:34px;height:34px}.heading{gap:13px}.divider{height:54px}.heading p{font-size:17px}.cards{gap:10px}.card{min-height:96px;padding:14px 12px;gap:10px;border-radius:15px}.card-icon{width:42px;height:42px;border-radius:12px}.card-icon svg{width:25px;height:25px}.label{font-size:14px}.value{font-size:24px}.section-title h2{font-size:27px}th,td{padding:11px 9px;font-size:14px}.utility-mark{width:27px;margin-right:7px}.note{font-size:15px}}
       @media print{body{padding:0;background:#fcf9f4!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.print{display:none}.sheet{max-width:none}.cards{gap:12px;margin-bottom:32px}.card{min-height:96px;padding:15px 18px;break-inside:avoid}.section-title{break-after:avoid}.table-wrap{break-inside:avoid}.note{break-inside:avoid}}
       </style></head><body><main class="sheet"><header class="heading"><span class="brand-icon">${icons.home}</span><span class="divider"></span><div><h1>My Monthly Hisab</h1><p>${escapeHtml(month)} · ${escapeHtml(reportMember.name)}</p></div></header>${popupBlocked ? '<button class="print" onclick="window.history.back()">Back to app</button>' : ''}<button class="print" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 17v3h14v-3"/></svg>Save as PDF / Print</button><section class="cards"><article class="card"><span class="card-icon">${icons.home}</span><div><div class="label">Total rent</div><div class="value">${money(ownTotalRent)}</div></div></article><article class="card"><span class="card-icon">${icons.meal}</span><div><div class="label">Individual meal cost</div><div class="value">${money(mealCost)}</div></div></article><article class="card"><span class="card-icon">${icons.paid}</span><div><div class="label">Paid</div><div class="value">${money(ownPayments)}</div></div></article><article class="card"><span class="card-icon">${icons.due}</span><div><div class="label">Current month due</div><div class="value">${money(currentDue)}</div></div></article><article class="card"><span class="card-icon">${icons.due}</span><div><div class="label">Previous months due</div><div class="value">${money(pastDue)}</div></div></article><article class="card"><span class="card-icon">${icons.total}</span><div><div class="label">Total due</div><div class="value">${money(totalDue)}</div></div></article></section><section><div class="section-title"><h2>Utilities breakdown</h2></div><div class="table-wrap"><table><thead><tr><th>Utility</th><th>Total</th><th>Your share</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No utilities</td></tr>'}</tbody></table></div></section><aside class="note"><span class="note-icon">i</span><span>Individual meal cost = total bazar divided by ${bazarMemberCount} meal members.</span></aside></main><script>window.onafterprint=()=>${popupBlocked ? "window.history.back()" : "window.close()"};</script></body></html>`);
     reportDocument.close();
@@ -1243,7 +1469,7 @@ function App() {
       if (Array.isArray(savedMealIds)) setMealActiveIds(savedMealIds);
       const savedUtilityCount = Number(utilityCountSetting?.value || 4);
       if (Number.isFinite(savedUtilityCount) && savedUtilityCount > 0) { setUtilityMemberCount(savedUtilityCount); setUtilityMemberCountInput(String(savedUtilityCount)); }
-      const [catsRes, payRes, bazRes, cashRes, utilityPaidResult, lastLoginResult] = await Promise.all([
+      const [catsRes, payRes, bazRes, cashRes, settlementRes, utilityPaidResult, lastLoginResult] = await Promise.all([
         supabase
           .from("expense_categories")
           .select("*")
@@ -1264,6 +1490,11 @@ function App() {
           .eq("month_id", monthRow.id)
           .order("entry_date", { ascending: false }),
         supabase
+          .from("member_settlements")
+          .select("*")
+          .eq("month_id", monthRow.id)
+          .order("settlement_date", { ascending: false }),
+        supabase
           .from("app_settings")
           .select("value")
           .eq("key", `utility_paid_status_${label}`)
@@ -1274,6 +1505,15 @@ function App() {
       ]);
       for (const r of [catsRes, payRes, bazRes, cashRes, utilityPaidResult])
         if (r.error) throw r.error;
+      if (settlementRes.error) {
+        const migrationHint = isMissingSettlementTableError(settlementRes.error)
+          ? "Run supabase/migrations/20261105_member_settlements.sql in Supabase."
+          : settlementRes.error.message;
+        setSettlementLoadError(migrationHint);
+        console.warn("Meal settlement data is unavailable:", settlementRes.error.message);
+      } else {
+        setSettlementLoadError("");
+      }
       if (lastLoginResult.error) {
         console.warn(
           "Last-login tracking is unavailable. Run supabase/migrations/20261102_member_last_login.sql:",
@@ -1327,6 +1567,12 @@ function App() {
         amount: Number(c.amount || 0),
         shared: !!c.shared,
       }));
+      const loadedFlatRent = categories.find((category) =>
+        isFlatRentName(category.name),
+      );
+      setFlatRentInput(
+        loadedFlatRent ? String(Number(loadedFlatRent.amount || 0)) : "",
+      );
       const payments = (payRes.data || []).map((x) => ({
         id: x.id,
         userId: x.user_id,
@@ -1365,6 +1611,20 @@ function App() {
         month: label,
         createdBy: x.created_by,
       }));
+      const settlements = (settlementRes.error ? [] : settlementRes.data || []).map(
+        (x) => ({
+          id: x.id,
+          date: x.settlement_date,
+          amount: Number(x.amount),
+          fromUserId: x.from_user_id,
+          toUserId: x.to_user_id,
+          sourceType: x.source_type || "direct",
+          status: x.status || "pending",
+          note: x.note || "Meal balance settlement",
+          month: label,
+          createdBy: x.created_by,
+        }),
+      );
       setDb((d) => ({
         ...d,
         month: label,
@@ -1375,6 +1635,7 @@ function App() {
         payments,
         bazars,
         contributions,
+        settlements,
         expenses: [],
       }));
       setPaymentForm((f) => ({
@@ -1402,6 +1663,19 @@ function App() {
           : isAdminProfile
             ? firstActiveMemberId || profileId
             : profileId,
+      }));
+      setSettlementForm((form) => ({
+        ...form,
+        fromUserId: users.some((u) => u.id === form.fromUserId && u.active)
+          ? form.fromUserId
+          : firstActiveMemberId || profileId,
+        toUserId: users.some((u) => u.id === form.toUserId && u.active)
+          ? form.toUserId
+          : users.find(
+              (u) =>
+                u.active &&
+                u.id !== (firstActiveMemberId || profileId),
+            )?.id || profileId,
       }));
       setMonth(label);
       setCount(Number(monthRow.current_count || 0));
@@ -1556,6 +1830,7 @@ function App() {
     setEditingUtilityName("");
     setUtilityEditModal(null);
     setExpenseForm({ name: "", amount: "", shared: true });
+    setFlatRentMessage("");
   }, [month]);
 
   async function getUtilitiesForMonth() {
@@ -1569,9 +1844,54 @@ function App() {
     try { const parsed = JSON.parse(baseSetting?.value || "[]"); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
   }
 
+  async function saveFlatRent(e) {
+    e.preventDefault();
+    const amount = Number(flatRentInput);
+    if (!admin || !Number.isFinite(amount) || amount < 0) {
+      setFlatRentMessage("Enter a valid flat rent amount.");
+      return;
+    }
+    setFlatRentSaving(true);
+    setFlatRentMessage("");
+    try {
+      const utilities = [...(await getUtilitiesForMonth())].map((item) => ({
+        ...item,
+      }));
+      const flatRent = {
+        name: FLAT_RENT_NAME,
+        amount,
+        shared: false,
+      };
+      const existingIndex = utilities.findIndex((item) =>
+        isFlatRentName(item.name),
+      );
+      if (existingIndex >= 0) utilities[existingIndex] = flatRent;
+      else utilities.unshift(flatRent);
+      const { error } = await supabase.from("app_settings").upsert(
+        {
+          key: `shared_utilities_list_${month}`,
+          value: JSON.stringify(utilities),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      );
+      if (error) throw error;
+      await loadCloudData(user.id, month);
+      setFlatRentMessage("Flat rent saved. It is not divided among members.");
+    } catch (error) {
+      setFlatRentMessage(error.message || "Could not save flat rent.");
+    } finally {
+      setFlatRentSaving(false);
+    }
+  }
+
   async function addCategory(e) {
     e.preventDefault();
     if (!admin || !expenseForm.name || Number(expenseForm.amount) < 0) return;
+    if (isFlatRentName(expenseForm.name)) {
+      alert("Use the separate Flat rent section to update flat rent.");
+      return;
+    }
     try {
       const utilities = [...(await getUtilitiesForMonth())];
       const utility = { name: expenseForm.name.trim(), amount: Number(expenseForm.amount), shared: !!expenseForm.shared };
@@ -1698,12 +2018,7 @@ function App() {
         throw new Error("Please select an active user in Paid by.");
       }
       if (paidFromCash) {
-        const cashBalance = (db.contributions || [])
-          .filter((c) => c.month === month)
-          .reduce((sum, c) => sum + Number(c.amount || 0), 0) -
-          (db.bazars || [])
-            .filter((b) => b.month === month && b.paidFromCash)
-            .reduce((sum, b) => sum + Number(b.amount || 0), 0);
+        const cashBalance = roundMoney(cashInHand - pendingCashSettlementTotal);
         if (Number(bazarForm.amount) > cashBalance) {
           throw new Error(`Not enough cash in hand. Available balance: ${money(Math.max(0, cashBalance))}.`);
         }
@@ -1782,11 +2097,20 @@ function App() {
   async function resetMonth() {
     if (!admin) return;
     if (
-      !(await askConfirm(`Are you sure you want to reset ${month}? This will clear its bazar entries, cash contributions, payments and expense amounts. This cannot be undone.`, "Reset month?"))
+      !(await askConfirm(`Are you sure you want to reset ${month}? This will clear its bazar entries, cash contributions, settlements, payments and expense amounts. This cannot be undone.`, "Reset month?"))
     )
       return;
     try {
       const mid = await monthIdFor();
+      const { error: settlementDeleteError } = await supabase
+        .from("member_settlements")
+        .delete()
+        .eq("month_id", mid);
+      if (
+        settlementDeleteError &&
+        !isMissingSettlementTableError(settlementDeleteError)
+      )
+        throw settlementDeleteError;
       for (const table of [
         "bazar_entries",
         "cash_contributions",
@@ -1823,6 +2147,45 @@ function App() {
     }
     try {
       const wasEditing = Boolean(cashForm.id);
+      const previousContribution = wasEditing
+        ? (db.contributions || []).find(
+            (contribution) => contribution.id === cashForm.id,
+          )
+        : null;
+      const nextAmount = Number(cashForm.amount);
+      const affectedMemberIds = new Set(
+        [previousContribution?.paidBy, cashForm.paidBy].filter(Boolean),
+      );
+      for (const memberId of affectedMemberIds) {
+        const nextMemberContribution = roundMoney(
+          memberCashContribution(memberId) -
+            (previousContribution?.paidBy === memberId
+              ? Number(previousContribution.amount || 0)
+              : 0) +
+            (cashForm.paidBy === memberId ? nextAmount : 0),
+        );
+        const allocated = cashSettlementAllocatedBy(memberId);
+        if (nextMemberContribution + 0.009 < allocated) {
+          const memberName =
+            db.users.find((member) => member.id === memberId)?.name || "This member";
+          throw new Error(
+            `${memberName} already has ${money(allocated)} assigned to settlement plans. Delete or complete those entries before reducing or moving this contribution.`,
+          );
+        }
+      }
+      const nextCashContributionsTotal = roundMoney(
+        cashContributionsTotal -
+          Number(previousContribution?.amount || 0) +
+          nextAmount,
+      );
+      const committedCash = roundMoney(
+        cashBazarSpent + completedCashSettlementTotal + pendingCashSettlementTotal,
+      );
+      if (nextCashContributionsTotal + 0.009 < committedCash) {
+        throw new Error(
+          `${money(committedCash)} is already spent or reserved. The total cash contributions cannot be reduced below that amount.`,
+        );
+      }
       const selectedMonth = cashForm.month || month;
       const mid = await monthIdFor(selectedMonth);
       const contribution = {
@@ -1873,6 +2236,28 @@ function App() {
   }
   async function deleteCash(c) {
     if (!admin) return;
+    const remainingMemberContribution = roundMoney(
+      memberCashContribution(c.paidBy) - Number(c.amount || 0),
+    );
+    const allocated = cashSettlementAllocatedBy(c.paidBy);
+    if (remainingMemberContribution + 0.009 < allocated) {
+      alert(
+        `${money(allocated)} from this member is assigned to settlement entries. Delete those settlements before deleting the contribution.`,
+      );
+      return;
+    }
+    const remainingCashContributions = roundMoney(
+      cashContributionsTotal - Number(c.amount || 0),
+    );
+    const committedCash = roundMoney(
+      cashBazarSpent + completedCashSettlementTotal + pendingCashSettlementTotal,
+    );
+    if (remainingCashContributions + 0.009 < committedCash) {
+      alert(
+        `${money(committedCash)} is already spent or reserved. This cash contribution cannot be deleted yet.`,
+      );
+      return;
+    }
     if (
       !(await askConfirm(`Delete ${db.users.find((u) => u.id === c.paidBy)?.name || "member"}’s cash contribution of ${money(c.amount)}? This cannot be undone.`, "Delete contribution?"))
     )
@@ -1888,6 +2273,251 @@ function App() {
       window.setTimeout(() => setBazarSuccessToast(""), 2600);
     } catch (e) {
       alert("Could not delete cash contribution: " + e.message);
+    }
+  }
+  function openSettlementModal(prefill = {}) {
+    const defaultFrom =
+      prefill.fromUserId ||
+      allActiveUsers.find((member) => member.id !== prefill.toUserId)?.id ||
+      "";
+    const defaultTo =
+      prefill.toUserId ||
+      allActiveUsers.find((member) => member.id !== defaultFrom)?.id ||
+      "";
+    setSettlementForm({
+      sourceType: prefill.sourceType || "cash_contribution",
+      fromUserId: defaultFrom,
+      toUserId: defaultTo,
+      amount: prefill.amount ? String(prefill.amount) : "",
+      date: todayForDateInput(),
+      status: prefill.status || "completed",
+      note: prefill.note || "Meal balance settlement",
+    });
+    setShowSettlementModal(true);
+  }
+  function settlementWriteError(error) {
+    return isMissingSettlementTableError(error)
+      ? "Settlement table is not installed. Run supabase/migrations/20261105_member_settlements.sql in Supabase first."
+      : error?.message || "Could not save settlement.";
+  }
+  async function saveSettlement(e) {
+    e.preventDefault();
+    if (!admin || settlementBusy) return;
+    const amount = roundMoney(settlementForm.amount);
+    const fromMember = allActiveUsers.find(
+      (member) => member.id === settlementForm.fromUserId,
+    );
+    const toMember = allActiveUsers.find(
+      (member) => member.id === settlementForm.toUserId,
+    );
+    if (
+      !fromMember ||
+      !toMember ||
+      fromMember.id === toMember.id ||
+      amount <= 0 ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(settlementForm.date)
+    ) {
+      alert("Choose two different members and enter a valid date and amount.");
+      return;
+    }
+    if (settlementForm.sourceType === "cash_contribution") {
+      const memberAvailable = availableContributionForSettlement(fromMember.id);
+      const cashAvailable = Math.max(
+        0,
+        roundMoney(cashInHand - pendingCashSettlementTotal),
+      );
+      const refundableBalance = Math.max(
+        0,
+        roundMoney(-Math.min(0, memberMealBalance(toMember, true))),
+      );
+      if (amount > memberAvailable + 0.009) {
+        alert(
+          `${fromMember.name} has ${money(memberAvailable)} of unallocated cash contributions available.`,
+        );
+        return;
+      }
+      if (amount > cashAvailable + 0.009) {
+        alert(`Only ${money(cashAvailable)} cash is currently available for a new refund.`);
+        return;
+      }
+      if (amount > refundableBalance + 0.009) {
+        alert(
+          `${toMember.name} can currently receive at most ${money(refundableBalance)}.`,
+        );
+        return;
+      }
+    } else {
+      const payerBalance = memberMealBalance(fromMember, true);
+      const receiverBalance = memberMealBalance(toMember, true);
+      const allowed = Math.max(
+        0,
+        roundMoney(Math.min(payerBalance, Math.abs(Math.min(0, receiverBalance)))),
+      );
+      if (amount > allowed + 0.009) {
+        alert(
+          `This direct settlement can be at most ${money(allowed)} based on the current meal balances.`,
+        );
+        return;
+      }
+    }
+    setSettlementBusy(true);
+    try {
+      const mid = await monthIdFor();
+      const { error } = await supabase.from("member_settlements").insert({
+        month_id: mid,
+        from_user_id: fromMember.id,
+        to_user_id: toMember.id,
+        amount,
+        source_type: settlementForm.sourceType,
+        status: settlementForm.status,
+        settlement_date: settlementForm.date,
+        note: settlementForm.note.trim() || "Meal balance settlement",
+        created_by: user.id,
+      });
+      if (error) throw error;
+      setShowSettlementModal(false);
+      await loadCloudData(user.id, month);
+      setBazarSuccessToast(
+        settlementForm.status === "completed"
+          ? "Settlement completed successfully"
+          : "Settlement plan saved successfully",
+      );
+      window.setTimeout(() => setBazarSuccessToast(""), 2600);
+    } catch (error) {
+      alert(settlementWriteError(error));
+    } finally {
+      setSettlementBusy(false);
+    }
+  }
+  async function createAutoSettlementPlan() {
+    if (!admin || settlementPlanBusy) return;
+    if (!settlementSuggestions.length) {
+      alert("No new settlement match is available for the current balances.");
+      return;
+    }
+    setSettlementPlanBusy(true);
+    try {
+      const mid = await monthIdFor();
+      const rows = settlementSuggestions.map((suggestion) => ({
+        month_id: mid,
+        from_user_id: suggestion.fromUserId,
+        to_user_id: suggestion.toUserId,
+        amount: suggestion.amount,
+        source_type: suggestion.sourceType,
+        status: "pending",
+        settlement_date: todayForDateInput(),
+        note:
+          suggestion.sourceType === "cash_contribution"
+            ? "Auto plan: cash contribution refund"
+            : "Auto plan: direct member settlement",
+        created_by: user.id,
+      }));
+      const { error } = await supabase.from("member_settlements").insert(rows);
+      if (error) throw error;
+      await loadCloudData(user.id, month);
+      setBazarSuccessToast(
+        `${rows.length} settlement ${rows.length === 1 ? "plan" : "plans"} created`,
+      );
+      window.setTimeout(() => setBazarSuccessToast(""), 2600);
+    } catch (error) {
+      alert(settlementWriteError(error));
+    } finally {
+      setSettlementPlanBusy(false);
+    }
+  }
+  async function completeSettlement(settlement) {
+    if (!admin || settlementBusy || settlement.status === "completed") return;
+    const fromMember = allActiveUsers.find(
+      (member) => member.id === settlement.fromUserId,
+    );
+    const toMember = allActiveUsers.find(
+      (member) => member.id === settlement.toUserId,
+    );
+    if (!fromMember || !toMember) {
+      alert("One of the settlement members is no longer active.");
+      return;
+    }
+    if (
+      settlement.sourceType === "cash_contribution" &&
+      Number(settlement.amount) > cashInHand + 0.009
+    ) {
+      alert(`Not enough cash in hand. Available: ${money(Math.max(0, cashInHand))}.`);
+      return;
+    }
+    if (settlement.sourceType === "cash_contribution") {
+      const refundableBalance = Math.max(
+        0,
+        roundMoney(-Math.min(0, memberMealBalance(toMember))),
+      );
+      if (Number(settlement.amount) > refundableBalance + 0.009) {
+        alert(
+          `Balances changed. ${toMember.name} can now receive at most ${money(refundableBalance)}. Delete this plan and add a smaller settlement.`,
+        );
+        return;
+      }
+    }
+    if (settlement.sourceType === "direct") {
+      const allowed = Math.max(
+        0,
+        roundMoney(
+          Math.min(
+            memberMealBalance(fromMember),
+            Math.abs(Math.min(0, memberMealBalance(toMember))),
+          ),
+        ),
+      );
+      if (Number(settlement.amount) > allowed + 0.009) {
+        alert(
+          `Balances changed. This plan can now settle at most ${money(allowed)}. Delete it and add a smaller settlement.`,
+        );
+        return;
+      }
+    }
+    setSettlementBusy(true);
+    try {
+      const { error } = await supabase
+        .from("member_settlements")
+        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .eq("id", settlement.id);
+      if (error) throw error;
+      await loadCloudData(user.id, month);
+      setBazarSuccessToast("Settlement marked as completed");
+      window.setTimeout(() => setBazarSuccessToast(""), 2600);
+    } catch (error) {
+      alert(settlementWriteError(error));
+    } finally {
+      setSettlementBusy(false);
+    }
+  }
+  async function deleteSettlement(settlement) {
+    if (!admin || settlementBusy) return;
+    const fromName =
+      db.users.find((member) => member.id === settlement.fromUserId)?.name ||
+      "Member";
+    const toName =
+      db.users.find((member) => member.id === settlement.toUserId)?.name ||
+      "member";
+    if (
+      !(await askConfirm(
+        `Delete the ${money(settlement.amount)} settlement from ${fromName} to ${toName}?${settlement.status === "completed" ? " Their balances will be reversed." : ""}`,
+        "Delete settlement?",
+      ))
+    )
+      return;
+    setSettlementBusy(true);
+    try {
+      const { error } = await supabase
+        .from("member_settlements")
+        .delete()
+        .eq("id", settlement.id);
+      if (error) throw error;
+      await loadCloudData(user.id, month);
+      setBazarSuccessToast("Settlement deleted successfully");
+      window.setTimeout(() => setBazarSuccessToast(""), 2600);
+    } catch (error) {
+      alert(settlementWriteError(error));
+    } finally {
+      setSettlementBusy(false);
     }
   }
   async function saveUser(e) {
@@ -2457,16 +3087,16 @@ function App() {
         .brand-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:linear-gradient(145deg,#2dc774,#00633d);color:white;box-shadow:0 5px 12px #076b4230}
         .brand-mark svg{width:27px;height:27px}
         .brand-title{font:700 20px "Hind Siliguri",sans-serif;color:#111d1a}
-        .brand-subtitle{margin-top:2px;color:#61716b;font-size:11px}
+        .brand-subtitle{margin-top:2px;color:#61716b;font-size:13px}
         .bill-pill{display:flex;align-items:center;gap:8px;padding:9px 15px;border:1px solid #e1eee5;border-radius:25px;background:#f6fbf7;color:#153c2c;font-weight:700;box-shadow:0 4px 12px #173a2510}
         .bill-pill svg{width:17px;height:17px;color:#087343}
         .headline{display:grid;grid-template-columns:1fr 195px;align-items:center;gap:14px;margin-bottom:14px}
         .title-block{border-left:5px solid #22bd61;padding:2px 0 2px 27px}
         h1{margin:0;color:#101a18;font:700 31px/1.1 "Hind Siliguri",sans-serif;letter-spacing:-.6px}
-        .month{margin-top:4px;color:#57645f;font-size:17px}
+        .month{margin-top:4px;color:#57645f;font-size:18px}
         .member-card{display:flex;align-items:center;gap:11px;min-height:58px;padding:9px 13px;border:1px solid #e3efe5;border-radius:15px;background:#eff7ef}
         .member-icon{width:30px;height:30px;color:#087343;flex:none}
-        .member-caption{font-size:12px;color:#495c53}
+        .member-caption{font-size:13px;color:#495c53}
         .member-name{margin-top:2px;font-size:18px;font-weight:750;color:#111c19;overflow-wrap:anywhere}
         .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin-bottom:24px}
         .stat{min-height:112px;padding:14px 16px;border:1px solid #e0eee4;border-radius:17px;background:linear-gradient(140deg,#fbfdfb,#f0f7ef);box-shadow:0 5px 13px #163c2010}
@@ -2478,17 +3108,17 @@ function App() {
         .stat:nth-child(3) .stat-icon{background:#fff3dc;color:#bb7600}
         .stat.final .stat-icon{background:transparent;color:#fff}
         .stat-icon svg{width:26px;height:26px}
-        .stat-label{color:#45534d;font-size:13px}
+        .stat-label{color:#45534d;font-size:14px}
         .stat-value{margin-top:2px;color:#111b19;font-size:25px;font-weight:750;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
         .stat:nth-child(3) .stat-value{color:#aa3b30}
         .stat.final .stat-label,.stat.final .stat-value{color:white}
         .two-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
         .panel{padding:10px 12px;border:1px solid #e0e6e2;border-radius:15px;background:#fff;box-shadow:0 4px 11px #112c1a0c}
-        .panel-title{display:flex;align-items:center;gap:9px;padding-bottom:7px;margin-bottom:2px;border-bottom:1px solid #edf0ed;color:#15201d;font-size:16px;font-weight:750}
+        .panel-title{display:flex;align-items:center;gap:9px;padding-bottom:7px;margin-bottom:2px;border-bottom:1px solid #edf0ed;color:#15201d;font-size:17px;font-weight:750}
         .panel-icon{display:grid;place-items:center;width:33px;height:33px;border-radius:11px;background:#e9f7e9;color:#087343}
         .panel-icon svg{width:22px;height:22px}
         .line{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:32px;padding:6px 8px;border-bottom:1px solid #edf0ed;color:#25332e}
-        .line strong{font-size:14px;color:#18231f;font-variant-numeric:tabular-nums}
+        .line strong{font-size:15px;color:#18231f;font-variant-numeric:tabular-nums}
         .line.paid{margin:2px -1px;padding:6px 9px;border:0;border-radius:9px;background:#f0f7ef;color:#21602e}
         .line.paid strong,.positive{color:#08732f!important}
         .line.due{border-bottom:0;font-weight:750}
@@ -2498,24 +3128,24 @@ function App() {
         .summary-panel,.payment-panel{min-height:0}
         .summary-panel .line,.payment-panel .line{min-height:31px;padding:6px 8px}
         .line.highlight{margin:3px 0;border:0;border-radius:10px;background:#edf6ec;font-weight:750}
-        .line.final-line{margin:5px 0 0;padding:10px 13px;border:0;border-radius:11px;background:linear-gradient(110deg,#15965b,#004d34);color:#fff;font-size:17px;font-weight:750}
+        .line.final-line{margin:5px 0 0;padding:10px 13px;border:0;border-radius:11px;background:linear-gradient(110deg,#15965b,#004d34);color:#fff;font-size:18px;font-weight:750}
         .line.final-line.estimated-line{margin-top:3px;background:linear-gradient(110deg,#087b4b,#003f2c)}
         .line.final-line>span{display:grid;gap:2px}
-        .line.final-line small{color:#d9f5e5;font-size:10px;font-weight:500}
+        .line.final-line small{color:#d9f5e5;font-size:13px;font-weight:500}
         .line.final-line strong{color:#fff;font-size:19px;white-space:nowrap}
         .amount-due{position:relative;display:flex;align-items:center;gap:10px;min-height:60px;margin-top:10px;padding:10px 140px 10px 14px;overflow:hidden;border-radius:15px;background:linear-gradient(100deg,#eff8ef,#e9f6ec);color:#075d2b}
         .amount-icon{display:grid;place-items:center;width:38px;height:38px;flex:none;border-radius:12px;background:#e0f4e3}
         .amount-icon svg{width:25px;height:25px}
         .amount-title{font-size:18px;font-weight:750}
-        .amount-note{margin-top:3px;color:#263a30;font-size:12px}
+        .amount-note{margin-top:3px;color:#263a30;font-size:13px}
         .house-art{position:absolute;right:8px;bottom:0;width:130px;height:82px}
         .payment-options-inline{display:grid;gap:4px;margin-top:5px;padding-top:5px;border-top:1px solid #e1e9e4}
         .payment-option-line{display:flex;align-items:center;gap:6px;min-width:0;padding:3px 5px;border-radius:8px;background:#f5faf6}
         .payment-option-line img,.payment-option-line>span{width:28px;height:20px;flex:0 0 28px;object-fit:contain}
-        .payment-option-line>span{display:grid;place-items:center;border-radius:6px;background:#dff3e5;color:#087343;font-size:10px;font-weight:800}
-        .payment-option-line strong{min-width:0;color:#087343;font-size:11px;line-height:1.2;overflow-wrap:anywhere}
-        .payment-option-line small{margin-left:auto;color:#66766e;font-size:8px;white-space:nowrap}
-        footer{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;color:#69756f;font-size:10px}
+        .payment-option-line>span{display:grid;place-items:center;border-radius:6px;background:#dff3e5;color:#087343;font-size:13px;font-weight:800}
+        .payment-option-line strong{min-width:0;color:#087343;font-size:13px;line-height:1.2;overflow-wrap:anywhere}
+        .payment-option-line small{margin-left:auto;color:#66766e;font-size:13px;white-space:nowrap}
+        footer{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;color:#69756f;font-size:13px}
         footer:before,footer:after{content:"";height:1px;flex:1;background:#dce4df}
         footer strong{color:#087343}
 
@@ -2523,25 +3153,25 @@ function App() {
         body{background:#f1f3f0;color:#18201d}
         .sheet{padding:25px 27px;border:1px solid #e0e5e1;border-radius:18px;background:#fff;box-shadow:0 18px 55px rgba(24,48,36,.08)}
         .toolbar{margin-bottom:16px}
-        .toolbar button{padding:9px 15px;border:1px solid #0b6848;border-radius:9px;background:#0b6848;box-shadow:none;font-size:12px}
+        .toolbar button{padding:9px 15px;border:1px solid #0b6848;border-radius:9px;background:#0b6848;box-shadow:none;font-size:13px}
         .topbar{padding-bottom:14px;margin-bottom:18px;border-bottom:1px solid #e4e8e5}
         .brand{gap:10px}
         .brand-mark{width:38px;height:38px;border-radius:10px;background:#0b6848;box-shadow:none}
         .brand-mark svg{width:23px;height:23px}
         .brand-title{color:#17211d;font-size:18px;letter-spacing:-.2px}
-        .brand-subtitle{color:#7a8580;font-size:10px}
-        .bill-pill{padding:7px 12px;border-color:#dce4df;border-radius:9px;background:#fff;box-shadow:none;color:#425149;font-size:11px;font-weight:650}
+        .brand-subtitle{color:#7a8580;font-size:13px}
+        .bill-pill{padding:7px 12px;border-color:#dce4df;border-radius:9px;background:#fff;box-shadow:none;color:#425149;font-size:13px;font-weight:650}
         .bill-pill svg{width:15px;height:15px;color:#0b6848}
         .headline{margin-bottom:12px}
         .title-block{padding:1px 0 1px 17px;border-left:3px solid #0b6848}
         h1{color:#17211d;font-size:28px;letter-spacing:-.55px}
-        .month{color:#6c7771;font-size:15px}
+        .month{color:#6c7771;font-size:16px}
         .member-card{min-height:54px;border-color:#dfe6e1;border-radius:11px;background:#fafbfa}
         .member-icon{width:26px;height:26px;color:#0b6848}
-        .member-caption{color:#7a8580;font-size:10px;text-transform:uppercase;letter-spacing:.08em}
-        .member-name{color:#18231e;font-size:16px}
+        .member-caption{color:#7a8580;font-size:13px;text-transform:uppercase;letter-spacing:.08em}
+        .member-name{color:#18231e;font-size:17px}
         .panel{border-color:#dde4df;border-radius:12px;background:#fff;box-shadow:none}
-        .panel-title{gap:8px;padding-bottom:7px;border-bottom-color:#e8ece9;color:#243029;font-size:14px;letter-spacing:.01em}
+        .panel-title{gap:8px;padding-bottom:7px;border-bottom-color:#e8ece9;color:#243029;font-size:15px;letter-spacing:.01em}
         .panel-icon{width:30px;height:30px;border-radius:8px;background:#eef4f0;color:#0b6848}
         .panel-icon svg{width:19px;height:19px}
         .line{border-bottom-color:#edf0ee;color:#4b5851}
@@ -2549,27 +3179,27 @@ function App() {
         .line.paid{margin:0;padding:6px 8px;border-bottom:1px solid #edf0ee;border-radius:0;background:transparent;color:#587067}
         .line.paid strong,.positive{color:#0b6848!important}
         .line.highlight{margin:2px 0;border-radius:7px;background:#f3f7f4}
-        .line.final-line{margin-top:4px;border-radius:8px;background:#116c4d;font-size:15px}
+        .line.final-line{margin-top:4px;border-radius:8px;background:#116c4d;font-size:16px}
         .line.final-line.estimated-line{margin-top:3px;background:#0a513b}
         .line.final-line small{color:#cfe4da}
-        .line.final-line strong{font-size:17px}
+        .line.final-line strong{font-size:18px}
         .amount-due{min-height:56px;padding:9px 13px;border:1px solid #dce7e0;border-radius:11px;background:#f5f8f6;color:#164f3a}
         .amount-icon{width:34px;height:34px;border-radius:9px;background:#e6f0ea}
         .amount-icon svg{width:21px;height:21px}
-        .amount-title{font-size:16px}
-        .amount-note{color:#65736c;font-size:10px}
+        .amount-title{font-size:17px}
+        .amount-note{color:#65736c;font-size:13px}
         .house-art{display:none}
         .payment-options-inline{gap:5px;margin-top:6px;padding-top:6px;border-top-color:#e3e9e5}
         .payment-option-line{display:grid;grid-template-columns:32px minmax(0,1fr) auto;align-items:center;gap:8px;min-height:34px;padding:5px 7px;border:1px solid #e3e9e5;border-radius:8px;background:#fbfcfb}
         .payment-option-line img,.payment-option-line>span{width:32px;height:23px;flex:none;padding:2px;border:1px solid #e5ebe7;border-radius:6px;background:#fff;object-fit:contain}
-        .payment-option-line>span{display:grid;place-items:center;padding:0;background:#edf5f0;color:#0b6848;font-size:10px;font-weight:800}
-        .payment-option-line strong{min-width:0;color:#164f3a;font-size:10.5px;font-weight:700;line-height:1.2;letter-spacing:.01em;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
-        .payment-option-line small{justify-self:end;padding:3px 6px;border-radius:99px;background:#eaf3ed;color:#456357;font-size:7.5px;font-weight:650;line-height:1;white-space:nowrap}
+        .payment-option-line>span{display:grid;place-items:center;padding:0;background:#edf5f0;color:#0b6848;font-size:13px;font-weight:800}
+        .payment-option-line strong{min-width:0;color:#164f3a;font-size:13px;font-weight:700;line-height:1.2;letter-spacing:.01em;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+        .payment-option-line small{justify-self:end;padding:3px 6px;border-radius:99px;background:#eaf3ed;color:#456357;font-size:13px;font-weight:650;line-height:1;white-space:nowrap}
         footer{color:#89918d;letter-spacing:.01em}
         footer:before,footer:after{background:#e1e6e3}
         footer strong{color:#0b6848}
-        @media(max-width:650px){body{padding:12px}.sheet{padding:17px;border-radius:14px}.topbar{margin-bottom:16px}.headline{grid-template-columns:1fr;gap:10px}.member-card{max-width:none}.two-columns,.lower-grid{grid-template-columns:1fr;gap:9px}.summary-panel,.payment-panel{min-height:0}.bill-pill{font-size:10px}h1{font-size:26px}.amount-title{font-size:15px}.amount-note{font-size:10px}}
-        @media print{body{padding:0;font-size:12px;background:#fff}.toolbar{display:none}.sheet{width:100%;max-width:175mm;margin:0 auto;padding:0;border:0;border-radius:0;box-shadow:none}.topbar{margin-bottom:16px}.headline{margin-bottom:11px}.two-columns{gap:9px;margin-bottom:9px}.lower-grid{gap:9px}.panel{padding:9px 10px}.summary-panel,.payment-panel{min-height:0}.amount-due{margin-top:9px}footer{margin-top:10px}}
+        @media(max-width:650px){body{padding:12px}.sheet{padding:17px;border-radius:14px}.topbar{margin-bottom:16px}.headline{grid-template-columns:1fr;gap:10px}.member-card{max-width:none}.two-columns,.lower-grid{grid-template-columns:1fr;gap:9px}.summary-panel,.payment-panel{min-height:0}.bill-pill{font-size:13px}h1{font-size:26px}.amount-title{font-size:16px}.amount-note{font-size:13px}}
+        @media print{body{padding:0;font-size:13px;background:#fff}.toolbar{display:none}.sheet{width:100%;max-width:175mm;margin:0 auto;padding:0;border:0;border-radius:0;box-shadow:none}.topbar{margin-bottom:16px}.headline{margin-bottom:11px}.two-columns{gap:9px;margin-bottom:9px}.lower-grid{gap:9px}.panel{padding:9px 10px}.summary-panel,.payment-panel{min-height:0}.amount-due{margin-top:9px}footer{margin-top:10px}}
       </style></head><body lang="en"><main class="sheet">
         <div class="toolbar">${popupBlocked ? '<button onclick="window.history.back()">Back to app</button>' : ""}<button onclick="window.print()">Save as PDF / Print</button></div>
         <header class="topbar">
@@ -2653,6 +3283,7 @@ function App() {
         paymentsResult,
         bazarsResult,
         contributionsResult,
+        settlementsResult,
         mealSettingResult,
         monthUtilitiesResult,
         sharedUtilitiesResult,
@@ -2673,6 +3304,10 @@ function App() {
         supabase
           .from("cash_contributions")
           .select("amount,paid_by")
+          .eq("month_id", monthRow.id),
+        supabase
+          .from("member_settlements")
+          .select("amount,from_user_id,to_user_id,source_type,status")
           .eq("month_id", monthRow.id),
         supabase
           .from("app_settings")
@@ -2707,6 +3342,12 @@ function App() {
       ]) {
         if (result.error) throw result.error;
       }
+      if (
+        settlementsResult.error &&
+        !isMissingSettlementTableError(settlementsResult.error)
+      ) {
+        throw settlementsResult.error;
+      }
 
       const parseSetting = (setting, fallback) => {
         if (!setting?.value) return fallback;
@@ -2740,7 +3381,7 @@ function App() {
         throw new Error("Utility-sharing member count is invalid.");
 
       const sharedUtilitiesForReport = utilities.filter(
-        (utility) => utility.shared,
+        (utility) => utility.shared && !isFlatRentName(utility.name),
       );
       const utilitiesShare = sharedUtilitiesForReport.reduce(
         (sum, utility) =>
@@ -2749,6 +3390,11 @@ function App() {
       );
       const bazars = bazarsResult.data || [];
       const contributions = contributionsResult.data || [];
+      const reportSettlements = settlementsResult.error
+        ? []
+        : (settlementsResult.data || []).filter(
+            (settlement) => settlement.status === "completed",
+          );
       const payments = paymentsResult.data || [];
       const rentPayments = payments
         .filter(
@@ -2781,6 +3427,22 @@ function App() {
           .filter((contribution) => contribution.paid_by === member.id)
           .reduce(
             (sum, contribution) => sum + Number(contribution.amount || 0),
+            0,
+          ) +
+        reportSettlements
+          .filter(
+            (settlement) =>
+              settlement.source_type === "direct" &&
+              settlement.from_user_id === member.id,
+          )
+          .reduce(
+            (sum, settlement) => sum + Number(settlement.amount || 0),
+            0,
+          ) -
+        reportSettlements
+          .filter((settlement) => settlement.to_user_id === member.id)
+          .reduce(
+            (sum, settlement) => sum + Number(settlement.amount || 0),
             0,
           );
       const mealCost = mealMemberIds.includes(member.id)
@@ -2828,30 +3490,30 @@ function App() {
           .brand-mark svg{width:30px;height:30px}
           .brand-copy{border-left:1px solid #dfe8e2;padding-left:18px}
           h1{margin:0;color:#101820;font:700 32px/1.1 "Hind Siliguri",sans-serif;letter-spacing:-.7px}
-          .brand-copy p{margin:5px 0 0;color:#44534f;font-size:15px}
-          .member-tag{padding:10px 15px;border:1px solid #e6ebe7;border-radius:24px;color:#38443f;box-shadow:0 4px 14px #10271a0b;font-size:12px}
+          .brand-copy p{margin:5px 0 0;color:#44534f;font-size:16px}
+          .member-tag{padding:10px 15px;border:1px solid #e6ebe7;border-radius:24px;color:#38443f;box-shadow:0 4px 14px #10271a0b;font-size:13px}
           .layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(270px,.95fr);align-items:start;gap:22px}
           .section-title{display:flex;align-items:center;gap:12px;margin:0 0 14px;font:700 25px "Hind Siliguri",sans-serif;color:#15251f}
           .section-title:before{content:"";width:4px;height:26px;border-radius:4px;background:#08734f}
           .utility-card,.summary-card,.total-card{border:1px solid #e8ece8;border-radius:17px;background:#fff;box-shadow:0 8px 22px #10271a0a;overflow:hidden}
           table{width:100%;border-collapse:collapse}
-          th{padding:13px 15px;background:#f4f7f4;color:#596660;text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+          th{padding:13px 15px;background:#f4f7f4;color:#596660;text-align:left;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
           td{padding:13px 15px;border-bottom:1px solid #edf0ed;color:#17221e}
           th:not(:first-child),td:not(:first-child){text-align:right}
           tbody tr:last-child td{border-bottom:0}
           .summary{display:grid;gap:10px}
           .total-card{padding:20px 22px;background:linear-gradient(145deg,#f7fbf8,#e8f4ec);border-color:#e1eee5}
-          .total-card span{display:block;color:#63716b;font-size:13px}
+          .total-card span{display:block;color:#63716b;font-size:14px}
           .total-card strong{display:block;margin-top:8px;color:#075d43;font:700 38px/1.1 "Hind Siliguri",sans-serif;letter-spacing:-.5px}
           .summary-card{padding:14px 16px}
-          .line{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid #edf0ed;color:#44514b;font-size:12px}
+          .line{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid #edf0ed;color:#44514b;font-size:13px}
           .line strong{color:#17221e;font-variant-numeric:tabular-nums}
           .line.total{margin:4px -5px;padding:12px 8px;border:0;border-radius:9px;background:#edf6ef;color:#174e38;font-weight:700}
           .line.total strong{color:#075d43}
           .line:last-child{border-bottom:0}
           .line.due{margin:8px -6px -4px;padding:14px 11px;border:0;border-radius:11px;background:#075d43;color:#fff;font-weight:700}
-          .line.due strong{color:#fff;font-size:17px}
-          footer{display:flex;justify-content:space-between;gap:12px;margin-top:42px;padding-top:14px;border-top:1px solid #e8ece8;color:#68756f;font-size:10px}
+          .line.due strong{color:#fff;font-size:18px}
+          footer{display:flex;justify-content:space-between;gap:12px;margin-top:42px;padding-top:14px;border-top:1px solid #e8ece8;color:#68756f;font-size:13px}
           @media(max-width:650px){body{padding:20px}.header{align-items:flex-start;flex-direction:column;margin:8px 0 26px}.layout{grid-template-columns:1fr}.section-title{font-size:22px}.total-card strong{font-size:34px}}
           @media print{body{padding:0}.toolbar{display:none}.header{margin-top:0}.layout{grid-template-columns:minmax(0,1.3fr) minmax(260px,.9fr)}footer{margin-top:34px}}
         </style></head>
@@ -2966,7 +3628,7 @@ function App() {
     reportDocument.open();
     reportDocument
       .write(`<!doctype html><html><head><meta charset="utf-8"><title>Monthly Hisab · ${esc(month)} Report</title><style>
-   @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;color:#18233b;font:12px/1.5 "Hind Siliguri",sans-serif;background:#f4f7fc;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{max-width:900px;margin:0 auto;background:white;min-height:100vh}.hero{padding:30px 32px 26px;color:#fff;background:linear-gradient(125deg,#283b91,#4f46e5 55%,#8b5cf6);position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;right:-45px;top:-100px;background:#ffffff20}.brand{font-size:11px;text-transform:uppercase;letter-spacing:2px;font-weight:800;opacity:.85}.hero h1{font-size:29px;line-height:1.15;margin:10px 0 5px}.hero p{margin:0;color:#e4e9ff;font-size:13px}.hero .tag{display:inline-block;margin-top:17px;padding:5px 10px;border:1px solid #ffffff55;border-radius:99px;font-size:10px;font-weight:700}.content{padding:24px 30px 30px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}.stat{border:1px solid #e4e9f4;border-radius:12px;padding:13px;background:linear-gradient(145deg,#fff,#f7f8ff);border-top:3px solid #6366f1}.stat:nth-child(2){border-top-color:#8b5cf6}.stat:nth-child(3){border-top-color:#10b981}.stat:nth-child(4){border-top-color:#f59e0b}.stat span{display:block;color:#66728a;font-size:10px;margin-bottom:7px}.stat strong{font-size:17px;color:#17213a;letter-spacing:-.3px}.section{margin-top:21px;break-inside:avoid}.section h2{font-size:15px;margin:0 0 3px;color:#1e2b49}.section .sub{margin:0 0 10px;color:#77839a;font-size:10px}.section-title{display:flex;align-items:center;gap:9px}.section-title i{display:inline-block;width:4px;height:19px;border-radius:4px;background:linear-gradient(#6366f1,#a78bfa)}table{width:100%;border-collapse:collapse;font-size:10px}th{text-align:left;color:#fff;background:#27356f;padding:9px 8px;font-weight:700}td{padding:8px;border-bottom:1px solid #e8edf5;color:#27344d;vertical-align:top}tbody tr:nth-child(even){background:#f7f9fd}td small{display:block;color:#8a95a8;font-size:9px}.green{color:#059669;font-weight:700}.due{color:#d97706;font-weight:700}.empty{text-align:center;color:#8993a5;padding:14px}.footer{margin-top:26px;padding-top:12px;border-top:1px solid #e8edf5;display:flex;justify-content:space-between;color:#8b95a7;font-size:9px}.footer strong{color:#4f46e5}.printbar{display:flex;justify-content:flex-end;gap:8px;padding:12px 30px;background:#eef2ff}.printbar button{border:0;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer}.printbtn{background:#4f46e5;color:#fff}.closebtn{background:#fff;color:#334155;border:1px solid #dbe2ef!important}@media print{body{background:white}.sheet{max-width:none}.printbar{display:none}.hero{padding:24px 28px}.content{padding:20px 28px}.section{break-inside:avoid}.stats{gap:8px}.stat{padding:10px}.stat strong{font-size:15px}}
+   @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;color:#18233b;font:12px/1.5 "Hind Siliguri",sans-serif;background:#f4f7fc;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{max-width:900px;margin:0 auto;background:white;min-height:100vh}.hero{padding:30px 32px 26px;color:#fff;background:linear-gradient(125deg,#283b91,#4f46e5 55%,#8b5cf6);position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;right:-45px;top:-100px;background:#ffffff20}.brand{font-size:13px;text-transform:uppercase;letter-spacing:2px;font-weight:800;opacity:.85}.hero h1{font-size:29px;line-height:1.15;margin:10px 0 5px}.hero p{margin:0;color:#e4e9ff;font-size:14px}.hero .tag{display:inline-block;margin-top:17px;padding:5px 10px;border:1px solid #ffffff55;border-radius:99px;font-size:13px;font-weight:700}.content{padding:24px 30px 30px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}.stat{border:1px solid #e4e9f4;border-radius:12px;padding:13px;background:linear-gradient(145deg,#fff,#f7f8ff);border-top:3px solid #6366f1}.stat:nth-child(2){border-top-color:#8b5cf6}.stat:nth-child(3){border-top-color:#10b981}.stat:nth-child(4){border-top-color:#f59e0b}.stat span{display:block;color:#66728a;font-size:13px;margin-bottom:7px}.stat strong{font-size:18px;color:#17213a;letter-spacing:-.3px}.section{margin-top:21px;break-inside:avoid}.section h2{font-size:16px;margin:0 0 3px;color:#1e2b49}.section .sub{margin:0 0 10px;color:#77839a;font-size:13px}.section-title{display:flex;align-items:center;gap:9px}.section-title i{display:inline-block;width:4px;height:19px;border-radius:4px;background:linear-gradient(#6366f1,#a78bfa)}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:#fff;background:#27356f;padding:9px 8px;font-weight:700}td{padding:8px;border-bottom:1px solid #e8edf5;color:#27344d;vertical-align:top}tbody tr:nth-child(even){background:#f7f9fd}td small{display:block;color:#8a95a8;font-size:13px}.green{color:#059669;font-weight:700}.due{color:#d97706;font-weight:700}.empty{text-align:center;color:#8993a5;padding:14px}.footer{margin-top:26px;padding-top:12px;border-top:1px solid #e8edf5;display:flex;justify-content:space-between;color:#8b95a7;font-size:13px}.footer strong{color:#4f46e5}.printbar{display:flex;justify-content:flex-end;gap:8px;padding:12px 30px;background:#eef2ff}.printbar button{border:0;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer}.printbtn{background:#4f46e5;color:#fff}.closebtn{background:#fff;color:#334155;border:1px solid #dbe2ef!important}@media print{body{background:white}.sheet{max-width:none}.printbar{display:none}.hero{padding:24px 28px}.content{padding:20px 28px}.section{break-inside:avoid}.stats{gap:8px}.stat{padding:10px}.stat strong{font-size:16px}}
    </style></head><body><div class="sheet"><div class="printbar"><button class="closebtn" onclick="${popupBlocked ? "window.history.back()" : "window.close()"}">${popupBlocked ? "Back to app" : "Close report"}</button><button class="printbtn" onclick="window.print()">Save as PDF / Print</button></div><header class="hero"><div class="brand">Monthly Hisab · Household finance</div><h1>Monthly Financial Report</h1><p>${esc(month)} · A clear snapshot of your shared home expenses</p><span class="tag">PREPARED BY RAHAT · ${esc(new Date().toLocaleDateString())}</span></header><main class="content"><div class="stats"><div class="stat"><span>Monthly bazar</span><strong>${money(bazarTotal)}</strong></div><div class="stat"><span>Total rent</span><strong>${money(totalRent)}</strong></div><div class="stat"><span>Rent paid</span><strong>${money(rentPaid)}</strong></div><div class="stat"><span>Cash contributions</span><strong>${money(cashTotal)}</strong></div></div><section class="section"><div class="section-title"><i></i><h2>Member balances</h2></div><p class="sub">Rent, shared expenses, recorded payments and estimated remaining due</p><table><thead><tr><th>Member</th><th>Rent</th><th>Individual meal</th><th>Rent paid</th><th>Meal paid</th><th>Due</th></tr></thead><tbody>${memberRows || tableEmpty}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Expense breakdown</h2></div><p class="sub">Expenses configured for ${esc(month)}</p><table><thead><tr><th>Expense</th><th>Type</th><th>Amount</th></tr></thead><tbody>${expenseRows || '<tr><td colspan="3" class="empty">No expenses configured</td></tr>'}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Monthly bazar history</h2></div><p class="sub">Recorded purchases for ${esc(month)} · total ${money(bazarTotal)}</p><table><thead><tr><th>Date</th><th>Items</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${bazarRows || '<tr><td colspan="4" class="empty">No bazar entries for this month</td></tr>'}</tbody></table></section><section class="section"><div class="section-title"><i></i><h2>Member payment history</h2></div><p class="sub">Payments recorded by admin</p><table><thead><tr><th>Date</th><th>Member</th><th>Note</th><th>Amount</th></tr></thead><tbody>${paymentRows || '<tr><td colspan="4" class="empty">No payments recorded for this month</td></tr>'}</tbody></table></section><div class="footer"><span>Designed &amp; developed by <strong>Rahat</strong> · Monthly Hisab</span><span>Private household report · ${esc(month)}</span></div></main></div><script>window.addEventListener('load',()=>{document.title='Monthly-Hisab-${esc(month).replace(/[^a-zA-Z0-9-]/g, "-")}-Report'});</script></body></html>`);
     const premiumReportStyles = reportDocument.createElement("style");
     premiumReportStyles.textContent = `
@@ -2976,23 +3638,23 @@ function App() {
       .sheet{max-width:960px;background:#fffefa;border:1px solid #e7e9df;border-radius:18px;overflow:hidden;box-shadow:0 18px 55px rgba(27,52,38,.1)}
       .hero{padding:34px 38px 32px;background:linear-gradient(125deg,#075b40,#087a50 58%,#15946a);color:#fff}
       .hero:after{width:280px;height:280px;right:-60px;top:-130px;background:radial-gradient(circle,#ffffff22,transparent 68%)}
-      .brand{font-size:10px;letter-spacing:2.2px;font-weight:700;color:#d4eee1}
+      .brand{font-size:13px;letter-spacing:2.2px;font-weight:700;color:#d4eee1}
       .hero h1{margin:15px 0 7px;font-size:34px;font-weight:700;letter-spacing:-1.15px}
-      .hero p{font-size:14px;color:#e3f1e8}
-      .hero .tag{margin-top:19px;border-color:#ffffff55;background:#ffffff12;font-size:9px;letter-spacing:.7px}
+      .hero p{font-size:15px;color:#e3f1e8}
+      .hero .tag{margin-top:19px;border-color:#ffffff55;background:#ffffff12;font-size:13px;letter-spacing:.7px}
       .content{padding:28px 34px 30px}
       .stats{gap:12px;margin-bottom:26px}
       .stat{padding:16px;border:1px solid #e5e9df;border-top:3px solid #0b8154;border-radius:13px;background:linear-gradient(145deg,#fff,#f7faf5);box-shadow:0 5px 15px rgba(36,67,48,.045)}
       .stat:nth-child(2){border-top-color:#5c9b73}.stat:nth-child(3){border-top-color:#16825c}.stat:nth-child(4){border-top-color:#d39543}
-      .stat span{color:#68776c;font-size:10px;text-transform:uppercase;letter-spacing:.55px}
+      .stat span{color:#68776c;font-size:13px;text-transform:uppercase;letter-spacing:.55px}
       .stat strong{color:#13251c;font-size:18px;font-weight:700;letter-spacing:-.35px;font-variant-numeric:tabular-nums}
       .section{margin-top:24px}
       .section-title{gap:10px;margin-bottom:5px}
       .section-title i{width:4px;height:20px;background:#08764e}
-      .section h2{color:#17291f;font-size:16px;font-weight:700;letter-spacing:-.2px}
-      .section .sub{margin:3px 0 11px;color:#79867b;font-size:10px}
-      table{border:1px solid #e4e9e1;border-radius:10px;overflow:hidden;font-size:9.5px}
-      th{padding:10px 9px;background:#eaf1e9;color:#344b3b;font-size:9px;letter-spacing:.45px;text-transform:uppercase}
+      .section h2{color:#17291f;font-size:17px;font-weight:700;letter-spacing:-.2px}
+      .section .sub{margin:3px 0 11px;color:#79867b;font-size:13px}
+      table{border:1px solid #e4e9e1;border-radius:10px;overflow:hidden;font-size:13px}
+      th{padding:10px 9px;background:#eaf1e9;color:#344b3b;font-size:13px;letter-spacing:.45px;text-transform:uppercase}
       td{padding:9px;border-bottom:1px solid #e9ede7;color:#36453b}
       tbody tr:nth-child(even){background:#f8faf6}
       td small{color:#849087}
@@ -3005,7 +3667,7 @@ function App() {
       .printbtn{background:#08764e;color:#fff}
       .closebtn{color:#47564b;background:#fff;border-color:#dce4da!important}
       @media(max-width:680px){.hero{padding:27px 22px}.hero h1{font-size:29px}.content{padding:22px 18px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.printbar{padding:10px 18px}}
-      @media print{body{background:#fffefa!important}.sheet{max-width:none;border:0;border-radius:0;box-shadow:none}.hero{padding:24px 28px}.content{padding:20px 24px}.section{break-inside:avoid}.stats{gap:8px}.stat{padding:11px}.stat strong{font-size:15px}.printbar{display:none}}
+      @media print{body{background:#fffefa!important}.sheet{max-width:none;border:0;border-radius:0;box-shadow:none}.hero{padding:24px 28px}.content{padding:20px 24px}.section{break-inside:avoid}.stats{gap:8px}.stat{padding:11px}.stat strong{font-size:16px}.printbar{display:none}}
     `;
     reportDocument.head.append(premiumReportStyles);
     reportDocument.close();
@@ -3115,6 +3777,7 @@ function App() {
   const nav = [
     ...(admin ? [["overview", "Overview", LayoutDashboard]] : []),
     ["my-account", "My Account", Wallet],
+    ["settlements", "Meal Settlement", ArrowUpDown],
     ["bazar", "Monthly Bazar", Receipt],
     ["contacts", "Contacts", Users],
     ["inbox", "Inbox", MessageCircle],
@@ -3159,7 +3822,7 @@ function App() {
           <button
             key={key}
             className={
-              "nav-item " +
+              `nav-item nav-${key} ` +
               (page === key ? "active" : "") +
               ([
                 "members",
@@ -3247,8 +3910,8 @@ function App() {
           </section>
         </div>
       )}
-      <main className={page === "overview" ? "main overview-page" : page === "my-account" ? "main my-account-page" : page === "contacts" ? "main contacts-page" : page === "inbox" ? "main inbox-page" : page === "pay-rent" ? "main pay-rent-app-page" : page === "bazar" ? "main bazar-page" : "main"}>
-        <header className={`${page === "my-account" ? "account-header " : ""}${page === "overview" ? "overview-page-header" : ""}`}>
+      <main className={page === "overview" ? "main overview-page" : page === "my-account" ? "main my-account-page" : page === "settlements" ? "main settlement-page" : page === "contacts" ? "main contacts-page" : page === "inbox" ? "main inbox-page" : page === "pay-rent" ? "main pay-rent-app-page" : page === "bazar" ? "main bazar-page" : "main"}>
+        <header className={`${page === "my-account" ? "account-header " : ""}${page === "overview" ? "overview-page-header" : ""}${page === "settlements" ? "settlement-page-header" : ""}`}>
           <button
             type="button"
             className="icon-btn menu-btn"
@@ -3258,10 +3921,20 @@ function App() {
             <Menu size={22} strokeWidth={2.25} />
           </button>
           {page !== "my-account" && (
-            <div className={page === "overview" ? "overview-page-heading" : "app-page-heading"}>
+            <div className={page === "overview" ? "overview-page-heading" : page === "settlements" ? "settlement-page-heading" : "app-page-heading"}>
               {page === "inbox" && <span className="inbox-page-mark"><MessageCircle size={23} /></span>}
+              {page === "settlements" && (
+                <span className="settlement-page-mark" aria-hidden="true">
+                  <Utensils size={21} />
+                  <ArrowDownRight size={14} />
+                </span>
+              )}
               <h2>{nav.find((x) => x[0] === page)?.[1] || "My Account"}</h2>
-              <p>Manage your home, one month at a time.</p>
+              <p>
+                {page === "settlements"
+                  ? "Review balances, plan transfers, and close the month clearly."
+                  : "Manage your home, one month at a time."}
+              </p>
             </div>
           )}
           <div className="header-actions">
@@ -3435,27 +4108,30 @@ function App() {
                 </button>
               </div>
             </section>
-            <div className="stats">
-              <Stat
-                title="Meal cost"
-                value={money(bazarTotal)}
-                icon={Receipt}
-                tone="blue"
-                hint="Monthly bazar total"
-              />
+            <div className="stats overview-stats">
               <Stat
                 title="Total Rent"
                 value={money(totalRent + utilitiesTotal)}
                 icon={Home}
                 tone="purple"
                 hint="Total rent for this month"
+                className="summary-stat summary-indigo"
               />
               <Stat
                 title="Rent paid"
-                value={money(rentPaid)}
+                value={money(utilitiesPaidTotal)}
                 icon={ArrowDownRight}
                 tone="green"
-                hint="This month"
+                hint="Checked utilities"
+                className="summary-stat summary-cyan"
+              />
+              <Stat
+                title="Rent in Hand"
+                value={money(rentInHand)}
+                icon={Wallet}
+                tone="green"
+                hint="Member payments less paid utilities"
+                className="summary-stat summary-green"
               />
               <Stat
                 title="Rent due"
@@ -3463,20 +4139,23 @@ function App() {
                 icon={Wallet}
                 tone="orange"
                 hint="Rent remaining"
+                className="summary-stat summary-amber"
+              />
+              <Stat
+                title="Meal cost"
+                value={money(bazarTotal)}
+                icon={Receipt}
+                tone="blue"
+                hint="Monthly bazar total"
+                className="summary-stat summary-rose"
               />
               <Stat
                 title="Cash in hand"
-                value={money(
-                  (db.contributions || [])
-                    .filter((c) => c.month === month)
-                    .reduce((s, c) => s + Number(c.amount || 0), 0) -
-                  (db.bazars || [])
-                    .filter((b) => b.month === month && b.paidFromCash)
-                    .reduce((s, b) => s + Number(b.amount || 0), 0),
-                )}
+                value={money(cashInHand)}
                 icon={Wallet}
                 tone="purple"
-                hint="Contributions less cash purchases"
+                hint="Contributions less cash purchases and refunds"
+                className="summary-stat summary-violet"
               />
             </div>
             <div className="grid-two">
@@ -3540,10 +4219,23 @@ function App() {
                   <span className="overview-panel-icon"><Zap size={20} /></span>
                   <PanelHead
                     title="Utilities breakdown"
-                    sub="Utilities are shared among current members"
+                    sub="Flat rent is separate; shared utilities are divided among members"
                   />
                 </div>
-                {utilityCategories.map((c) => (
+                <div className={`break-row utility-payment-row flat-rent-payment-row${utilityPaidStatus[FLAT_RENT_NAME] ? " is-paid" : ""}`}>
+                  <label className="utility-payment-check">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(utilityPaidStatus[FLAT_RENT_NAME])}
+                      disabled={utilityPaidSaving || flatRentAmount <= 0}
+                      onChange={(event) => saveUtilityPaidStatus(FLAT_RENT_NAME, event.target.checked)}
+                    />
+                    <span>{FLAT_RENT_NAME}</span>
+                  </label>
+                  <b>{money(flatRentAmount)}</b>
+                  <small>{flatRentAmount <= 0 ? "Not set" : utilityPaidStatus[FLAT_RENT_NAME] ? "Paid · Not divided" : "Unpaid · Not divided"}</small>
+                </div>
+                {regularUtilityCategories.map((c) => (
                   <div className={`break-row utility-payment-row${utilityPaidStatus[c.name] ? " is-paid" : ""}`} key={c.id || c.name}>
                     <label className="utility-payment-check">
                       <input
@@ -3593,6 +4285,7 @@ function App() {
                 icon={Home}
                 tone="blue"
                 hint={`Room rent + utilities share`}
+                className="summary-stat summary-indigo"
               />
               <Stat
                 title="Rent Paid"
@@ -3600,6 +4293,7 @@ function App() {
                 icon={ArrowDownRight}
                 tone="green"
                 hint="Rent payment"
+                className="summary-stat summary-cyan"
               />
               <Stat
                 title="Meal Cost"
@@ -3607,6 +4301,7 @@ function App() {
                 icon={Utensils}
                 tone="orange"
                 hint={`${bazarMemberCount} members sharing bazar`}
+                className="summary-stat summary-rose"
               />
               <Stat
                 title="Meal Paid"
@@ -3614,6 +4309,7 @@ function App() {
                 icon={Utensils}
                 tone="green"
                 hint="Cash contributions and bazar credits"
+                className="summary-stat summary-green"
               />
               <Stat
                 title="Previous Due"
@@ -3621,6 +4317,7 @@ function App() {
                 icon={Wallet}
                 tone="orange"
                 hint="Unpaid balance from past months"
+                className="summary-stat summary-violet"
               />
               <Stat
                 title="Due"
@@ -3628,6 +4325,7 @@ function App() {
                 icon={Wallet}
                 tone="orange"
                 hint={`${money(previousDueByUser[user.id] ?? previousDue)} + ${money(ownDue)}`}
+                className="summary-stat summary-amber"
               />
             </div>
             <section className="panel account-breakdown-panel">
@@ -3635,9 +4333,8 @@ function App() {
                 <span className="overview-panel-icon"><Zap size={20} /></span>
                 <PanelHead title="Your monthly breakdown" sub={month} />
               </div>
-              {utilityCategories.filter((c) => c.shared).length > 0 ? (
-                utilityCategories
-                  .filter((c) => c.shared)
+              {dividedUtilityCategories.length > 0 ? (
+                dividedUtilityCategories
                   .map((c) => (
                     <div
                       className="break-row expense-detail-row"
@@ -3692,6 +4389,491 @@ function App() {
                   </div>
                 ))}
             </section>
+          </>
+        )}
+        {page === "settlements" && (
+          <>
+            {settlementLoadError && (
+              <section className="panel settlement-setup-warning" role="alert">
+                <div>
+                  <strong>Settlement setup is required</strong>
+                  <p>{settlementLoadError}</p>
+                </div>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => loadCloudData(user.id, month)}
+                  disabled={cloudBusy}
+                >
+                  {cloudBusy ? "Checking…" : "Check again"}
+                </button>
+              </section>
+            )}
+
+            <div className="settlement-dashboard settlement-dashboard-v2 settlement-dashboard-compact">
+            <div className="settlement-balance-row">
+              <section className="panel settlement-surface settlement-members-panel">
+                <div className="settlement-section-heading">
+                  <div className="settlement-heading-main">
+                    <span className="settlement-panel-icon balance"><Users size={19} /></span>
+                    <div className="settlement-balance-heading-copy">
+                      <h3>Member meal balances</h3>
+                    </div>
+                  </div>
+                  <div className="settlement-heading-actions">
+                    <span className="settlement-count-chip">{settlementBalanceRows.length} members</span>
+                    {admin && (
+                      <button
+                        type="button"
+                        className="secondary settlement-add-action"
+                        onClick={() => openSettlementModal()}
+                        disabled={Boolean(settlementLoadError)}
+                      >
+                        <Plus size={15} /> Add settlement
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="table-wrap settlement-table-wrap">
+                  <table className="settlement-member-table">
+                    <thead>
+                      <tr>
+                        <th>Member</th>
+                        <th>Meal cost</th>
+                        <th>Meal paid</th>
+                        <th>Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {settlementBalanceRows.map((row) => (
+                        <tr key={row.member.id}>
+                          <td>
+                            <div className="person settlement-person">
+                              {row.member.photo_url ? (
+                                <img className="avatar small profile-avatar-image" src={row.member.photo_url} alt="" />
+                              ) : (
+                                <span className="avatar small">{row.member.name?.[0] || "M"}</span>
+                              )}
+                              <span>
+                                <b>{row.member.name}</b>
+                                <small>{row.member.role === "admin" ? "Administrator" : "Member"}</small>
+                              </span>
+                            </div>
+                          </td>
+                          <td>{money(row.mealCost)}</td>
+                          <td>{money(row.mealPaid)}</td>
+                          <td>
+                            <span
+                              className={`settlement-balance-pill ${
+                                row.balance > 0.009
+                                  ? "will-pay"
+                                  : row.balance < -0.009
+                                    ? "will-receive"
+                                    : "is-settled"
+                              }`}
+                            >
+                              {row.balance > 0.009
+                                ? <><span>Will pay</span><strong>{money(row.balance)}</strong></>
+                                : row.balance < -0.009
+                                  ? <><span>Will receive</span><strong>{money(Math.abs(row.balance))}</strong></>
+                                  : "Settled"}
+                            </span>
+                            <small className="settlement-projected-balance">
+                              After pending: {money(row.projectedBalance)}
+                            </small>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+              </section>
+            </div>
+            <div className="settlement-workflow-grid settlement-workflow-grid-themed">
+              <section className="panel settlement-surface settlement-plan-panel">
+                <div className="settlement-section-heading">
+                  <div className="settlement-heading-main">
+                    <span className="settlement-panel-icon plan"><Zap size={20} /></span>
+                    <div>
+                      <span className="eyebrow">SMART MATCHING</span>
+                      <h3>Suggested auto plan</h3>
+                    </div>
+                  </div>
+                  <span className="settlement-count-chip">
+                    {settlementSuggestions.length} match{settlementSuggestions.length === 1 ? "" : "es"}
+                  </span>
+                </div>
+                <p className="settlement-plan-intro">
+                  Matches available contribution cash and direct member balances automatically.
+                </p>
+                {settlementLoadError ? (
+                  <div className="settlement-plan-empty">
+                    <span><ArrowUpDown size={22} /></span>
+                    <strong>Plan unavailable</strong>
+                    <p>Complete the settlement database setup first.</p>
+                  </div>
+                ) : settlementSuggestions.length > 0 ? (
+                  <>
+                    <div className="settlement-suggestion-list settlement-plan-list">
+                      {settlementSuggestions.map((suggestion, index) => {
+                        const fromMember = db.users.find((member) => member.id === suggestion.fromUserId);
+                        const toMember = db.users.find((member) => member.id === suggestion.toUserId);
+                        return (
+                          <button
+                            type="button"
+                            className={`settlement-suggestion-row ${suggestion.sourceType === "cash_contribution" ? "cash-refund" : "direct-transfer"}`}
+                            key={`${suggestion.sourceType}-${suggestion.fromUserId}-${suggestion.toUserId}-${index}`}
+                            onClick={admin ? () => openSettlementModal({ ...suggestion, status: "pending" }) : undefined}
+                            disabled={!admin}
+                            title={admin ? "Open as a partial settlement" : "Only an admin can change settlement plans"}
+                          >
+                            <span className="settlement-suggestion-route">
+                              <span className="settlement-suggestion-person">
+                                <span className="settlement-mini-avatar payer">
+                                  {fromMember?.name?.[0] || "M"}
+                                </span>
+                                <b>{fromMember?.name || "Member"}</b>
+                              </span>
+                              <span className="settlement-suggestion-arrow" aria-hidden="true">
+                                <ArrowRight size={15} />
+                              </span>
+                              <span className="settlement-suggestion-person receiver">
+                                <span className="settlement-mini-avatar receiver">
+                                  {toMember?.name?.[0] || "M"}
+                                </span>
+                                <b>{toMember?.name || "Member"}</b>
+                              </span>
+                            </span>
+                            <span className="settlement-suggestion-value">
+                              <small>
+                                {suggestion.sourceType === "cash_contribution"
+                                  ? "Cash refund"
+                                  : "Direct transfer"}
+                              </small>
+                              <strong>{money(suggestion.amount)}</strong>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {admin && (
+                      <div className="settlement-plan-actionbar">
+                        <button
+                          type="button"
+                          className="primary settlement-plan-action"
+                          onClick={createAutoSettlementPlan}
+                          disabled={settlementPlanBusy}
+                        >
+                          <ArrowUpDown size={15} />
+                          {settlementPlanBusy ? "Creating plan..." : "Create plan"}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="settlement-plan-empty is-settled">
+                    <div className="settlement-empty-illustration" aria-hidden="true">
+                      <span className="settlement-empty-document"><FileText size={42} /></span>
+                      <span className="settlement-empty-check"><CheckCircle2 size={27} /></span>
+                    </div>
+                    <strong>No new match needed</strong>
+                    <p>Current completed and pending entries already cover the available balances.</p>
+                  </div>
+                )}
+              </section>
+
+              <section className="panel settlement-surface settlement-history-panel settlement-ledger-panel">
+                <div className="settlement-section-heading">
+                  <div className="settlement-heading-main">
+                    <span className="settlement-panel-icon history"><Layers3 size={20} /></span>
+                    <div>
+                      <span className="eyebrow">LEDGER</span>
+                      <h3>Settlement history</h3>
+                      <p>Pending plans do not change balances until they are completed.</p>
+                    </div>
+                  </div>
+                  <span className="settlement-count-chip">
+                    {monthSettlements.length} entr{monthSettlements.length === 1 ? "y" : "ies"}
+                  </span>
+                </div>
+                {monthSettlements.length === 0 ? (
+                  <div className="settlement-empty-state">
+                    <span><ArrowUpDown size={24} /></span>
+                    <strong>No settlements yet</strong>
+                    <p>Use the suggested plan or add a partial settlement when members are ready.</p>
+                  </div>
+                ) : (
+                  <div className="settlement-history-list">
+                    {[...monthSettlements]
+                      .sort((a, b) => {
+                        if (a.status !== b.status) return a.status === "pending" ? -1 : 1;
+                        return String(b.date).localeCompare(String(a.date));
+                      })
+                      .map((settlement) => {
+                        const fromMember = db.users.find((member) => member.id === settlement.fromUserId);
+                        const toMember = db.users.find((member) => member.id === settlement.toUserId);
+                        const fromName = fromMember?.name || "Member";
+                        const toName = toMember?.name || "Member";
+                        const isCashRefund = settlement.sourceType === "cash_contribution";
+                        const transferSentence = isCashRefund
+                          ? settlement.status === "completed"
+                            ? `Cash in Hand refunded ${toName} ${money(settlement.amount)} using ${fromName}'s contribution.`
+                            : `Cash in Hand will refund ${toName} ${money(settlement.amount)} using ${fromName}'s contribution.`
+                          : settlement.status === "completed"
+                            ? `${fromName} paid ${toName} ${money(settlement.amount)} directly.`
+                            : `${fromName} will pay ${toName} ${money(settlement.amount)} directly.`;
+                        return (
+                          <article
+                            className={`settlement-ledger-card ${settlement.status} ${isCashRefund ? "cash-refund" : "direct-transfer"}`}
+                            key={settlement.id}
+                            aria-label={transferSentence}
+                          >
+                            <div className="settlement-ledger-route">
+                              <div className="settlement-ledger-party payer">
+                                <small>{isCashRefund ? "Contribution by" : "Paid by"}</small>
+                                <div>
+                                  <span className="settlement-ledger-avatar payer">{fromName[0] || "M"}</span>
+                                  <span>
+                                    <strong>{fromName}</strong>
+                                    <em>{isCashRefund ? "Cash source" : "Payer"}</em>
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="settlement-ledger-transfer">
+                                <small>{isCashRefund ? "Cash in hand refunds" : "Pays directly"}</small>
+                                <div>
+                                  <ArrowRight size={15} aria-hidden="true" />
+                                  <strong>{money(settlement.amount)}</strong>
+                                  <ArrowRight size={15} aria-hidden="true" />
+                                </div>
+                              </div>
+                              <div className="settlement-ledger-party receiver">
+                                <small>Received by</small>
+                                <div>
+                                  <span>
+                                    <strong>{toName}</strong>
+                                    <em>Receiver</em>
+                                  </span>
+                                  <span className="settlement-ledger-avatar receiver">{toName[0] || "M"}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="settlement-ledger-sentence">
+                              <ArrowRight size={14} aria-hidden="true" />
+                              <strong>{transferSentence}</strong>
+                            </div>
+                            <footer className="settlement-ledger-footer">
+                              <div className="settlement-ledger-meta">
+                                <span className={`settlement-status ${settlement.status}`}>
+                                  {settlement.status === "completed" ? "Completed" : "Pending"}
+                                </span>
+                                <span className="settlement-method-badge">
+                                  {isCashRefund ? "Cash contribution refund" : "Direct transfer"}
+                                </span>
+                                <small>{settlement.date}{settlement.note ? ` · ${settlement.note}` : ""}</small>
+                              </div>
+                              {admin && (
+                                <div className="settlement-history-actions">
+                                  {settlement.status === "pending" && (
+                                    <button
+                                      type="button"
+                                      className="primary settlement-history-complete"
+                                      onClick={() => completeSettlement(settlement)}
+                                      disabled={settlementBusy}
+                                    >
+                                      <CheckCircle2 size={14} /> <span>Mark paid</span>
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="icon-btn danger-text bazar-action"
+                                    aria-label="Delete settlement"
+                                    title="Delete settlement"
+                                    onClick={() => deleteSettlement(settlement)}
+                                    disabled={settlementBusy}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              )}
+                            </footer>
+                          </article>
+                        );
+                      })}
+                  </div>
+                )}
+              </section>
+            </div>
+            </div>
+
+            {showSettlementModal && admin && (
+              <div
+                className="modal-backdrop settlement-modal-backdrop"
+                role="presentation"
+                onClick={(event) => {
+                  if (event.target === event.currentTarget && !settlementBusy)
+                    setShowSettlementModal(false);
+                }}
+              >
+                <section
+                  className="modal panel settlement-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="settlement-modal-title"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <header className="settlement-modal-heading">
+                    <div>
+                      <span className="eyebrow">PARTIAL OR FULL</span>
+                      <h2 id="settlement-modal-title">Add settlement</h2>
+                      <p>Enter any amount up to the currently available balance.</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="icon-btn bazar-action"
+                      aria-label="Close settlement form"
+                      onClick={() => setShowSettlementModal(false)}
+                      disabled={settlementBusy}
+                    >
+                      <X size={18} />
+                    </button>
+                  </header>
+                  <form className="settlement-form" onSubmit={saveSettlement}>
+                    <label>
+                      Settlement method
+                      <select
+                        value={settlementForm.sourceType}
+                        onChange={(event) =>
+                          setSettlementForm({
+                            ...settlementForm,
+                            sourceType: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="cash_contribution">Refund from cash contribution</option>
+                        <option value="direct">Direct member transfer</option>
+                      </select>
+                    </label>
+                    <div className="settlement-form-grid">
+                      <label>
+                        {settlementForm.sourceType === "cash_contribution"
+                          ? "Contribution from"
+                          : "Paid by"}
+                        <select
+                          value={settlementForm.fromUserId}
+                          onChange={(event) =>
+                            setSettlementForm({
+                              ...settlementForm,
+                              fromUserId: event.target.value,
+                            })
+                          }
+                        >
+                          {allActiveUsers.map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.name}
+                              {settlementForm.sourceType === "cash_contribution"
+                                ? ` · ${money(availableContributionForSettlement(member.id))} available`
+                                : ` · balance ${money(memberMealBalance(member, true))}`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        {settlementForm.sourceType === "cash_contribution"
+                          ? "Refund to"
+                          : "Paid to"}
+                        <select
+                          value={settlementForm.toUserId}
+                          onChange={(event) =>
+                            setSettlementForm({
+                              ...settlementForm,
+                              toUserId: event.target.value,
+                            })
+                          }
+                        >
+                          {allActiveUsers.map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.name} · balance {money(memberMealBalance(member, true))}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <div className="settlement-form-grid three">
+                      <label>
+                        Amount (৳)
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={settlementForm.amount}
+                          onChange={(event) =>
+                            setSettlementForm({ ...settlementForm, amount: event.target.value })
+                          }
+                          required
+                        />
+                      </label>
+                      <label>
+                        Date
+                        <input
+                          type="date"
+                          value={settlementForm.date}
+                          onChange={(event) =>
+                            setSettlementForm({ ...settlementForm, date: event.target.value })
+                          }
+                          required
+                        />
+                      </label>
+                      <label>
+                        Status
+                        <select
+                          value={settlementForm.status}
+                          onChange={(event) =>
+                            setSettlementForm({ ...settlementForm, status: event.target.value })
+                          }
+                        >
+                          <option value="completed">Completed now</option>
+                          <option value="pending">Save as pending</option>
+                        </select>
+                      </label>
+                    </div>
+                    <label>
+                      Note
+                      <input
+                        value={settlementForm.note}
+                        onChange={(event) =>
+                          setSettlementForm({ ...settlementForm, note: event.target.value })
+                        }
+                        placeholder="Meal balance settlement"
+                      />
+                    </label>
+                    <div className="settlement-form-note">
+                      {settlementForm.sourceType === "cash_contribution"
+                        ? "The contributor is already credited by the cash contribution. Completing this entry reduces cash in hand and clears the receiver's overpayment."
+                        : "Completing this entry credits the payer and clears the same amount from the receiver's overpayment."}
+                    </div>
+                    <div className="settlement-modal-actions">
+                      <button
+                        type="button"
+                        className="secondary bazar-action"
+                        onClick={() => setShowSettlementModal(false)}
+                        disabled={settlementBusy}
+                      >
+                        Cancel
+                      </button>
+                      <button type="submit" className="primary" disabled={settlementBusy}>
+                        {settlementBusy
+                          ? "Saving…"
+                          : settlementForm.status === "completed"
+                            ? "Complete settlement"
+                            : "Save pending plan"}
+                      </button>
+                    </div>
+                  </form>
+                </section>
+              </div>
+            )}
           </>
         )}
         {page === "pay-rent" && user.role === "member" && (
@@ -3887,9 +5069,38 @@ function App() {
         )}
         {page === "expenses" && admin && (
           <div className="utilities-layout-step1">
+            <section className="panel flat-rent-panel">
+              <div className="flat-rent-heading">
+                <span className="flat-rent-icon"><Home size={21} /></span>
+                <div>
+                  <h3>Flat rent</h3>
+                  <p>Monthly flat rent is tracked separately and is not divided among current members.</p>
+                </div>
+              </div>
+              <form className="flat-rent-form" onSubmit={saveFlatRent}>
+                <label htmlFor="flat-rent-amount">Monthly amount</label>
+                <div className="flat-rent-input-wrap">
+                  <span aria-hidden="true">৳</span>
+                  <input
+                    id="flat-rent-amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={flatRentInput}
+                    onChange={(event) => setFlatRentInput(event.target.value)}
+                    placeholder="Enter flat rent"
+                    required
+                  />
+                </div>
+                <button type="submit" className="primary" disabled={flatRentSaving}>
+                  {flatRentSaving ? "Saving…" : "Save flat rent"}
+                </button>
+                {flatRentMessage && <small role="status">{flatRentMessage}</small>}
+              </form>
+            </section>
             <section className="panel utilities-history-panel">
               <div className="utilities-history-head">
-                <PanelHead title="Utilities list" sub={`${month} · ${utilityMemberCount} current users`} />
+                <PanelHead title="Member utilities" sub={`${month} · shared items are divided among ${utilityMemberCount} current users`} />
                 <div className="utilities-header-actions">
                   <form onSubmit={saveUtilityMemberCount} className="utilities-member-inline">
                     <label htmlFor="utilities-current-members">Current members</label>
@@ -3911,8 +5122,8 @@ function App() {
                 </div>
               </div>
 
-              {utilityCategories.map((c, i) => (
-                <div className="break-row">
+              {regularUtilityCategories.map((c) => (
+                <div className="break-row" key={c.id || c.name}>
                   <span>
                     {c.name}
                     <small>{c.shared ? "Shared equally" : "Not shared"}</small>
@@ -3943,8 +5154,8 @@ function App() {
                 </div>
               ))}
               <div className="total-row">
-                <b>Total utilities</b>
-                <b>{money(utilitiesTotal)}</b>
+                <b>Shared utilities total</b>
+                <b>{money(sharedUtilitiesTotal)}</b>
               </div>
             </section>
           </div>
@@ -5594,9 +6805,9 @@ function App() {
     </div>
   );
 }
-function Stat({ title, value, icon: Icon, tone, hint }) {
+function Stat({ title, value, icon: Icon, tone, hint, className = "" }) {
   return (
-    <div className="stat">
+    <div className={`stat${className ? ` ${className}` : ""}`}>
       <div className={"stat-icon " + tone}>
         <Icon size={19} />
       </div>

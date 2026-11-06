@@ -9,7 +9,7 @@
   border-radius: 999px;
   background: #0b8154;
   color: #fff;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1;
 }
@@ -34,7 +34,7 @@
 .inbox-member-list h3 {
   margin: 0 8px 10px;
   color: #53645a;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -63,7 +63,7 @@
   border-radius: 50%;
   background: #e2f2e7;
   color: #087343;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 .inbox-member-copy { display: block; min-width: 0; flex: 1; }
@@ -74,8 +74,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.inbox-member-copy b { color: #22372b; font-size: 12px; }
-.inbox-member-copy small { margin-top: 3px; color: #7a8a7f; font-size: 10px; }
+.inbox-member-copy b { color: #22372b; font-size: 13px; }
+.inbox-member-copy small { margin-top: 3px; color: #7a8a7f; font-size: 13px; }
 .inbox-conversation {
   display: flex;
   min-width: 0;
@@ -93,8 +93,8 @@
   border-bottom: 1px solid #e7eee8;
 }
 .inbox-conversation-header div { display: grid; gap: 3px; }
-.inbox-conversation-header b { color: #22372b; font-size: 13px; }
-.inbox-conversation-header small { color: #7b8b80; font-size: 10px; }
+.inbox-conversation-header b { color: #22372b; font-size: 14px; }
+.inbox-conversation-header small { color: #7b8b80; font-size: 13px; }
 .inbox-message-list {
   display: flex;
   min-height: 0;
@@ -117,11 +117,11 @@
   border-radius: 13px 13px 4px 13px;
   background: #eaf5ed;
 }
-.inbox-message p { margin: 0; color: #26392d; font-size: 12px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
-.inbox-message time { display: block; margin-top: 5px; color: #849188; font-size: 9px; text-align: right; }
+.inbox-message p { margin: 0; color: #26392d; font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.inbox-message time { display: block; margin-top: 5px; color: #849188; font-size: 13px; text-align: right; }
 .inbox-empty-thread,
 .inbox-select-prompt,
-.inbox-no-members { color: #7b8b80; font-size: 11px; }
+.inbox-no-members { color: #7b8b80; font-size: 13px; }
 .inbox-empty-thread { margin: auto; text-align: center; }
 .inbox-select-prompt {
   display: flex;
@@ -134,7 +134,7 @@
   text-align: center;
 }
 .inbox-select-prompt svg { color: #0b8154; }
-.inbox-select-prompt b { color: #26392d; font-size: 14px; }
+.inbox-select-prompt b { color: #26392d; font-size: 15px; }
 .inbox-select-prompt span { max-width: 260px; line-height: 1.6; }
 .inbox-compose {
   display: flex;
@@ -170,7 +170,7 @@
   background: #fff;
   color: #26392d;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
 }
 .inbox-compose .primary { flex: 0 0 auto; min-height: 42px; }
 .inbox-error { margin-bottom: 14px; }
@@ -185,7 +185,7 @@
   border-radius: 8px;
   background: #f6faf6;
   color: #486451;
-  font-size: 10px;
+  font-size: 13px;
 }
 .inbox-pending-attachment span { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inbox-pending-attachment button { display: grid; padding: 1px; border: 0; background: transparent; color: inherit; }
@@ -200,18 +200,18 @@
   border-radius: 9px;
   background: rgba(255,255,255,.62);
   color: #23603b;
-  font-size: 11px;
+  font-size: 13px;
 }
 .inbox-file-chip span { overflow-wrap: anywhere; }
 .inbox-file-unavailable { max-width: min(100%, 360px); color: #78877d; }
-.inbox-file-unavailable small { display: block; margin-top: 3px; color: #9a6f52; font-size: 9px; }
+.inbox-file-unavailable small { display: block; margin-top: 3px; color: #9a6f52; font-size: 13px; }
 .inbox-attachment:hover .inbox-file-chip { background: #fff; }
 .inbox-inactive-notice {
   margin: 0;
   padding: 12px 16px;
   border-top: 1px solid #e7eee8;
   color: #78877d;
-  font-size: 11px;
+  font-size: 13px;
 }
 :root[data-theme="dark"] .inbox-layout { border-color: #294239; background: #10251c; }
 :root[data-theme="dark"] .inbox-member-list { border-color: #294239; background: #0e211a; }
@@ -270,7 +270,7 @@
   border-radius: 14px;
   box-shadow: 0 2px 8px rgba(27, 74, 43, .16);
 }
-.sidebar-profile-avatar > .avatar { font-size: 15px; }
+.sidebar-profile-avatar > .avatar { font-size: 16px; }
 .sidebar-profile-avatar > i {
   position: absolute;
   right: -1px;
@@ -282,13 +282,13 @@
   background: #37a96b;
 }
 .app.premium-theme .sidebar-account-card .profile-trigger-info { gap: 4px; }
-.app.premium-theme .sidebar-account-card .profile-trigger-info b { color: #20372a; font-size: 12px; font-weight: 800; letter-spacing: -.01em; }
+.app.premium-theme .sidebar-account-card .profile-trigger-info b { color: #20372a; font-size: 13px; font-weight: 800; letter-spacing: -.01em; }
 .app.premium-theme .sidebar-account-card .profile-trigger-info small {
   display: flex;
   align-items: center;
   gap: 5px;
   color: #75867a;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 650;
   letter-spacing: .035em;
   text-transform: uppercase;
@@ -391,7 +391,7 @@
   align-self: start;
   margin-top: 3px;
   color: #65756a;
-  font-size: 12px;
+  font-size: 13px;
 }
 .app.premium-theme .inbox-panel {
   margin: 0 0 20px;
@@ -430,7 +430,7 @@
 .inbox-panel-heading p {
   margin: 4px 0 0;
   color: #647269;
-  font-size: 12px;
+  font-size: 13px;
 }
 .app.premium-theme .inbox-layout {
   grid-template-columns: minmax(245px, 280px) minmax(0, 1fr);
@@ -447,7 +447,7 @@
 .app.premium-theme .inbox-member-list h3 {
   margin: 0 10px 14px;
   color: #28372e;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 850;
   letter-spacing: .09em;
 }
@@ -469,20 +469,20 @@
   flex-basis: 40px;
   background: linear-gradient(145deg, #e9f8e3, #ddf2d8);
   color: #087c3e;
-  font-size: 15px;
+  font-size: 16px;
 }
 .app.premium-theme .inbox-member.selected .inbox-avatar {
   border: 2px solid rgba(255,255,255,.96);
   background: linear-gradient(145deg, #d6f1d0, #e9f8e3);
 }
-.app.premium-theme .inbox-member-copy b { color: #18241d; font-size: 13px; font-weight: 800; }
-.app.premium-theme .inbox-member-copy small { color: #69766d; font-size: 11px; }
+.app.premium-theme .inbox-member-copy b { color: #18241d; font-size: 14px; font-weight: 800; }
+.app.premium-theme .inbox-member-copy small { color: #69766d; font-size: 13px; }
 .app.premium-theme .inbox-unread-count {
   min-width: 25px;
   height: 25px;
   background: linear-gradient(145deg, #12944d, #08753d);
   box-shadow: 0 3px 8px rgba(8, 117, 61, .18);
-  font-size: 11px;
+  font-size: 13px;
 }
 .app.premium-theme .inbox-conversation {
   min-height: 0;
@@ -495,8 +495,8 @@
   background: rgba(255,255,255,.78);
 }
 .inbox-conversation-person { display: grid; gap: 3px; }
-.app.premium-theme .inbox-conversation-header b { color: #17241d; font-size: 15px; font-weight: 800; }
-.app.premium-theme .inbox-conversation-header small { color: #66746b; font-size: 11px; }
+.app.premium-theme .inbox-conversation-header b { color: #17241d; font-size: 16px; font-weight: 800; }
+.app.premium-theme .inbox-conversation-header small { color: #66746b; font-size: 13px; }
 .inbox-conversation-actions { position: relative; margin-left: auto; }
 .inbox-conversation-menu {
   display: grid;
@@ -535,7 +535,7 @@
   border-radius: 8px;
   background: transparent;
   color: #26382c;
-  font-size: 11px;
+  font-size: 13px;
   text-align: left;
 }
 .inbox-conversation-menu-popover button:hover { background: #f1f7f2; }
@@ -572,8 +572,8 @@
   padding: 15px 19px;
   border-bottom: 1px solid #e8eee9;
 }
-.inbox-media-heading h3 { margin: 0; color: #1e3024; font-size: 17px; font-weight: 800; }
-.inbox-media-heading p { margin: 4px 0 0; color: #78877c; font-size: 11px; }
+.inbox-media-heading h3 { margin: 0; color: #1e3024; font-size: 18px; font-weight: 800; }
+.inbox-media-heading p { margin: 4px 0 0; color: #78877c; font-size: 13px; }
 .inbox-media-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
@@ -609,12 +609,12 @@
 .inbox-media-file-name {
   overflow: hidden;
   padding: 1px 3px 0;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.inbox-media-item small { padding: 0 3px 2px; color: #829087; font-size: 9px; }
+.inbox-media-item small { padding: 0 3px 2px; color: #829087; font-size: 13px; }
 .inbox-media-empty {
   display: grid;
   min-height: 210px;
@@ -623,7 +623,7 @@
   gap: 8px;
   color: #859188;
 }
-.inbox-media-empty p { margin: 0; font-size: 12px; }
+.inbox-media-empty p { margin: 0; font-size: 13px; }
 .app.premium-theme .inbox-message-list {
   gap: 13px;
   padding: 24px 20px;
@@ -642,7 +642,7 @@
   border-radius: 15px 15px 5px 15px;
   background: linear-gradient(145deg, #eaf9e7, #e2f6df);
 }
-.app.premium-theme .inbox-message p { color: #1c2821; font-size: 13px; }
+.app.premium-theme .inbox-message p { color: #1c2821; font-size: 14px; }
 .inbox-message-meta {
   display: flex;
   align-items: center;
@@ -650,7 +650,7 @@
   gap: 6px;
   margin-top: 5px;
 }
-.app.premium-theme .inbox-message time { margin-top: 0; color: #7d8981; font-size: 10px; }
+.app.premium-theme .inbox-message time { margin-top: 0; color: #7d8981; font-size: 13px; }
 .inbox-message-meta svg { color: #0c9a50; }
 .app.premium-theme .inbox-compose {
   align-items: center;
@@ -676,7 +676,7 @@
   border-radius: 13px;
   background: #fafbfa;
   color: #202c24;
-  font-size: 13px;
+  font-size: 14px;
 }
 .app.premium-theme .inbox-compose textarea::placeholder { color: #7e8991; }
 .app.premium-theme .inbox-compose .primary {
@@ -685,7 +685,7 @@
   border-radius: 13px;
   background: linear-gradient(140deg, #11964e, #08723e);
   box-shadow: 0 5px 13px rgba(8, 114, 62, .18);
-  font-size: 12px;
+  font-size: 13px;
 }
 .app.premium-theme .inbox-compose .primary:hover { background: linear-gradient(140deg, #0b8545, #075f35); }
 .app.premium-theme .inbox-compose .primary:disabled { opacity: .58; box-shadow: none; }
@@ -702,7 +702,7 @@
   background: #dce5de;
   content: "";
 }
-.app.premium-theme .inbox-page > footer .footer-credit { color: #65736a; font-size: 11px; }
+.app.premium-theme .inbox-page > footer .footer-credit { color: #65736a; font-size: 13px; }
 .app.premium-theme .inbox-page > footer strong { color: #087c43; }
 :root[data-theme="dark"] .app.premium-theme .main.inbox-page {
   background-color: #101c16;
@@ -784,15 +784,15 @@
   .inbox-page-mark { width: 42px; height: 42px; border-radius: 13px; }
   .inbox-page-mark svg { width: 20px; height: 20px; }
   .app.premium-theme .inbox-page .app-page-heading h2 { font-size: 20px; }
-  .app.premium-theme .inbox-page .app-page-heading p { font-size: 10px; }
+  .app.premium-theme .inbox-page .app-page-heading p { font-size: 13px; }
   .app.premium-theme .inbox-panel { padding: 12px; border-radius: 17px; }
   .inbox-panel-heading { min-height: 60px; gap: 11px; padding: 0 2px 12px; }
   .inbox-panel-mark { width: 46px; height: 46px; flex-basis: 46px; border-radius: 14px; }
   .inbox-panel-heading h3 { font-size: 18px; }
-  .inbox-panel-heading p { font-size: 10px; }
+  .inbox-panel-heading p { font-size: 13px; }
   .app.premium-theme .inbox-layout { grid-template-columns: minmax(0, 1fr); min-height: 0; }
   .app.premium-theme .inbox-member-list { max-height: 184px; padding: 10px 8px; border-right: 0; border-bottom: 1px solid #e5ece7; }
-  .app.premium-theme .inbox-member-list h3 { margin: 0 8px 6px; font-size: 10px; }
+  .app.premium-theme .inbox-member-list h3 { margin: 0 8px 6px; font-size: 13px; }
   .app.premium-theme .inbox-member { min-height: 54px; }
   .app.premium-theme .inbox-conversation { min-height: 390px; }
   .app.premium-theme .inbox-conversation-header { min-height: 62px; padding: 10px 13px; }
@@ -839,14 +839,14 @@
   gap: 2px;
   white-space: normal;
 }
-.app.premium-theme .inbox-member-status > span:first-child { color: #78877c; font-size: 9px; }
+.app.premium-theme .inbox-member-status > span:first-child { color: #78877c; font-size: 13px; }
 .app.premium-theme .inbox-member.is-online .inbox-member-status > span:first-child { color: #138047; font-weight: 750; }
 .app.premium-theme .inbox-member-preview {
   display: block;
   width: 100%;
   overflow: hidden;
   color: #69766d;
-  font-size: 10px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -924,7 +924,7 @@
 :root:not([data-theme="dark"]) .contacts-directory-heading p {
   margin: 4px 0 0;
   color: #647269;
-  font-size: 13px;
+  font-size: 14px;
 }
 :root:not([data-theme="dark"]) .contacts-directory .contact-category-card {
   min-width: 0;
@@ -952,14 +952,14 @@
 :root:not([data-theme="dark"]) .contacts-directory .contact-category-heading h3 {
   margin: 0;
   color: #17241d;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 800;
 }
 :root:not([data-theme="dark"]) .contacts-directory .contact-category-heading small {
   margin-left: auto;
   padding: 8px 13px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 750;
 }
 :root:not([data-theme="dark"]) .contacts-directory .contact-category-icon {
@@ -992,18 +992,18 @@
   height: 34px;
   flex: 0 0 34px;
   border-radius: 12px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 :root:not([data-theme="dark"]) .contacts-directory .contact-person-info { gap: 2px; }
 :root:not([data-theme="dark"]) .contacts-directory .contact-person-info b {
   color: #1c2921 !important;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 :root:not([data-theme="dark"]) .contacts-directory .contact-person-info a {
   color: #657168 !important;
-  font-size: 12px;
+  font-size: 13px;
 }
 :root:not([data-theme="dark"]) .contacts-directory .contact-call-btn {
   display: grid;
@@ -1050,7 +1050,7 @@
   background: #dce5de;
   content: "";
 }
-:root:not([data-theme="dark"]) .app.premium-theme .contacts-page > footer .footer-credit { color: #65736a; font-size: 11px; }
+:root:not([data-theme="dark"]) .app.premium-theme .contacts-page > footer .footer-credit { color: #65736a; font-size: 13px; }
 :root:not([data-theme="dark"]) .app.premium-theme .contacts-page > footer strong { color: #087c43; }
 @media(max-width:760px) {
   :root:not([data-theme="dark"]) .app.premium-theme .contacts-directory { grid-template-columns: 1fr; gap: 12px; padding: 13px; }
@@ -1096,7 +1096,7 @@
 }
 :root:not([data-theme="dark"]) .app.premium-theme .main.contacts-page .contacts-directory-heading p {
   color: #647269 !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 :root:not([data-theme="dark"]) .app.premium-theme .main.contacts-page .contact-category-card {
   display: block !important;
@@ -1119,7 +1119,7 @@
 }
 :root:not([data-theme="dark"]) .app.premium-theme .main.contacts-page .contact-category-heading h3 {
   margin: 0;
-  font-size: 17px !important;
+  font-size: 18px !important;
   font-weight: 800 !important;
   letter-spacing: -.025em;
 }
@@ -1127,7 +1127,7 @@
   margin-left: auto;
   padding: 8px 13px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 750;
 }
 :root:not([data-theme="dark"]) .app.premium-theme .main.contacts-page .contact-category-icon {
@@ -1164,7 +1164,7 @@
   flex: 0 0 36px !important;
   place-items: center;
   border-radius: 50% !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 800 !important;
 }
 :root:not([data-theme="dark"]) .app.premium-theme .main.contacts-page .contact-person-info {
@@ -1178,7 +1178,7 @@
   overflow: hidden;
   color: #17231c !important;
   font-family: "Hind Siliguri", sans-serif !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 800 !important;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1187,7 +1187,7 @@
   overflow: hidden;
   color: #5f6c63 !important;
   font-family: "Hind Siliguri", sans-serif !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1273,7 +1273,7 @@
 }
 :root[data-theme="dark"] .app.premium-theme .main.contacts-page .contacts-directory-heading p {
   color: #b1c8bd !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 :root[data-theme="dark"] .app.premium-theme .main.contacts-page .contacts-directory-mark {
   border-radius: 16px !important;
@@ -1303,7 +1303,7 @@
 }
 :root[data-theme="dark"] .app.premium-theme .main.contacts-page .contact-category-heading h3 {
   margin: 0;
-  font-size: 17px !important;
+  font-size: 18px !important;
   font-weight: 800 !important;
   letter-spacing: -.025em;
 }
@@ -1313,7 +1313,7 @@
   border-radius: 999px;
   background: rgba(0,145,78,.32) !important;
   color: #73f5a9 !important;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 750;
 }
 :root[data-theme="dark"] .app.premium-theme .main.contacts-page .contact-category-icon {
@@ -1357,7 +1357,7 @@
   border-radius: 50% !important;
   background: linear-gradient(145deg, #087c49, #005635) !important;
   color: #c1ffda !important;
-  font-size: 14px !important;
+  font-size: 15px !important;
   font-weight: 800 !important;
   box-shadow: inset 0 1px rgba(255,255,255,.12), 0 3px 8px rgba(0,0,0,.18) !important;
 }
@@ -1372,7 +1372,7 @@
   overflow: hidden;
   color: #f0fff7 !important;
   font-family: "Hind Siliguri", sans-serif !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 800 !important;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1381,7 +1381,7 @@
   overflow: hidden;
   color: #bed0c7 !important;
   font-family: "Hind Siliguri", sans-serif !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1449,7 +1449,7 @@
   background: #315347;
   content: "";
 }
-:root[data-theme="dark"] .app.premium-theme .main.contacts-page > footer .footer-credit { color: #b9c9c1; font-size: 11px; }
+:root[data-theme="dark"] .app.premium-theme .main.contacts-page > footer .footer-credit { color: #b9c9c1; font-size: 13px; }
 :root[data-theme="dark"] .app.premium-theme .main.contacts-page > footer strong { color: #39ef91; }
 
 .app.premium-theme .header-actions .month-picker {
@@ -1469,7 +1469,7 @@
   background: rgba(255,255,255,.92) !important;
   color: #263a30 !important;
   font: inherit;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 650 !important;
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(0,0,0,.035);
@@ -1508,7 +1508,7 @@
   display: block;
   padding: 7px 10px 8px;
   color: #75847a;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: .12em;
 }
@@ -1524,7 +1524,7 @@
   background: transparent !important;
   color: #35473c !important;
   font: inherit;
-  font-size: 12px !important;
+  font-size: 13px !important;
   font-weight: 600 !important;
   text-align: left;
   cursor: pointer;
@@ -1590,7 +1590,7 @@
   :root[data-theme="dark"] .app.premium-theme .main.contacts-page .contacts-directory-heading { grid-column: 1; }
 }
 @media(max-width:560px) {
-  .app.premium-theme .header-actions .month-picker-trigger { min-width: 0; min-height: 36px; gap: 6px; padding: 0 8px !important; font-size: 10px !important; }
+  .app.premium-theme .header-actions .month-picker-trigger { min-width: 0; min-height: 36px; gap: 6px; padding: 0 8px !important; font-size: 13px !important; }
   .app.premium-theme .header-actions .month-picker-trigger > svg:first-child { width: 14px; height: 14px; }
   .app.premium-theme .header-actions .month-picker-menu { width: min(248px, calc(100vw - 32px)); }
 }
@@ -1644,7 +1644,7 @@
 :root[data-theme="dark"] .app.premium-theme .main.bazar-page .bazar-history-head .panel-head p {
   margin-top: 5px !important;
   color: #b7c9bf !important;
-  font-size: 15px !important;
+  font-size: 16px !important;
 }
 :root[data-theme="dark"] .app.premium-theme .main.bazar-page .bazar-history-head > .primary {
   min-height: 46px;
@@ -1653,7 +1653,7 @@
   border-radius: 12px !important;
   background: linear-gradient(145deg,#0cbd65,#008746) !important;
   color: #f4fff8 !important;
-  font-size: 14px !important;
+  font-size: 15px !important;
   font-weight: 750 !important;
   box-shadow: 0 6px 18px rgba(0,181,89,.2), inset 0 1px rgba(255,255,255,.18) !important;
 }
@@ -1667,7 +1667,7 @@
   gap: 18px !important;
   margin: 0 0 18px !important;
   color: #d3e2d9 !important;
-  font-size: 14px !important;
+  font-size: 15px !important;
   font-weight: 650 !important;
 }
 :root[data-theme="dark"] .app.premium-theme .main.bazar-page .history-filter select {
@@ -1678,7 +1678,7 @@
   border-radius: 12px !important;
   background-color: rgba(6,37,29,.92) !important;
   color: #effbf3 !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 :root[data-theme="dark"] .app.premium-theme .main.bazar-page .history-filter select option {
   background: #06271f;
@@ -1699,7 +1699,7 @@
   border-bottom: 1px solid #397354 !important;
   background: linear-gradient(100deg,#10432f,#0b3829) !important;
   color: #b9e8c9 !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   font-weight: 800 !important;
   letter-spacing: .09em !important;
   text-transform: uppercase;
@@ -1714,7 +1714,7 @@
   padding: 12px 16px !important;
   border-bottom: 1px solid rgba(84,127,101,.27) !important;
   color: #e4eee8 !important;
-  font-size: 15px !important;
+  font-size: 16px !important;
 }
 :root[data-theme="dark"] .app.premium-theme .main.bazar-page .bazar-history-panel tbody tr:last-child td {
   border-bottom: 0 !important;
@@ -1726,12 +1726,12 @@
 }
 :root[data-theme="dark"] .app.premium-theme .main.bazar-page .bazar-history-panel tbody td:nth-child(2) {
   color: #f2f8f4 !important;
-  font-size: 16px !important;
+  font-size: 17px !important;
   font-weight: 600 !important;
 }
 :root[data-theme="dark"] .app.premium-theme .main.bazar-page .bazar-history-panel tbody td.bazar-history-amount {
   color: #33e989 !important;
-  font-size: 17px !important;
+  font-size: 18px !important;
   font-weight: 800 !important;
   font-variant-numeric: tabular-nums;
 }
@@ -1773,11 +1773,11 @@
   border-radius: 16px !important;
   background: linear-gradient(100deg,#0a3526,#0b3023) !important;
   color: #f0fff5 !important;
-  font-size: 16px;
+  font-size: 17px;
 }
 :root[data-theme="dark"] .app.premium-theme .main.bazar-page .bazar-history-panel .total-row b:first-child {
   color: #effaf2 !important;
-  font-size: 16px !important;
+  font-size: 17px !important;
 }
 :root[data-theme="dark"] .app.premium-theme .main.bazar-page .bazar-history-panel .total-row b:last-child {
   min-width: 205px;
@@ -1853,7 +1853,7 @@
 .app.premium-theme .add-bazar-modal-heading p {
   margin: 6px 0 0;
   color: #718078 !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   line-height: 1.55;
 }
 .app.premium-theme .add-bazar-modal .add-bazar-close {
@@ -1885,7 +1885,7 @@
 .app.premium-theme .add-bazar-modal form > label {
   gap: 7px !important;
   color: #405449 !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   font-weight: 700 !important;
 }
 .app.premium-theme .add-bazar-modal form > label input,
@@ -1905,7 +1905,7 @@
 }
 .app.premium-theme .add-bazar-modal .bazar-item-heading {
   color: #617267;
-  font-size: 11px;
+  font-size: 13px;
 }
 .app.premium-theme .add-bazar-modal .bazar-item-row input {
   min-width: 0;
@@ -1926,16 +1926,16 @@
   padding: 10px 2px 2px;
   border-top: 1px solid #e2ebe4;
   color: #52665a;
-  font-size: 12px;
+  font-size: 13px;
 }
 .app.premium-theme .add-bazar-modal .bazar-item-total strong {
   color: #087c43;
-  font-size: 16px;
+  font-size: 17px;
 }
 .app.premium-theme .add-bazar-modal .hint {
   margin: 0;
   color: #718078;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.55;
 }
 .app.premium-theme .add-bazar-modal form > .primary.full {
@@ -2022,7 +2022,7 @@
     margin-bottom: 12px !important;
   }
   .app.premium-theme .add-bazar-modal-heading h3 { font-size: 19px !important; }
-  .app.premium-theme .add-bazar-modal-heading p { max-width: 250px; font-size: 11px !important; }
+  .app.premium-theme .add-bazar-modal-heading p { max-width: 250px; font-size: 13px !important; }
   .app.premium-theme .add-bazar-modal .add-bazar-close {
     width: 36px !important;
     height: 36px !important;
@@ -2031,7 +2031,7 @@
   .app.premium-theme .add-bazar-modal form { gap: 11px !important; }
   .app.premium-theme .add-bazar-modal .bazar-item-list { padding: 10px; }
   .app.premium-theme .add-bazar-modal .bazar-item-row { grid-template-columns: minmax(0,1.35fr) minmax(82px,.85fr); gap: 8px !important; }
-  .app.premium-theme .add-bazar-modal .bazar-item-row input { padding: 9px !important; font-size: 13px !important; }
+  .app.premium-theme .add-bazar-modal .bazar-item-row input { padding: 9px !important; font-size: 14px !important; }
 }
 @media(max-width:700px) {
   .app.premium-theme .sidebar.open {
@@ -2078,7 +2078,7 @@
     grid-row: 1;
     min-width: 0;
     align-self: center;
-    font-size: 11px;
+    font-size: 13px;
     line-height: 1.3;
   }
   .app.premium-theme .main.overview-page .stats > .stat > strong,
@@ -2099,7 +2099,7 @@
     grid-row: 3;
     min-width: 0;
     align-self: start;
-    font-size: 10px;
+    font-size: 13px;
     line-height: 1.4;
   }
   .app.premium-theme .main.overview-page .stats > .stat:last-child:nth-child(odd) {
@@ -2123,7 +2123,7 @@
     grid-column: 2;
     grid-row: 1;
     align-self: end;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 750;
   }
   .app.premium-theme .main.overview-page .stats > .stat:last-child:nth-child(odd) > strong {
@@ -2140,7 +2140,7 @@
     grid-column: 2;
     grid-row: 2;
     align-self: start;
-    font-size: 10px;
+    font-size: 13px;
     line-height: 1.35;
   }
   .app.premium-theme .main.overview-page .welcome-actions {
@@ -2157,7 +2157,7 @@
     gap: 4px;
     padding-right: 5px !important;
     padding-left: 5px !important;
-    font-size: clamp(8px, 2.7vw, 10px) !important;
+    font-size: clamp(13px, 2.7vw, 13px) !important;
     white-space: nowrap;
   }
   .app.premium-theme .main.overview-page .welcome-actions > button svg {
@@ -2201,7 +2201,7 @@
     padding: 6px 8px;
   }
   .app.premium-theme .main.my-account-page .account-breakdown-panel .expense-share b {
-    font-size: 11px;
+    font-size: 13px;
     white-space: nowrap;
   }
 }
@@ -2221,7 +2221,7 @@
   }
   .app.premium-theme .main.overview-page .stats > .stat > strong,
   .app.premium-theme .main.my-account-page .account-stats > .stat > strong {
-    font-size: clamp(17px, 5vw, 21px) !important;
+    font-size: clamp(18px, 5vw, 21px) !important;
   }
   .app.premium-theme .main.my-account-page .account-breakdown-panel .break-row.expense-detail-row {
     grid-template-columns: 30px minmax(0, 1fr) auto;
@@ -2236,7 +2236,7 @@
     padding: 5px 6px;
   }
   .app.premium-theme .main.my-account-page .account-breakdown-panel .expense-share small {
-    font-size: 8px;
+    font-size: 13px;
   }
 }
 @media(max-width:700px) {
@@ -2253,7 +2253,7 @@
     flex: 1 1 auto;
   }
   .app.premium-theme .main.my-account-page .account-welcome .eyebrow {
-    font-size: 9px;
+    font-size: 13px;
     letter-spacing: .12em;
   }
   .app.premium-theme .main.my-account-page .account-welcome h1 {
@@ -2263,7 +2263,7 @@
   }
   .app.premium-theme .main.my-account-page .account-welcome p {
     max-width: 290px;
-    font-size: 10px;
+    font-size: 13px;
     line-height: 1.4;
   }
   .app.premium-theme .main.my-account-page .account-welcome > .account-pdf-btn {
@@ -2280,7 +2280,7 @@
     border-radius: 12px !important;
     background: linear-gradient(145deg,#f3fbf4,#e8f5eb) !important;
     color: #11683c !important;
-    font-size: 10px !important;
+    font-size: 13px !important;
     font-weight: 750 !important;
     white-space: nowrap;
     box-shadow: 0 4px 12px rgba(13,101,53,.1), inset 0 1px rgba(255,255,255,.8) !important;
@@ -2305,7 +2305,7 @@
     min-height: 36px;
     gap: 5px;
     padding: 0 8px !important;
-    font-size: 9px !important;
+    font-size: 13px !important;
   }
   .app.premium-theme .main.my-account-page .account-welcome > .account-pdf-btn svg {
     width: 14px;
@@ -2331,7 +2331,7 @@
   }
   .app.premium-theme .inbox-member-list h3 {
     margin: 0 8px 10px;
-    font-size: 11px;
+    font-size: 13px;
     letter-spacing: .08em;
   }
   .app.premium-theme .inbox-member {
@@ -2348,9 +2348,9 @@
     border-color: #d7eadb;
     background: #edf7ee;
   }
-  .app.premium-theme .inbox-member-copy b { font-size: 13px; }
-  .app.premium-theme .inbox-member-status > span:first-child { font-size: 10px; }
-  .app.premium-theme .inbox-member-preview { font-size: 11px; }
+  .app.premium-theme .inbox-member-copy b { font-size: 14px; }
+  .app.premium-theme .inbox-member-status > span:first-child { font-size: 13px; }
+  .app.premium-theme .inbox-member-preview { font-size: 13px; }
   .app.premium-theme .inbox-layout.mobile-conversation-open {
     height: min(660px, calc(100dvh - 230px));
     min-height: 430px;
@@ -2443,7 +2443,7 @@
   border-radius: 9px !important;
   background: transparent !important;
   color: #34483a !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   font-weight: 650;
   text-align: left;
   box-shadow: none !important;
@@ -2579,7 +2579,7 @@
   }
   .app.premium-theme .add-bazar-modal-heading p {
     margin-top: 5px;
-    font-size: 12px !important;
+    font-size: 13px !important;
   }
   .app.premium-theme .add-bazar-modal .add-bazar-close {
     grid-area: close;
@@ -2595,7 +2595,7 @@
   }
   .app.premium-theme .add-bazar-modal form > label {
     gap: 7px !important;
-    font-size: 13px !important;
+    font-size: 14px !important;
   }
   .app.premium-theme .add-bazar-date-input {
     min-height: 51px;
@@ -2613,7 +2613,7 @@
   .app.premium-theme .add-bazar-modal .bazar-item-heading {
     padding: 0 3px 2px;
     color: #425347;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 750;
   }
   .app.premium-theme .add-bazar-modal .bazar-item-row {
@@ -2625,7 +2625,7 @@
     padding: 0 13px !important;
     border-radius: 14px !important;
     background: #fff !important;
-    font-size: 14px !important;
+    font-size: 15px !important;
     box-shadow: 0 2px 4px rgba(24,45,29,.035);
   }
   .app.premium-theme .add-bazar-modal .bazar-item-list > .secondary {
@@ -2634,12 +2634,12 @@
     border-radius: 14px !important;
     background: #e8f5e9 !important;
     color: #087c43 !important;
-    font-size: 14px !important;
+    font-size: 15px !important;
     font-weight: 750 !important;
   }
   .app.premium-theme .add-bazar-modal .bazar-item-total {
     padding: 12px 3px 2px;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 750;
   }
   .app.premium-theme .add-bazar-modal .bazar-item-total strong { font-size: 18px; }
@@ -2647,7 +2647,7 @@
     min-height: 58px !important;
     margin: 3px 0 0;
     border-radius: 17px !important;
-    font-size: 16px !important;
+    font-size: 17px !important;
     box-shadow: 0 8px 19px rgba(7,113,62,.2) !important;
   }
   :root[data-theme="dark"] .app.premium-theme .add-bazar-modal::before { background: #56665d; }
@@ -2703,21 +2703,21 @@
     }
     :root:not([data-theme="dark"]) body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-history-head .panel-head p,
     :root[data-theme="dark"] body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-history-head .panel-head p {
-      font-size: 15px !important;
+      font-size: 16px !important;
     }
     :root:not([data-theme="dark"]) body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-history-head > .primary,
     :root[data-theme="dark"] body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-history-head > .primary {
       min-height: 46px !important;
-      font-size: 14px !important;
+      font-size: 15px !important;
     }
     :root:not([data-theme="dark"]) body .app.premium-theme .main.bazar-page .bazar-history-panel .history-filter,
     :root[data-theme="dark"] body .app.premium-theme .main.bazar-page .bazar-history-panel .history-filter {
       gap: 18px !important;
-      font-size: 14px !important;
+      font-size: 15px !important;
     }
     :root:not([data-theme="dark"]) body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-filter-label,
     :root[data-theme="dark"] body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-filter-label {
-      font-size: 14px !important;
+      font-size: 15px !important;
     }
     :root:not([data-theme="dark"]) body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-filter-select,
     :root[data-theme="dark"] body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-filter-select {
@@ -2745,7 +2745,7 @@
       box-sizing: border-box !important;
       height: 41px !important;
       padding: 0 16px !important;
-      font-size: 12px !important;
+      font-size: 13px !important;
     }
     :root:not([data-theme="dark"]) body .app.premium-theme .main.bazar-page .bazar-history-panel tbody tr:not(.bazar-history-empty-row),
     :root[data-theme="dark"] body .app.premium-theme .main.bazar-page .bazar-history-panel tbody tr:not(.bazar-history-empty-row) {
@@ -2756,7 +2756,7 @@
       box-sizing: border-box !important;
       min-height: 63px !important;
       padding: 12px 16px !important;
-      font-size: 15px !important;
+      font-size: 16px !important;
     }
     :root:not([data-theme="dark"]) body .app.premium-theme .main.bazar-page .bazar-history-panel thead th:nth-child(1),
     :root:not([data-theme="dark"]) body .app.premium-theme .main.bazar-page .bazar-history-panel tbody td:nth-child(1),
@@ -2780,11 +2780,11 @@
     :root[data-theme="dark"] body .app.premium-theme .main.bazar-page .bazar-history-panel tbody td:nth-child(5) { width: 15% !important; }
     :root:not([data-theme="dark"]) body .app.premium-theme .main.bazar-page .bazar-history-panel tbody td:nth-child(2),
     :root[data-theme="dark"] body .app.premium-theme .main.bazar-page .bazar-history-panel tbody td:nth-child(2) {
-      font-size: 16px !important;
+      font-size: 17px !important;
     }
     :root:not([data-theme="dark"]) body .app.premium-theme .main.bazar-page .bazar-history-panel tbody td.bazar-history-amount,
     :root[data-theme="dark"] body .app.premium-theme .main.bazar-page .bazar-history-panel tbody td.bazar-history-amount {
-      font-size: 17px !important;
+      font-size: 18px !important;
     }
     :root:not([data-theme="dark"]) body .app.premium-theme .main.bazar-page .bazar-history-panel tbody td.row-actions,
     :root[data-theme="dark"] body .app.premium-theme .main.bazar-page .bazar-history-panel tbody td.row-actions {
@@ -2852,12 +2852,12 @@
   .app.premium-theme .saved-contact-group-heading h4 {
     margin: 0;
     color: #263a2e;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 750;
   }
   .app.premium-theme .saved-contact-group-heading small {
     color: #708176;
-    font-size: 10px;
+    font-size: 13px;
   }
   .app.premium-theme .saved-contact-group-list {
     display: grid;
@@ -2881,7 +2881,7 @@
     border-radius: 10px;
   }
   .app.premium-theme .saved-contact-group .saved-contact-details > b {
-    font-size: 11px;
+    font-size: 13px;
   }
   .app.premium-theme .saved-contact-group .saved-contact-meta small {
     overflow-wrap: anywhere;
@@ -2960,7 +2960,7 @@
     }
     .app.premium-theme .bazar-edit-modal > .panel-head p {
       margin-top: 2px !important;
-      font-size: 12px !important;
+      font-size: 13px !important;
     }
     .app.premium-theme .bazar-edit-modal .bazar-edit-fields {
       gap: 9px !important;
@@ -2969,7 +2969,7 @@
     .app.premium-theme .bazar-edit-modal .bazar-edit-fields > label,
     .app.premium-theme .bazar-edit-modal .bazar-edit-item-row label {
       gap: 4px !important;
-      font-size: 11px !important;
+      font-size: 13px !important;
       line-height: 1.2 !important;
     }
     .app.premium-theme .bazar-edit-modal .bazar-edit-fields input,
@@ -2977,7 +2977,7 @@
       min-height: 39px !important;
       padding: 0 9px !important;
       border-radius: 9px !important;
-      font-size: 14px !important;
+      font-size: 15px !important;
     }
     .app.premium-theme .bazar-edit-modal .bazar-edit-item-row {
       grid-template-columns: minmax(0, 1fr) 82px 34px !important;
@@ -2994,14 +2994,14 @@
     .app.premium-theme .bazar-edit-modal .bazar-edit-fields > .secondary.full {
       min-height: 38px !important;
       border-radius: 9px !important;
-      font-size: 13px !important;
+      font-size: 14px !important;
     }
     .app.premium-theme .bazar-edit-modal .bazar-edit-total {
       padding: 9px 12px !important;
       border-radius: 11px !important;
     }
     .app.premium-theme .bazar-edit-modal .bazar-edit-total strong {
-      font-size: 17px !important;
+      font-size: 18px !important;
     }
     .app.premium-theme .bazar-edit-modal .bazar-edit-actions {
       gap: 8px !important;
@@ -3012,7 +3012,7 @@
       min-height: 40px !important;
       padding: 0 12px !important;
       border-radius: 9px !important;
-      font-size: 13px !important;
+      font-size: 14px !important;
     }
   }
 
@@ -3058,7 +3058,7 @@
     }
     .app.premium-theme .add-bazar-modal-heading p {
       margin-top: 2px !important;
-      font-size: 11px !important;
+      font-size: 13px !important;
       line-height: 1.3 !important;
     }
     .app.premium-theme .add-bazar-modal .add-bazar-close {
@@ -3076,7 +3076,7 @@
     }
     .app.premium-theme .add-bazar-modal form > label {
       gap: 4px !important;
-      font-size: 11px !important;
+      font-size: 13px !important;
       line-height: 1.2 !important;
     }
     .app.premium-theme .add-bazar-modal form > label input,
@@ -3084,7 +3084,7 @@
       min-height: 39px !important;
       padding: 0 9px !important;
       border-radius: 9px !important;
-      font-size: 14px !important;
+      font-size: 15px !important;
     }
     .app.premium-theme .add-bazar-modal .add-bazar-date-input {
       min-height: 39px !important;
@@ -3103,7 +3103,7 @@
     }
     .app.premium-theme .add-bazar-modal .bazar-item-heading {
       padding: 0 2px !important;
-      font-size: 10px !important;
+      font-size: 13px !important;
     }
     .app.premium-theme .add-bazar-modal .bazar-item-row {
       grid-template-columns: minmax(0, 1fr) 88px !important;
@@ -3113,35 +3113,35 @@
       min-height: 39px !important;
       padding: 0 9px !important;
       border-radius: 9px !important;
-      font-size: 14px !important;
+      font-size: 15px !important;
     }
     .app.premium-theme .add-bazar-modal .bazar-item-list > .secondary {
       min-height: 37px !important;
       border-radius: 9px !important;
-      font-size: 12px !important;
+      font-size: 13px !important;
     }
     .app.premium-theme .add-bazar-modal .bazar-item-total {
       padding: 8px 2px 0 !important;
-      font-size: 12px !important;
+      font-size: 13px !important;
     }
     .app.premium-theme .add-bazar-modal .bazar-item-total strong {
-      font-size: 16px !important;
+      font-size: 17px !important;
     }
     .app.premium-theme .add-bazar-modal .hint {
-      font-size: 10px !important;
+      font-size: 13px !important;
       line-height: 1.35 !important;
     }
     .app.premium-theme .add-bazar-modal form > .primary.full {
       min-height: 42px !important;
       margin-top: 0 !important;
       border-radius: 10px !important;
-      font-size: 14px !important;
+      font-size: 15px !important;
     }
   }
 
   @media (max-width: 700px) {
     body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-item-summary {
-      font-size: 14px !important;
+      font-size: 15px !important;
     }
   }
 
@@ -3206,7 +3206,7 @@
     border-radius: 9px !important;
     background: #edf7ef !important;
     color: #176f40 !important;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 700;
   }
   .app.premium-theme .notices-admin-list .notice-card-actions > button.secondary:hover {
@@ -3225,7 +3225,7 @@
     border-radius: 9px !important;
     background: #fff3f2 !important;
     color: #b83232 !important;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 700;
   }
   .app.premium-theme .notices-admin-list .notice-card-actions > .notice-delete-button svg {
@@ -3308,7 +3308,7 @@
       font-size: 19px;
     }
     :root:not([data-theme="dark"]) .app.premium-theme .main.contacts-page .contacts-directory-heading p {
-      font-size: 12px;
+      font-size: 13px;
       line-height: 1.4;
     }
     :root:not([data-theme="dark"]) .app.premium-theme .main.contacts-page .contact-people-grid {
@@ -3386,7 +3386,7 @@
   :root:not([data-theme="dark"]) body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-history-head .panel-head p,
   :root[data-theme="dark"] body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-history-head .panel-head p {
     font-family: "Hind Siliguri", sans-serif !important;
-    font-size: 15px !important;
+    font-size: 16px !important;
     font-weight: 400 !important;
     line-height: 1.45 !important;
   }
@@ -3433,11 +3433,11 @@
   padding: 0 2px 6px !important;
 }
 .app.premium-theme .saved-contact-group-heading h4 {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.25;
 }
 .app.premium-theme .saved-contact-group-heading small {
-  font-size: 9px;
+  font-size: 13px;
   line-height: 1.25;
 }
 .app.premium-theme .saved-contact-group-list {
@@ -3454,17 +3454,17 @@
   height: 30px;
   flex-basis: 30px;
   border-radius: 9px;
-  font-size: 12px;
+  font-size: 13px;
 }
 .app.premium-theme .saved-contact-group .saved-contact-details {
   gap: 2px;
 }
 .app.premium-theme .saved-contact-group .saved-contact-details > b {
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.25;
 }
 .app.premium-theme .saved-contact-group .saved-contact-meta small {
-  font-size: 9px;
+  font-size: 13px;
   line-height: 1.25;
 }
 .app.premium-theme .saved-contact-group .row-actions {
@@ -3502,26 +3502,26 @@
   width: 38px;
   height: 36px;
   flex-basis: 38px;
-  font-size: 12px;
+  font-size: 13px;
 }
 .app.premium-theme .payments-member-preview .payment-method-info {
   gap: 2px;
 }
 .app.premium-theme .payments-member-preview .payment-method-info > b {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.25;
 }
 .app.premium-theme .payments-member-preview .payment-method-info > strong {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.25;
 }
 .app.premium-theme .payments-member-preview .payment-method-info > small {
-  font-size: 9px;
+  font-size: 13px;
   line-height: 1.3;
 }
 .app.premium-theme .payments-member-preview > .hint {
   margin: 7px 0 0;
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.35;
 }
 .app.premium-theme .payments-member-preview .payments-preview-actions {
@@ -3533,7 +3533,7 @@
   min-height: 34px;
   padding: 7px 10px;
   border-radius: 9px;
-  font-size: 10px;
+  font-size: 13px;
 }
 @media (max-width: 560px) {
   .app.premium-theme .saved-contacts-panel {
@@ -3570,4 +3570,175 @@ body *,
 body *::before,
 body *::after {
   font-family: "Hind Siliguri", sans-serif !important;
+}
+
+/* Readable, neutral sidebar navigation across light and dark themes. */
+.app.premium-theme .sidebar .nav-label {
+  color: #6f7a73 !important;
+  font-size: 14px !important;
+}
+.app.premium-theme .sidebar .nav-item:not(.active),
+.app.premium-theme .sidebar .nav-item:not(.active):hover,
+.app.premium-theme .sidebar .nav-item.admin-parent:not(.active),
+.app.premium-theme .sidebar .nav-item.admin-subitem:not(.active) {
+  color: #3f4a43 !important;
+}
+.app.premium-theme .sidebar .nav-item svg,
+.app.premium-theme .sidebar .nav-item .nav-chevron {
+  color: currentColor !important;
+}
+.app.premium-theme .sidebar .nav-item.active,
+.app.premium-theme .sidebar .nav-item.active > span,
+.app.premium-theme .sidebar .nav-item.active svg {
+  color: #fff !important;
+}
+.app.premium-theme .sidebar .nav-item.admin-parent {
+  font-size: 16px !important;
+}
+.app.premium-theme .sidebar .nav-item.admin-subitem {
+  min-height: 44px;
+  font-size: 15px !important;
+  line-height: 1.4;
+}
+:root[data-theme="dark"] .app.premium-theme .sidebar .nav-label {
+  color: #aab5ae !important;
+}
+:root[data-theme="dark"] .app.premium-theme .sidebar .nav-item:not(.active),
+:root[data-theme="dark"] .app.premium-theme .sidebar .nav-item:not(.active):hover,
+:root[data-theme="dark"] .app.premium-theme .sidebar .nav-item.admin-parent:not(.active),
+:root[data-theme="dark"] .app.premium-theme .sidebar .nav-item.admin-subitem:not(.active) {
+  color: #d0d9d3 !important;
+}
+:root[data-theme="dark"] .app.premium-theme .sidebar .nav-item.active,
+:root[data-theme="dark"] .app.premium-theme .sidebar .nav-item.active > span,
+:root[data-theme="dark"] .app.premium-theme .sidebar .nav-item.active svg {
+  color: #fff !important;
+}
+
+/* Settlement layout: balances and suggested plan above a full-width history. */
+.settlement-page .settlement-dashboard-compact {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(360px, .75fr);
+  grid-template-areas:
+    "balances plan"
+    "history history";
+  align-items: stretch;
+  gap: 14px;
+}
+.settlement-page .settlement-dashboard-compact > .settlement-balance-row,
+.settlement-page .settlement-dashboard-compact > .settlement-workflow-grid-themed {
+  display: contents;
+}
+.settlement-page .settlement-dashboard-compact .settlement-members-panel {
+  grid-area: balances;
+}
+.settlement-page .settlement-dashboard-compact .settlement-plan-panel {
+  grid-area: plan;
+}
+.settlement-page .settlement-dashboard-compact .settlement-history-panel {
+  grid-area: history;
+  grid-column: 1 / -1 !important;
+  justify-self: stretch;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+@media (max-width: 1100px) {
+  .settlement-page .settlement-dashboard-compact {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "balances"
+      "plan"
+      "history";
+  }
+}
+
+/* Preserve all six Overview card palettes in dark mode. */
+:root[data-theme="dark"] .app.premium-theme .main.overview-page .overview-stats > .summary-stat:is(
+  .summary-indigo,
+  .summary-cyan,
+  .summary-green,
+  .summary-amber,
+  .summary-rose,
+  .summary-violet
+) {
+  border-color: var(--overview-card-border) !important;
+  background: var(--overview-card-background) !important;
+  box-shadow: 0 8px 22px var(--overview-card-shadow) !important;
+}
+:root[data-theme="dark"] .app.premium-theme .main.overview-page .overview-stats > .summary-stat:is(
+  .summary-indigo,
+  .summary-cyan,
+  .summary-green,
+  .summary-amber,
+  .summary-rose,
+  .summary-violet
+)::after {
+  background: var(--overview-card-glow) !important;
+}
+:root[data-theme="dark"] .app.premium-theme .main.overview-page .overview-stats > .summary-stat:is(
+  .summary-indigo,
+  .summary-cyan,
+  .summary-green,
+  .summary-amber,
+  .summary-rose,
+  .summary-violet
+) .stat-icon {
+  background: var(--overview-icon-background) !important;
+  color: var(--overview-accent) !important;
+}
+:root[data-theme="dark"] .app.premium-theme .main.overview-page .overview-stats > .summary-stat:is(
+  .summary-indigo,
+  .summary-cyan,
+  .summary-green,
+  .summary-amber,
+  .summary-rose,
+  .summary-violet
+) > strong {
+  color: var(--overview-value) !important;
+}
+
+/* Preserve all six My Account card palettes in dark mode. */
+:root[data-theme="dark"] .app.premium-theme .main.my-account-page .account-stats > .summary-stat:is(
+  .summary-indigo,
+  .summary-cyan,
+  .summary-green,
+  .summary-amber,
+  .summary-rose,
+  .summary-violet
+) {
+  border-color: var(--overview-card-border) !important;
+  background: var(--overview-card-background) !important;
+  box-shadow: 0 8px 22px var(--overview-card-shadow) !important;
+}
+:root[data-theme="dark"] .app.premium-theme .main.my-account-page .account-stats > .summary-stat:is(
+  .summary-indigo,
+  .summary-cyan,
+  .summary-green,
+  .summary-amber,
+  .summary-rose,
+  .summary-violet
+)::after {
+  background: var(--overview-card-glow) !important;
+}
+:root[data-theme="dark"] .app.premium-theme .main.my-account-page .account-stats > .summary-stat:is(
+  .summary-indigo,
+  .summary-cyan,
+  .summary-green,
+  .summary-amber,
+  .summary-rose,
+  .summary-violet
+) .stat-icon {
+  background: var(--overview-icon-background) !important;
+  color: var(--overview-accent) !important;
+}
+:root[data-theme="dark"] .app.premium-theme .main.my-account-page .account-stats > .summary-stat:is(
+  .summary-indigo,
+  .summary-cyan,
+  .summary-green,
+  .summary-amber,
+  .summary-rose,
+  .summary-violet
+) > strong {
+  color: var(--overview-value) !important;
 }

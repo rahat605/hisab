@@ -71,12 +71,33 @@ create table if not exists public.cash_contributions (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.member_settlements (
+  id uuid primary key default gen_random_uuid(),
+  month_id uuid not null references public.months(id) on delete cascade,
+  from_user_id uuid not null references public.profiles(id),
+  to_user_id uuid not null references public.profiles(id),
+  amount numeric(12,2) not null check (amount > 0),
+  source_type text not null default 'direct' check (source_type in ('direct','cash_contribution')),
+  status text not null default 'pending' check (status in ('pending','completed')),
+  settlement_date date not null default current_date,
+  note text not null default 'Meal balance settlement',
+  created_by uuid not null references public.profiles(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint member_settlements_different_members check (from_user_id <> to_user_id)
+);
+
+create index if not exists member_settlements_month_idx on public.member_settlements(month_id, settlement_date desc);
+create index if not exists member_settlements_from_user_idx on public.member_settlements(from_user_id);
+create index if not exists member_settlements_to_user_idx on public.member_settlements(to_user_id);
+
 alter table public.profiles enable row level security;
 alter table public.months enable row level security;
 alter table public.expense_categories enable row level security;
 alter table public.rent_payments enable row level security;
 alter table public.bazar_entries enable row level security;
 alter table public.cash_contributions enable row level security;
+alter table public.member_settlements enable row level security;
 
 -- Helper functions use SECURITY DEFINER to avoid recursive profile policies.
 create or replace function public.current_app_role()
@@ -133,5 +154,13 @@ drop policy if exists "active users read cash" on public.cash_contributions;
 create policy "active users read cash" on public.cash_contributions for select to authenticated using (public.is_active_member());
 drop policy if exists "admins manage cash" on public.cash_contributions;
 create policy "admins manage cash" on public.cash_contributions for all to authenticated using (public.current_app_role() = 'admin') with check (public.current_app_role() = 'admin');
+
+-- Settlement plans are visible to all active members; only admins manage them.
+drop policy if exists "active users read settlements" on public.member_settlements;
+create policy "active users read settlements" on public.member_settlements for select to authenticated using (public.is_active_member());
+drop policy if exists "admins manage settlements" on public.member_settlements;
+create policy "admins manage settlements" on public.member_settlements for all to authenticated using (public.current_app_role() = 'admin') with check (public.current_app_role() = 'admin');
+grant select, insert, update, delete on public.member_settlements to authenticated;
+revoke all on public.member_settlements from anon;
 
 -- Prevent anon access explicitly; RLS policies above are for authenticated only.
