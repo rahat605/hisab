@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1680 942" preserveAspectRatio="xMidYMid slice" shape-rendering="geometricPrecision">
+  <defs>
+    <linearGradient id="canvas" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070d12"/>
+      <stop offset=".48" stop-color="#0a1218"/>
+      <stop offset="1" stop-color="#060b0f"/>
+    </linearGradient>
+    <radialGradient id="ambientTop" cx=".88" cy=".08" r=".55">
+      <stop offset="0" stop-color="#10b981" stop-opacity=".18"/>
+      <stop offset=".55" stop-color="#065f46" stop-opacity=".06"/>
+      <stop offset="1" stop-color="#065f46" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ambientBottom" cx=".16" cy=".92" r=".5">
+      <stop offset="0" stop-color="#0d9488" stop-opacity=".15"/>
+      <stop offset="1" stop-color="#0d9488" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="topLight" x1="0" y1="0" x2="1" y2=".55">
+      <stop offset="0" stop-color="#0d3b2e" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#092820" stop-opacity=".24"/>
+    </linearGradient>
+    <linearGradient id="topMid" x1="0" y1="0" x2="1" y2=".35">
+      <stop offset="0" stop-color="#115e46" stop-opacity=".48"/>
+      <stop offset="1" stop-color="#0d4736" stop-opacity=".28"/>
+    </linearGradient>
+    <linearGradient id="bottomLight" x1="0" y1="0" x2="1" y2=".6">
+      <stop offset="0" stop-color="#0c362a" stop-opacity=".46"/>
+      <stop offset="1" stop-color="#0f4737" stop-opacity=".54"/>
+    </linearGradient>
+    <linearGradient id="bottomMid" x1="0" y1="0" x2="1" y2=".25">
+      <stop offset="0" stop-color="#0f533e" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#107c58" stop-opacity=".62"/>
+    </linearGradient>
+    <linearGradient id="bottomDeep" x1="0" y1="0" x2="1" y2=".2">
+      <stop offset="0" stop-color="#0e6f4f" stop-opacity=".78"/>
+      <stop offset="1" stop-color="#064e3b" stop-opacity=".88"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1680" height="942" fill="url(#canvas)"/>
+  <rect width="1680" height="942" fill="url(#ambientTop)"/>
+  <rect width="1680" height="942" fill="url(#ambientBottom)"/>
+
+  <path d="M0 0h1260c-165 34-274 83-397 132-164 66-292 95-458 78C235 193 100 226 0 303Z" fill="url(#topLight)"/>
+  <path d="M0 0h1075c-143 37-272 105-407 117-161 14-262-42-414-34C147 89 62 132 0 187Z" fill="url(#topMid)"/>
+  <path d="M0 0h850C716 46 595 91 469 91 292 91 153 75 0 154Z" fill="#167959" fill-opacity=".24"/>
+  <path d="M0 198C146 91 260 71 398 84c153 15 244 48 372 23 125-25 225-82 331-107" fill="none" stroke="#34d399" stroke-opacity=".28" stroke-width="1.6"/>
+
+  <path d="M0 790c154-45 286 4 421 69 170 82 304 84 447-2 139-83 244-90 366-36 156 69 276-122 446-213v334H0Z" fill="url(#bottomLight)"/>
+  <path d="M0 839c151-40 279 28 407 72 177 61 320 20 445-54 138-81 252-76 371-27 147 61 282-57 457-145v257H0Z" fill="url(#bottomMid)"/>
+  <path d="M765 942c121-89 225-116 351-100 122 15 207 42 327-19 82-42 148-70 237-80v199Z" fill="url(#bottomDeep)"/>
+  <path d="M742 942c137-81 246-102 371-88 118 13 206 22 318-31 91-43 162-68 249-79" fill="none" stroke="#34d399" stroke-opacity=".38" stroke-width="1.8"/>
+
+  <g fill="#34d399" fill-opacity=".34">
+    <circle cx="1527" cy="47" r="3"/><circle cx="1547" cy="47" r="3"/><circle cx="1567" cy="47" r="3"/><circle cx="1587" cy="47" r="3"/><circle cx="1607" cy="47" r="3"/><circle cx="1627" cy="47" r="3"/>
+    <circle cx="1527" cy="70" r="3"/><circle cx="1547" cy="70" r="3"/><circle cx="1567" cy="70" r="3"/><circle cx="1587" cy="70" r="3"/><circle cx="1607" cy="70" r="3"/><circle cx="1627" cy="70" r="3"/>
+    <circle cx="1527" cy="93" r="3"/><circle cx="1547" cy="93" r="3"/><circle cx="1567" cy="93" r="3"/><circle cx="1587" cy="93" r="3"/><circle cx="1607" cy="93" r="3"/><circle cx="1627" cy="93" r="3"/>
+    <circle cx="1527" cy="116" r="3"/><circle cx="1547" cy="116" r="3"/><circle cx="1567" cy="116" r="3"/><circle cx="1587" cy="116" r="3"/><circle cx="1607" cy="116" r="3"/><circle cx="1627" cy="116" r="3"/>
+  </g>
+  <g fill="#6ee7b7" fill-opacity=".28">
+    <circle cx="43" cy="817" r="2.7"/><circle cx="61" cy="817" r="2.7"/><circle cx="79" cy="817" r="2.7"/><circle cx="97" cy="817" r="2.7"/><circle cx="115" cy="817" r="2.7"/>
+    <circle cx="43" cy="837" r="2.7"/><circle cx="61" cy="837" r="2.7"/><circle cx="79" cy="837" r="2.7"/><circle cx="97" cy="837" r="2.7"/><circle cx="115" cy="837" r="2.7"/>
+    <circle cx="43" cy="857" r="2.7"/><circle cx="61" cy="857" r="2.7"/><circle cx="79" cy="857" r="2.7"/><circle cx="97" cy="857" r="2.7"/><circle cx="115" cy="857" r="2.7"/>
+    <circle cx="43" cy="877" r="2.7"/><circle cx="61" cy="877" r="2.7"/><circle cx="79" cy="877" r="2.7"/><circle cx="97" cy="877" r="2.7"/><circle cx="115" cy="877" r="2.7"/>
+  </g>
+</svg>

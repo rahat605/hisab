@@ -1,0 +1,6 @@
+2026/11/09-02:48:07.096 4eac Reusing MANIFEST E:\bachelor-hisab-react-vercel\.edge-profile\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
+2026/11/09-02:48:07.102 4eac Recovering log #4
+2026/11/09-02:48:07.102 4eac Reusing old log E:\bachelor-hisab-react-vercel\.edge-profile\Default\EdgeCoupons/coupons_data.db/000004.log 
+2026/11/09-02:48:07.186 57d4 Level-0 table #8: started
+2026/11/09-02:48:07.189 57d4 Level-0 table #8: 683376 bytes OK
+2026/11/09-02:48:07.193 57d4 Delete type=0 #4

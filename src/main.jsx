@@ -11,6 +11,8 @@ import {
   Trash2,
   Edit,
   CalendarDays,
+  Check,
+  Clock3,
   ArrowRight,
   ArrowDownRight,
   Home,
@@ -19,10 +21,9 @@ import {
   Search,
   Download,
   CheckCircle2,
+  RotateCcw,
   Menu,
   X,
-  Moon,
-  Sun,
   Eye,
   EyeOff,
   Bell,
@@ -47,8 +48,22 @@ import {
   Images,
   Filter,
   Layers3,
+  Moon,
+  Sun,
+  TriangleAlert,
+  Scale,
+  Sparkles,
+  CreditCard,
+  Wrench,
+  Lightbulb,
+  Megaphone,
+  ChevronLeft,
+  Pause,
+  Play,
 } from "lucide-react";
 import "./style.css";
+import "@fontsource/baloo-da-2/bengali-500.css";
+import "@fontsource/baloo-da-2/bengali-600.css";
 import "./inbox.css";
 import { supabase, supabaseConfigured } from "./supabase";
 
@@ -69,11 +84,159 @@ const isFlatRentName = (value) =>
   String(value || "").trim().toLowerCase() === FLAT_RENT_NAME.toLowerCase();
 const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
 const hasMoney = (value) => Math.abs(roundMoney(value)) >= 0.01;
+const settlementPaidValue = (settlement) =>
+  roundMoney(
+    settlement?.paidAmount ??
+      settlement?.paid_amount ??
+      (settlement?.status === "completed" ? settlement?.amount : 0),
+  );
+const settlementRemainingValue = (settlement) =>
+  Math.max(0, roundMoney(Number(settlement?.amount || 0) - settlementPaidValue(settlement)));
+const settlementStatusLabel = (status) =>
+  status === "completed"
+    ? "Completed"
+    : status === "partially_paid"
+      ? "Partially Paid"
+      : "Pending";
 const isMissingSettlementTableError = (error) =>
   ["42P01", "PGRST205"].includes(error?.code) ||
   /member_settlements|schema cache/i.test(String(error?.message || ""));
-const money = (n) =>
-  "৳" + Number(n || 0).toLocaleString("en-BD", { maximumFractionDigits: 2 });
+const money = (n) => {
+  const num = Number(n || 0);
+  const formatted = Math.abs(num).toLocaleString("en-BD", { maximumFractionDigits: 2 });
+  return num < 0 ? `-৳${formatted}` : `৳${formatted}`;
+};
+const getBazarItemSummary = (raw) => {
+  let entries = Array.isArray(raw) ? raw : null;
+  if (!entries && typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) entries = parsed;
+    } catch {}
+  }
+  const getName = (entry) => {
+    if (typeof entry === "string") return entry.trim();
+    if (!entry || typeof entry !== "object") return "";
+    const value = entry.item ?? entry.name ?? entry.title;
+    return String(typeof value === "string" ? value : (value?.name ?? value?.item ?? "")).trim();
+  };
+  return entries
+    ? entries.map(getName).filter(Boolean).join(", ")
+    : String(raw || "");
+};
+const isMissingActivityNotificationSchemaError = (error) =>
+  /kind|activity_type|entity_id|metadata/i.test(String(error?.message || "")) &&
+  /column|schema cache|does not exist|not found/i.test(String(error?.message || ""));
+const notificationDayKey = (value) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
+const formatNotificationTime = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const time = date.toLocaleTimeString("en-US", {
+    timeZone: "Asia/Dhaka",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  if (notificationDayKey(date) === notificationDayKey(now)) return `Today · ${time}`;
+  if (notificationDayKey(date) === notificationDayKey(new Date(now.getTime() - 86400000))) {
+    return "Yesterday";
+  }
+  return date.toLocaleDateString("en-BD", {
+    timeZone: "Asia/Dhaka",
+    day: "numeric",
+    month: "short",
+    year: date.getFullYear() === now.getFullYear() ? undefined : "numeric",
+  });
+};
+const getNotificationBody = (notification, currentUser) => {
+  if (notification?.kind !== "activity") return notification?.body || "";
+  const meta = notification.metadata && typeof notification.metadata === "object"
+    ? notification.metadata
+    : {};
+  const amount = money(meta.amount);
+  const memberName = String(meta.member_name || "একজন সদস্য");
+  const actorName = String(meta.actor_name || memberName);
+  if (notification.activity_type === "bazar_added") {
+    const payer = meta.paid_from_cash ? `${actorName} Cash in Hand থেকে` : memberName;
+    const itemSummary = getBazarItemSummary(meta.items)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(", ");
+    return `${payer} ${amount} টাকার নতুন বাজারের হিসাব যোগ করেছে${itemSummary ? ` (${itemSummary})` : ""}।`;
+  }
+  if (notification.activity_type === "payment_confirmed") {
+    const paymentLabel = meta.payment_type === "meal" ? "মিল" : "রেন্ট";
+    return String(meta.member_id || "") === String(currentUser?.id || "")
+      ? `তোমার ${amount} ${paymentLabel} পেমেন্ট Confirm হয়েছে।`
+      : `${memberName}-এর ${amount} ${paymentLabel} পেমেন্ট Confirm হয়েছে।`;
+  }
+  if (notification.activity_type === "cash_contribution_added") {
+    return String(meta.member_id || "") === String(currentUser?.id || "")
+      ? `তোমার ${amount} Cash in Hand contribution যোগ হয়েছে।`
+      : `${memberName} Cash in Hand-এ ${amount} contribute করেছে।`;
+  }
+  return notification.body || "নতুন হিসাবের activity যোগ হয়েছে।";
+};
+function NotificationGlyph({ notification }) {
+  const type = notification?.activity_type;
+  if (type === "bazar_added") return <ShoppingBasket size={17} />;
+  if (type === "payment_confirmed") return <CheckCircle2 size={17} />;
+  if (type === "cash_contribution_added") return <Wallet size={17} />;
+  return <Bell size={17} />;
+}
+function PremiumDeleteIcon({ size = 16, className = "" }) {
+  return (
+    <svg
+      className={`premium-delete-glyph${className ? ` ${className}` : ""}`}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path className="premium-delete-lid" d="M4.75 7.25h14.5M9.25 7.25V5.9c0-.64.51-1.15 1.15-1.15h3.2c.64 0 1.15.51 1.15 1.15v1.35" />
+      <path className="premium-delete-bin" d="m7.25 7.25.7 10.15c.07 1.05.94 1.85 1.99 1.85h4.12c1.05 0 1.92-.8 1.99-1.85l.7-10.15M10.25 10.5v4.75M13.75 10.5v4.75" />
+    </svg>
+  );
+}
+const NOTIFICATION_READ_STORAGE = "bh-notification-read";
+const NOTIFICATION_DISMISSED_STORAGE = "bh-notification-dismissed";
+const notificationStorageKey = (prefix, profileId) =>
+  `${prefix}:${String(profileId || "guest")}`;
+const readStoredNotificationIds = (prefix, profileId) => {
+  if (!profileId) return [];
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(notificationStorageKey(prefix, profileId)) || "[]",
+    );
+    return Array.isArray(stored)
+      ? stored.map((id) => String(id)).filter(Boolean)
+      : [];
+  } catch {
+    return [];
+  }
+};
+const writeStoredNotificationIds = (prefix, profileId, ids) => {
+  if (!profileId) return;
+  try {
+    localStorage.setItem(
+      notificationStorageKey(prefix, profileId),
+      JSON.stringify(Array.from(new Set(ids.map((id) => String(id))))),
+    );
+  } catch {}
+};
 const getBazarPayerHue = (id) => {
   let hash = 0;
   for (const char of String(id || "member")) {
@@ -101,14 +264,21 @@ const formatLastActive = (value) => {
   return `${days} ${days === 1 ? "day" : "days"} ago`;
 };
 function App() {
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem("bh-theme") || "light",
-  );
+  const [db, setDb] = useState(starter);
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("bh-theme") === "dark" ? "dark" : "light";
+    } catch {
+      return "light";
+    }
+  });
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("bh-theme", theme);
+    document.documentElement.style.colorScheme = theme;
+    try {
+      localStorage.setItem("bh-theme", theme);
+    } catch {}
   }, [theme]);
-  const [db, setDb] = useState(starter);
   const [session, setSession] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem("bh-user"));
@@ -281,11 +451,16 @@ function App() {
     items: "",
   });
   const [bazarRows, setBazarRows] = useState([{ item: "", price: "" }, { item: "", price: "" }, { item: "", price: "" }]);
+  const [bazarNeededItems, setBazarNeededItems] = useState([]);
+  const [bazarNeededDraft, setBazarNeededDraft] = useState("");
+  const [bazarNeededBusy, setBazarNeededBusy] = useState(false);
+  const [showBazarNeeded, setShowBazarNeeded] = useState(false);
   const [bazarDetailsEntry, setBazarDetailsEntry] = useState(null);
   const [bazarEditEntry, setBazarEditEntry] = useState(null);
   const [bazarActionMenuId, setBazarActionMenuId] = useState(null);
   const bazarActionMenuRef = useRef(null);
   const [bazarFilterMenuOpen, setBazarFilterMenuOpen] = useState(false);
+  const [bazarSearch, setBazarSearch] = useState("");
   const bazarFilterRef = useRef(null);
   const bazarFilterTriggerRef = useRef(null);
   const [bazarSuccessToast, setBazarSuccessToast] = useState("");
@@ -327,13 +502,14 @@ function App() {
   const [settlementBusy, setSettlementBusy] = useState(false);
   const [settlementPlanBusy, setSettlementPlanBusy] = useState(false);
   const [settlementLoadError, setSettlementLoadError] = useState("");
+  const [settlementConfirmTarget, setSettlementConfirmTarget] = useState(null);
+  const [settlementConfirmAmount, setSettlementConfirmAmount] = useState("");
   const [settlementForm, setSettlementForm] = useState({
     sourceType: "cash_contribution",
     fromUserId: "",
     toUserId: "",
     amount: "",
     date: todayForDateInput(),
-    status: "completed",
     note: "Meal balance settlement",
   });
   const [editId, setEditId] = useState(null),
@@ -349,7 +525,8 @@ function App() {
   const [mealMemberMessage, setMealMemberMessage] = useState("");
   const [notices, setNotices] = useState([]),
     [readNoticeIds, setReadNoticeIds] = useState([]),
-    [noticeForm, setNoticeForm] = useState({ title: "", body: "" }),
+    [dismissedNotificationIds, setDismissedNotificationIds] = useState([]),
+    [noticeForm, setNoticeForm] = useState({ title: "", body: "", isBulletin: false }),
     [noticeImage, setNoticeImage] = useState(null),
     [noticeBusy, setNoticeBusy] = useState(false),
     [noticeError, setNoticeError] = useState(""),
@@ -358,6 +535,19 @@ function App() {
     [noticeModal, setNoticeModal] = useState(false),
     [noticeReadBusy, setNoticeReadBusy] = useState(false),
     [noticeDraftBusy, setNoticeDraftBusy] = useState(false),
+    [bulletinNotices, setBulletinNotices] = useState([
+      {
+        id: "default-bulletin-1",
+        text: "This month's meal cost has been updated. Please check your balance and settle dues on time.",
+        active: true,
+        createdAt: new Date().toISOString(),
+      },
+    ]),
+    [bulletinInput, setBulletinInput] = useState(""),
+    [editingBulletinId, setEditingBulletinId] = useState(""),
+    [bulletinSaving, setBulletinSaving] = useState(false),
+    [bulletinIndex, setBulletinIndex] = useState(0),
+    [bulletinPaused, setBulletinPaused] = useState(false),
     [inboxMessages, setInboxMessages] = useState([]),
     [inboxUnreadCount, setInboxUnreadCount] = useState(0),
     [inboxOnlineIds, setInboxOnlineIds] = useState([]),
@@ -374,6 +564,7 @@ function App() {
     [inboxDeleteBusy, setInboxDeleteBusy] = useState(false);
   const inboxAttachmentInputRef = useRef(null);
   const lastInboxActivityAtRef = useRef(0);
+  const markingSeenRef = useRef(false);
   const paymentDefaults = [
     {
       provider: "bkash",
@@ -449,6 +640,95 @@ function App() {
     }
   }, []);
   const user = db.users.find((u) => u.id === session?.id);
+  const publishedNotifications = notices.filter(
+    (notice) =>
+      notice.status === "published" &&
+      !dismissedNotificationIds.includes(String(notice.id)),
+  );
+  const unreadNotifications = publishedNotifications.filter(
+    (notice) => !readNoticeIds.includes(notice.id),
+  );
+  const announcementNotices = notices.filter(
+    (notice) => notice.kind !== "activity",
+  );
+  const unreadAnnouncementNotices = announcementNotices.filter(
+    (notice) =>
+      notice.status === "published" &&
+      !dismissedNotificationIds.includes(String(notice.id)) &&
+      !readNoticeIds.includes(notice.id),
+  );
+  const activeBulletinNotices = useMemo(
+    () =>
+      bulletinNotices.filter(
+        (item) => item && item.active !== false && String(item.text || "").trim(),
+      ),
+    [bulletinNotices],
+  );
+  useEffect(() => {
+    if (!activeBulletinNotices.length) {
+      setBulletinIndex(0);
+      return undefined;
+    }
+    if (bulletinIndex >= activeBulletinNotices.length) {
+      setBulletinIndex(0);
+    }
+    if (bulletinPaused || activeBulletinNotices.length <= 1) return undefined;
+    const timer = window.setInterval(() => {
+      setBulletinIndex((prev) => (prev + 1) % activeBulletinNotices.length);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [activeBulletinNotices.length, bulletinIndex, bulletinPaused]);
+  useEffect(() => {
+    if (!session?.id || !supabaseConfigured || !supabase) {
+      setNotices([]);
+      setReadNoticeIds([]);
+      setDismissedNotificationIds([]);
+      return undefined;
+    }
+    let active = true;
+    const refreshNotifications = () => {
+      if (!active) return;
+      void loadNotices(false, session.id).catch((notificationError) =>
+        console.warn("Could not refresh notifications:", notificationError?.message),
+      );
+    };
+    const channel = supabase
+      .channel(`household-notifications-${session.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notices" },
+        refreshNotifications,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "app_settings" },
+        refreshNotifications,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "bazar_entries" },
+        refreshNotifications,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "rent_payments" },
+        refreshNotifications,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "cash_contributions" },
+        refreshNotifications,
+      )
+      .subscribe();
+    const intervalId = window.setInterval(refreshNotifications, 30000);
+    window.addEventListener("focus", refreshNotifications);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshNotifications);
+      void supabase.removeChannel(channel);
+    };
+  }, [session?.id]);
   const previousDueMembersKey = db.users
     .map((member) => `${member.id}:${Number(member.rent || 0)}`)
     .join("|");
@@ -479,7 +759,7 @@ function App() {
             supabase.from("rent_payments").select("user_id,amount,note").eq("month_id", past.id),
             supabase.from("bazar_entries").select("amount,paid_by,paid_from_cash").eq("month_id", past.id),
             supabase.from("cash_contributions").select("amount,paid_by").eq("month_id", past.id),
-            supabase.from("member_settlements").select("amount,from_user_id,to_user_id,source_type,status").eq("month_id", past.id),
+            supabase.from("member_settlements").select("*").eq("month_id", past.id),
             supabase.from("app_settings").select("value").eq("key", `meal_active_members_${past.label}`).maybeSingle(),
             supabase.from("app_settings").select("value").eq("key", `shared_utilities_list_${past.label}`).maybeSingle(),
           ]);
@@ -487,9 +767,7 @@ function App() {
           if (settlements.error && !isMissingSettlementTableError(settlements.error)) {
             throw settlements.error;
           }
-          const completedPastSettlements = settlements.error
-            ? []
-            : (settlements.data || []).filter((entry) => entry.status === "completed");
+          const completedPastSettlements = settlements.error ? [] : settlements.data || [];
           let mealIds=[]; try { mealIds=JSON.parse(meal.data?.value || "[]"); } catch {}
           let utilityItems=null; try { utilityItems=JSON.parse(utilityList.data?.value || "null"); } catch {}
           const categories=cat.data || [];
@@ -502,8 +780,8 @@ function App() {
             const payments=(pay.data||[]).filter(x=>x.user_id===member.id).reduce((sum,x)=>sum+Number(x.amount||0),0);
             const mealCredits=(baz.data||[]).filter(b=>!b.paid_from_cash&&b.paid_by===member.id).reduce((sum,b)=>sum+Number(b.amount||0),0);
             const cashCredits=(cash.data||[]).filter(c=>c.paid_by===member.id).reduce((sum,c)=>sum+Number(c.amount||0),0);
-            const directSettled=(completedPastSettlements||[]).filter(entry=>entry.source_type==="direct"&&entry.from_user_id===member.id).reduce((sum,entry)=>sum+Number(entry.amount||0),0);
-            const refundsReceived=(completedPastSettlements||[]).filter(entry=>entry.to_user_id===member.id).reduce((sum,entry)=>sum+Number(entry.amount||0),0);
+            const directSettled=(completedPastSettlements||[]).filter(entry=>entry.source_type==="direct"&&entry.from_user_id===member.id).reduce((sum,entry)=>sum+settlementPaidValue(entry),0);
+            const refundsReceived=(completedPastSettlements||[]).filter(entry=>entry.to_user_id===member.id).reduce((sum,entry)=>sum+settlementPaidValue(entry),0);
             balances[member.id] += Number(member.rent||0) + utilityShare + mealCost - payments - mealCredits - cashCredits - directSettled + refundsReceived;
           }
         }
@@ -623,6 +901,57 @@ function App() {
     };
   }, [session?.id]);
   useEffect(() => {
+    // Mark messages as seen as soon as the receiver is looking at the open conversation (no click needed).
+    if (page !== "inbox" || !session?.id || !selectedInboxMemberId || !supabaseConfigured || !supabase) return;
+    if (window.innerWidth <= 900 && mobileInboxView !== "conversation") return;
+    if (document.visibilityState === "hidden") return;
+    const unreadIds = inboxMessages
+      .filter((message) => message.sender_id === selectedInboxMemberId && message.recipient_id === session.id && !message.read_at)
+      .map((message) => message.id);
+    if (!unreadIds.length || markingSeenRef.current) return;
+    markingSeenRef.current = true;
+    const seenAt = new Date().toISOString();
+    setInboxMessages((current) => current.map((message) => (unreadIds.includes(message.id) ? { ...message, read_at: seenAt } : message)));
+    supabase
+      .from("direct_messages")
+      .update({ read_at: seenAt })
+      .in("id", unreadIds)
+      .is("read_at", null)
+      .then(({ error: readError }) => {
+        if (readError) console.error("Could not mark inbox messages as seen:", readError);
+        void refreshInbox();
+      })
+      .finally(() => {
+        markingSeenRef.current = false;
+      });
+  }, [inboxMessages, selectedInboxMemberId, page, mobileInboxView, session?.id]);
+  useEffect(() => {
+    // Live Sent -> Seen updates (and new messages) without reloading the page.
+    if (!session?.id || !supabaseConfigured || !supabase) return;
+    const channel = supabase
+      .channel(`direct-messages-live-${session.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "direct_messages" }, (payload) => {
+        const updated = payload.new;
+        if (!updated?.id) return;
+        setInboxMessages((current) =>
+          current.map((message) => (message.id === updated.id ? { ...message, read_at: updated.read_at } : message)),
+        );
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "direct_messages" }, (payload) => {
+        const row = payload.new;
+        if (row && (row.sender_id === session.id || row.recipient_id === session.id)) void refreshInbox();
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "direct_messages" }, () => void refreshInbox())
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("Live message status is unavailable; falling back to polling:", status);
+        }
+      });
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [session?.id]);
+  useEffect(() => {
     if (!session?.id || !supabaseConfigured || !supabase) return;
     const recordActivity = async () => {
       if (document.visibilityState !== "visible" || Date.now() - lastInboxActivityAtRef.current < 60000) return;
@@ -651,35 +980,39 @@ function App() {
   const monthSettlements = (db.settlements || []).filter(
     (settlement) => settlement.month === month,
   );
-  const completedSettlements = monthSettlements.filter(
-    (settlement) => settlement.status === "completed",
-  );
-  const pendingSettlements = monthSettlements.filter(
-    (settlement) => settlement.status === "pending",
-  );
   const directSettlementPaidBy = (uid, includePending = false) =>
     monthSettlements
       .filter(
         (settlement) =>
           settlement.fromUserId === uid &&
-          settlement.sourceType === "direct" &&
-          (settlement.status === "completed" ||
-            (includePending && settlement.status === "pending")),
+          settlement.sourceType === "direct",
       )
-      .reduce((sum, settlement) => sum + Number(settlement.amount || 0), 0);
+      .reduce(
+        (sum, settlement) =>
+          sum +
+          (includePending
+            ? Number(settlement.amount || 0)
+            : settlementPaidValue(settlement)),
+        0,
+      );
   const settlementReceivedBy = (uid, includePending = false) =>
     monthSettlements
-      .filter(
-        (settlement) =>
-          settlement.toUserId === uid &&
-          (settlement.status === "completed" ||
-            (includePending && settlement.status === "pending")),
-      )
-      .reduce((sum, settlement) => sum + Number(settlement.amount || 0), 0);
-  const filteredMonthBazar = monthBazar.filter((b) =>
-    bazarFilter === "all" ||
-    (bazarFilter === "cash-in-hand" ? b.paidFromCash : !b.paidFromCash && b.paidBy === bazarFilter),
-  );
+      .filter((settlement) => settlement.toUserId === uid)
+      .reduce(
+        (sum, settlement) =>
+          sum +
+          (includePending
+            ? Number(settlement.amount || 0)
+            : settlementPaidValue(settlement)),
+        0,
+      );
+  const bazarSearchTerm = bazarSearch.trim().toLowerCase();
+  const filteredMonthBazar = monthBazar.filter((b) => {
+    const matchesMember = bazarFilter === "all" ||
+      (bazarFilter === "cash-in-hand" ? b.paidFromCash : !b.paidFromCash && b.paidBy === bazarFilter);
+    const matchesSearch = !bazarSearchTerm || getBazarItemSummary(b.items).toLowerCase().includes(bazarSearchTerm);
+    return matchesMember && matchesSearch;
+  });
   const bazarTotal = monthBazar.reduce((s, b) => s + Number(b.amount || 0), 0);
   // Utilities are admin-configured expenses; bazar is tracked separately as meal cost.
   const utilityCategories = db.categories.filter(
@@ -703,14 +1036,25 @@ function App() {
     (sum, category) => sum + Number(category.amount || 0),
     0,
   );
+  const getUtilityPaidAmount = (statusKey, totalAmount) => {
+    const total = Math.max(0, Number(totalAmount || 0));
+    const raw = utilityPaidStatus[statusKey];
+    if (raw === true) return total;
+    if (raw === false || raw == null || raw === "") return 0;
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+    return Math.min(numeric, total);
+  };
   const utilitiesPaidTotal = utilityCategories.reduce(
     (sum, category) => {
       const statusKey = isFlatRentName(category.name)
         ? FLAT_RENT_NAME
         : category.name;
-      return utilityPaidStatus[statusKey]
-        ? sum + Number(category.amount || 0)
-        : sum;
+      const categoryAmount =
+        category.name.toLowerCase() === "bazar" && monthBazar.length
+          ? bazarTotal
+          : category.amount;
+      return sum + getUtilityPaidAmount(statusKey, categoryAmount);
     },
     0,
   );
@@ -747,12 +1091,12 @@ function App() {
   const cashBazarSpent = monthBazar
     .filter((entry) => entry.paidFromCash)
     .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-  const completedCashSettlementTotal = completedSettlements
+  const completedCashSettlementTotal = monthSettlements
     .filter((settlement) => settlement.sourceType === "cash_contribution")
-    .reduce((sum, settlement) => sum + Number(settlement.amount || 0), 0);
-  const pendingCashSettlementTotal = pendingSettlements
+    .reduce((sum, settlement) => sum + settlementPaidValue(settlement), 0);
+  const pendingCashSettlementTotal = monthSettlements
     .filter((settlement) => settlement.sourceType === "cash_contribution")
-    .reduce((sum, settlement) => sum + Number(settlement.amount || 0), 0);
+    .reduce((sum, settlement) => sum + settlementRemainingValue(settlement), 0);
   const cashInHand = roundMoney(
     cashContributionsTotal - cashBazarSpent - completedCashSettlementTotal,
   );
@@ -768,6 +1112,65 @@ function App() {
     (db.payments || [])
       .filter((p) => p.userId === user?.id && p.month === month)
       .reduce((s, p) => s + Number(p.amount), 0) + memberCredits(user?.id);
+  const accountPaymentTimeline = [
+    ...(db.payments || [])
+      .filter((payment) => payment.userId === user?.id && payment.month === month)
+      .map((payment) => ({
+        ...payment,
+        timelineId: `payment-${payment.id}`,
+        timelineType: payment.type === "meal" ? "meal" : "rent",
+      })),
+    ...(db.contributions || [])
+      .filter((contribution) => contribution.paidBy === user?.id && contribution.month === month)
+      .map((contribution) => ({
+        ...contribution,
+        timelineId: `cash-${contribution.id}`,
+        timelineType: "cash",
+      })),
+    ...monthBazar
+      .filter((b) => !b.paidFromCash && b.paidBy === user?.id)
+      .map((b) => ({
+        id: b.id,
+        amount: b.amount,
+        date: b.date,
+        month: b.month,
+        note: Array.isArray(b.items)
+          ? b.items.map((it) => (typeof it === "object" ? it.item || it.name : it)).filter(Boolean).join(", ") || "Bazar shopping"
+          : String(b.items || "Bazar shopping"),
+        timelineId: `bazar-${b.id}`,
+        timelineType: "bazar",
+      })),
+    ...monthSettlements
+      .filter((s) => s.sourceType === "direct" && s.fromUserId === user?.id && settlementPaidValue(s) > 0)
+      .map((s) => ({
+        id: s.id,
+        amount: settlementPaidValue(s),
+        date: s.date,
+        month: s.month,
+        note: s.note || `Settled meal due to ${db.users.find((u) => u.id === s.toUserId)?.name || "member"}`,
+        timelineId: `settlement-paid-${s.id}`,
+        timelineType: "settlement-paid",
+      })),
+    ...monthSettlements
+      .filter((s) => s.toUserId === user?.id && settlementPaidValue(s) > 0)
+      .map((s) => ({
+        id: s.id,
+        amount: settlementPaidValue(s),
+        date: s.date,
+        month: s.month,
+        note: s.note || `Received meal refund from ${s.sourceType === "cash_contribution" ? "House Cash" : (db.users.find((u) => u.id === s.fromUserId)?.name || "member")}`,
+        timelineId: `settlement-received-${s.id}`,
+        timelineType: "settlement-received",
+      })),
+  ]
+    .sort((a, b) => {
+      const dateOrder = String(b.date || "").localeCompare(String(a.date || ""));
+      return dateOrder || String(b.id || "").localeCompare(String(a.id || ""));
+    });
+  const accountPaymentTimelineTotal = accountPaymentTimeline.reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0,
+  );
   // Member due is room rent plus their share of utilities and bazar, less credits/payments.
   const ownTotalRent = ownRent + utilitiesPerMember;
   const ownDue = Math.ceil(ownTotalRent + (mealActiveIds.includes(user?.id) ? individualMealCost : 0) - ownPayments);
@@ -828,11 +1231,16 @@ function App() {
       .filter(
         (settlement) =>
           settlement.fromUserId === uid &&
-          settlement.sourceType === "cash_contribution" &&
-          (settlement.status === "completed" ||
-            (includePending && settlement.status === "pending")),
+          settlement.sourceType === "cash_contribution",
       )
-      .reduce((sum, settlement) => sum + Number(settlement.amount || 0), 0);
+      .reduce(
+        (sum, settlement) =>
+          sum +
+          (includePending
+            ? Number(settlement.amount || 0)
+            : settlementPaidValue(settlement)),
+        0,
+      );
   const availableContributionForSettlement = (uid) =>
     Math.max(
       0,
@@ -1005,40 +1413,254 @@ function App() {
   }
   async function loadNotices(showForUser = false, profileId = session?.id) {
     if (!supabaseConfigured || !supabase) return [];
-    const { data, error } = await supabase
+    let noticeResult = await supabase
       .from("notices")
-      .select("id,title,body,image_url,created_at,created_by,status")
+      .select("id,title,body,image_url,created_at,created_by,status,kind,activity_type,entity_id,metadata")
       .order("created_at", { ascending: false })
-      .limit(30);
-    if (error) throw error;
-    const rows = data || [];
-    let role = db.users.find((u) => u.id === profileId)?.role;
-    if (profileId) {
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", profileId)
-        .maybeSingle();
-      if (profileError) throw profileError;
-      if (profile?.role) role = profile.role;
+      .limit(100);
+    if (noticeResult.error && isMissingActivityNotificationSchemaError(noticeResult.error)) {
+      noticeResult = await supabase
+        .from("notices")
+        .select("id,title,body,image_url,created_at,created_by,status")
+        .order("created_at", { ascending: false })
+        .limit(100);
     }
-    const visibleRows = role === "admin" ? rows : rows.filter((n) => n.status === "published");
+    if (noticeResult.error) {
+      console.warn("Shared notices are unavailable:", noticeResult.error.message);
+      noticeResult = { data: [] };
+    }
+
+    let [profilesResult, bazarResult, paymentResult, cashResult, bulletinSettingResult] = await Promise.all([
+      supabase.from("profiles").select("id,full_name,role,active"),
+      supabase
+        .from("bazar_entries")
+        .select("id,amount,paid_by,paid_from_cash,items,created_by,created_at")
+        .order("created_at", { ascending: false })
+        .limit(30),
+      supabase
+        .from("rent_payments")
+        .select("id,amount,user_id,payment_type,note,created_by,created_at")
+        .order("created_at", { ascending: false })
+        .limit(30),
+      supabase
+        .from("cash_contributions")
+        .select("id,amount,paid_by,note,created_by,created_at")
+        .order("created_at", { ascending: false })
+        .limit(30),
+      supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "bulletin_notices")
+        .maybeSingle(),
+    ]);
+    if (!bulletinSettingResult?.error) {
+      if (bulletinSettingResult?.data?.value !== undefined && bulletinSettingResult?.data?.value !== null) {
+        try {
+          const parsedBulletins = JSON.parse(bulletinSettingResult.data.value);
+          if (Array.isArray(parsedBulletins)) {
+            setBulletinNotices(
+              parsedBulletins
+                .map((item, idx) => {
+                  if (typeof item === "string") {
+                    return { id: `bulletin-${idx}`, text: item.trim(), active: true, createdAt: "" };
+                  }
+                  if (!item || typeof item !== "object") return null;
+                  const text = String(item.text || item.body || item.title || "").trim();
+                  if (!text) return null;
+                  return {
+                    id: String(item.id || `bulletin-${idx}`),
+                    text,
+                    active: item.active !== false,
+                    noticeId: item.noticeId ? String(item.noticeId) : "",
+                    createdAt: item.createdAt ? String(item.createdAt) : "",
+                  };
+                })
+                .filter(Boolean),
+            );
+          }
+        } catch (err) {
+          console.warn("Could not parse bulletin notices:", err?.message);
+        }
+      }
+    }
+    if (
+      bazarResult.error &&
+      /paid_from_cash/i.test(bazarResult.error.message || "") &&
+      /column|schema cache|does not exist|not found/i.test(bazarResult.error.message || "")
+    ) {
+      bazarResult = await supabase
+        .from("bazar_entries")
+        .select("id,amount,paid_by,items,created_by,created_at")
+        .order("created_at", { ascending: false })
+        .limit(30);
+    }
+    if (
+      paymentResult.error &&
+      /payment_type/i.test(paymentResult.error.message || "") &&
+      /column|schema cache|does not exist|not found/i.test(paymentResult.error.message || "")
+    ) {
+      paymentResult = await supabase
+        .from("rent_payments")
+        .select("id,amount,user_id,note,created_by,created_at")
+        .order("created_at", { ascending: false })
+        .limit(30);
+    }
+    for (const [label, result] of [
+      ["profiles", profilesResult],
+      ["bazar activity", bazarResult],
+      ["payment activity", paymentResult],
+      ["cash activity", cashResult],
+    ]) {
+      if (result.error) console.warn(`Could not load ${label}:`, result.error.message);
+    }
+
+    const profileById = new Map(
+      (db.users || []).map((profile) => [
+        profile.id,
+        { full_name: profile.name, role: profile.role, active: profile.active },
+      ]),
+    );
+    for (const profile of profilesResult.data || []) profileById.set(profile.id, profile);
+    const profileName = (id, fallback = "A member") =>
+      profileById.get(id)?.full_name || fallback;
+
+    const rows = (noticeResult.data || []).map((notice) => ({
+      ...notice,
+      kind: notice.kind || "announcement",
+      activity_type: notice.activity_type || "",
+      metadata:
+        notice.metadata && typeof notice.metadata === "object"
+          ? notice.metadata
+          : {},
+      source: "notice",
+    }));
+
+    const derivedActivities = [
+      ...(bazarResult.data || []).map((entry) => ({
+        id: `activity:bazar:${entry.id}`,
+        title: "New Bazar Added",
+        body: "",
+        image_url: null,
+        created_at: entry.created_at,
+        created_by: entry.created_by,
+        status: "published",
+        kind: "activity",
+        activity_type: "bazar_added",
+        entity_id: entry.id,
+        metadata: {
+          member_id: entry.paid_by,
+          member_name: profileName(entry.paid_by),
+          actor_id: entry.created_by,
+          actor_name: profileName(entry.created_by, profileName(entry.paid_by)),
+          amount: Number(entry.amount || 0),
+          items: entry.items,
+          paid_from_cash: Boolean(entry.paid_from_cash),
+        },
+        source: "derived",
+      })),
+      ...(paymentResult.data || []).map((payment) => ({
+        id: `activity:payment:${payment.id}`,
+        title: "Payment Confirmed",
+        body: "",
+        image_url: null,
+        created_at: payment.created_at,
+        created_by: payment.created_by,
+        status: "published",
+        kind: "activity",
+        activity_type: "payment_confirmed",
+        entity_id: payment.id,
+        metadata: {
+          member_id: payment.user_id,
+          member_name: profileName(payment.user_id),
+          actor_id: payment.created_by,
+          actor_name: profileName(payment.created_by, "Administrator"),
+          amount: Number(payment.amount || 0),
+          payment_type:
+            payment.payment_type ||
+            (String(payment.note || "").toLowerCase().includes("rent") ? "rent" : "meal"),
+          note: payment.note || "",
+        },
+        source: "derived",
+      })),
+      ...(cashResult.data || []).map((contribution) => ({
+        id: `activity:cash:${contribution.id}`,
+        title: "Cash Contribution Added",
+        body: "",
+        image_url: null,
+        created_at: contribution.created_at,
+        created_by: contribution.created_by,
+        status: "published",
+        kind: "activity",
+        activity_type: "cash_contribution_added",
+        entity_id: contribution.id,
+        metadata: {
+          member_id: contribution.paid_by,
+          member_name: profileName(contribution.paid_by),
+          actor_id: contribution.created_by,
+          actor_name: profileName(contribution.created_by, "Administrator"),
+          amount: Number(contribution.amount || 0),
+          note: contribution.note || "",
+        },
+        source: "derived",
+      })),
+    ];
+    const serverActivityKeys = new Set(
+      rows
+        .filter((notice) => notice.kind === "activity" && notice.entity_id)
+        .map((notice) => `${notice.activity_type}:${notice.entity_id}`),
+    );
+    const mergedRows = [
+      ...rows,
+      ...derivedActivities.filter(
+        (notice) =>
+          !serverActivityKeys.has(`${notice.activity_type}:${notice.entity_id}`),
+      ),
+    ]
+      .sort(
+        (left, right) =>
+          (Date.parse(right.created_at) || 0) - (Date.parse(left.created_at) || 0),
+      )
+      .slice(0, 100);
+
+    const role = profileById.get(profileId)?.role || db.users.find((u) => u.id === profileId)?.role;
+    const visibleRows = role === "admin"
+      ? mergedRows
+      : mergedRows.filter((notice) => notice.status === "published");
+    const dismissedIds = readStoredNotificationIds(
+      NOTIFICATION_DISMISSED_STORAGE,
+      profileId,
+    );
+    setDismissedNotificationIds(dismissedIds);
     setNotices(visibleRows);
     if (profileId) {
       const { data: reads, error: readError } = await supabase
         .from("notice_reads")
         .select("notice_id,read_at")
         .eq("user_id", profileId);
-      if (readError) throw readError;
+      if (readError) console.warn("Shared notification read status is unavailable:", readError.message);
       const readAtByNotice = new Map((reads || []).map((r) => [r.notice_id, Date.parse(r.read_at)]));
-      const readIds = visibleRows
-        .filter((notice) => (readAtByNotice.get(notice.id) || 0) >= Date.parse(notice.created_at))
-        .map((notice) => notice.id);
+      const localReadIds = readStoredNotificationIds(NOTIFICATION_READ_STORAGE, profileId);
+      const readIds = Array.from(new Set([
+        ...localReadIds,
+        ...visibleRows
+          .filter(
+            (notice) =>
+              notice.source === "notice" &&
+              (readAtByNotice.get(notice.id) || 0) >= Date.parse(notice.created_at),
+          )
+          .map((notice) => String(notice.id)),
+      ]));
       setReadNoticeIds(readIds);
       if (
         showForUser &&
         role === "member" &&
-        visibleRows.some((n) => !readIds.includes(n.id))
+        visibleRows.some(
+          (n) =>
+            n.status === "published" &&
+            n.kind !== "activity" &&
+            !dismissedIds.includes(String(n.id)) &&
+            !readIds.includes(n.id),
+        )
       )
         setNoticeModal(true);
     } else setReadNoticeIds([]);
@@ -1289,13 +1911,27 @@ function App() {
       setInboxBusy(false);
     }
   }
-  async function markAllNoticesRead(profileId = session?.id) {
+  async function markAllNoticesRead(
+    profileId = session?.id,
+    targetNotices = publishedNotifications,
+  ) {
     if (!profileId || !supabase || noticeReadBusy) return;
     setNoticeReadBusy(true);
     try {
-      const unread = notices.filter((n) => !readNoticeIds.includes(n.id));
-      if (unread.length) {
-        const payload = unread.map((n) => ({
+      const unread = targetNotices.filter(
+        (n) => !readNoticeIds.includes(n.id),
+      );
+      const nextReadIds = Array.from(
+        new Set([...readNoticeIds, ...unread.map((notice) => String(notice.id))]),
+      );
+      writeStoredNotificationIds(
+        NOTIFICATION_READ_STORAGE,
+        profileId,
+        nextReadIds,
+      );
+      const sharedUnread = unread.filter((notice) => notice.source === "notice");
+      if (sharedUnread.length) {
+        const payload = sharedUnread.map((n) => ({
           user_id: profileId,
           notice_id: n.id,
           read_at: new Date().toISOString(),
@@ -1303,26 +1939,67 @@ function App() {
         const { error } = await supabase
           .from("notice_reads")
           .upsert(payload, { onConflict: "user_id,notice_id" });
-        if (error) throw error;
+        if (error) console.warn("Could not sync notification read status:", error.message);
       }
-      setReadNoticeIds((ids) =>
-        Array.from(new Set([...ids, ...unread.map((n) => n.id)])),
-      );
+      setReadNoticeIds(nextReadIds);
       setNoticePanelOpen(false);
       setNoticeModal(false);
-    } catch (err) {
-      alert(
-        "Could not mark notifications as read. Run SUPABASE-NOTICE-READS-SETUP.sql in Supabase SQL Editor. Details: " +
-          (err?.message || "Unknown error"),
+    } finally {
+      setNoticeReadBusy(false);
+    }
+  }
+  async function clearAllNotifications(profileId = session?.id) {
+    if (!profileId || noticeReadBusy || !publishedNotifications.length) return;
+    setNoticeReadBusy(true);
+    try {
+      const visibleIds = publishedNotifications.map((notice) => String(notice.id));
+      const nextDismissedIds = Array.from(
+        new Set([...dismissedNotificationIds, ...visibleIds]),
       );
+      const nextReadIds = Array.from(new Set([...readNoticeIds, ...visibleIds]));
+      writeStoredNotificationIds(
+        NOTIFICATION_DISMISSED_STORAGE,
+        profileId,
+        nextDismissedIds,
+      );
+      writeStoredNotificationIds(
+        NOTIFICATION_READ_STORAGE,
+        profileId,
+        nextReadIds,
+      );
+      setDismissedNotificationIds(nextDismissedIds);
+      setReadNoticeIds(nextReadIds);
+
+      const sharedNotifications = publishedNotifications.filter(
+        (notice) => notice.source === "notice",
+      );
+      if (sharedNotifications.length && supabase) {
+        const { error } = await supabase.from("notice_reads").upsert(
+          sharedNotifications.map((notice) => ({
+            user_id: profileId,
+            notice_id: notice.id,
+            read_at: new Date().toISOString(),
+          })),
+          { onConflict: "user_id,notice_id" },
+        );
+        if (error) console.warn("Could not sync cleared notifications:", error.message);
+      }
+      setNoticePanelOpen(false);
+      setNoticeModal(false);
     } finally {
       setNoticeReadBusy(false);
     }
   }
   async function toggleNoticePanel() {
-    setNoticePanelOpen((open) => !open);
+    const shouldOpen = !noticePanelOpen;
+    setNoticePanelOpen(shouldOpen);
+    if (shouldOpen && session?.id) {
+      await loadNotices(false, session.id).catch((notificationError) =>
+        console.warn("Could not refresh notifications:", notificationError?.message),
+      );
+    }
   }
-  function exportMyAccountPdf(reportUser = user) {
+  function exportLegacyMyAccountPdf(reportUser = user) {
     if (previousDueLoading) { alert("Previous months due is still loading. Please try again in a moment."); return; }
     if (!reportUser) return;
     const signedInUserId = user?.id;
@@ -1389,11 +2066,8 @@ function App() {
       setMealMemberMessage(error.message || "Could not save active meal members.");
     } finally { setMealMemberSaving(false); }
   }
-  async function saveUtilityPaidStatus(utilityName, isPaid) {
-    if (!admin || utilityPaidSaving) return;
-    const previousStatus = utilityPaidStatus;
-    const nextStatus = { ...previousStatus, [utilityName]: isPaid };
-    setUtilityPaidStatus(nextStatus);
+  const utilitySaveTimerRef = useRef(null);
+  async function persistUtilityPaidStatus(nextStatus, previousStatus, utilityName) {
     setUtilityPaidSaving(true);
     try {
       const { error } = await supabase.from("app_settings").upsert(
@@ -1412,6 +2086,20 @@ function App() {
       setUtilityPaidSaving(false);
     }
   }
+  async function saveUtilityPaidStatus(utilityName, valueOrBool, immediate = true) {
+    if (!admin) return;
+    const previousStatus = utilityPaidStatus;
+    const nextStatus = { ...previousStatus, [utilityName]: valueOrBool };
+    setUtilityPaidStatus(nextStatus);
+    if (utilitySaveTimerRef.current) window.clearTimeout(utilitySaveTimerRef.current);
+    if (immediate) {
+      await persistUtilityPaidStatus(nextStatus, previousStatus, utilityName);
+    } else {
+      utilitySaveTimerRef.current = window.setTimeout(() => {
+        void persistUtilityPaidStatus(nextStatus, previousStatus, utilityName);
+      }, 450);
+    }
+  }
 
   async function loadCloudData(profileId, label = month) {
     if (!supabaseConfigured) return;
@@ -1424,6 +2112,7 @@ function App() {
         { data: utilityCountSetting, error: utilityCountError },
         { data: sharedUtilitySetting, error: sharedUtilityError },
         { data: monthUtilitySetting, error: monthUtilityError },
+        { data: bazarNeededSetting, error: bazarNeededError },
       ] = await Promise.all([
         supabase
           .from("profiles")
@@ -1450,12 +2139,18 @@ function App() {
           .select("value")
           .eq("key", `shared_utilities_list_${label}`)
           .maybeSingle(),
+        supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", "bazar_needed_items")
+          .maybeSingle(),
       ]);
       if (pe) throw pe;
       if (mealSettingError) throw mealSettingError;
       if (utilityCountError) throw utilityCountError;
       if (sharedUtilityError) throw sharedUtilityError;
       if (monthUtilityError) throw monthUtilityError;
+      if (bazarNeededError) throw bazarNeededError;
       const activeProfile = (profiles || []).find(
         (p) => p.id === profileId && p.active,
       );
@@ -1469,6 +2164,31 @@ function App() {
       if (Array.isArray(savedMealIds)) setMealActiveIds(savedMealIds);
       const savedUtilityCount = Number(utilityCountSetting?.value || 4);
       if (Number.isFinite(savedUtilityCount) && savedUtilityCount > 0) { setUtilityMemberCount(savedUtilityCount); setUtilityMemberCountInput(String(savedUtilityCount)); }
+      let savedBazarNeededItems = [];
+      try {
+        const parsedNeededItems = JSON.parse(bazarNeededSetting?.value || "[]");
+        if (Array.isArray(parsedNeededItems)) {
+          savedBazarNeededItems = parsedNeededItems
+            .map((item, index) => {
+              if (typeof item === "string") {
+                return { id: `legacy-${index}`, name: item.trim(), done: false };
+              }
+              if (!item || typeof item !== "object") return null;
+              return {
+                id: String(item.id || `legacy-${index}`),
+                name: String(item.name || item.item || "").trim(),
+                done: Boolean(item.done),
+                addedBy: item.addedBy ? String(item.addedBy) : "",
+                createdAt: item.createdAt ? String(item.createdAt) : "",
+                completedAt: item.completedAt ? String(item.completedAt) : "",
+              };
+            })
+            .filter((item) => item?.name);
+        }
+      } catch (error) {
+        console.warn("Could not read the shared need-to-buy list:", error?.message);
+      }
+      setBazarNeededItems(savedBazarNeededItems);
       const [catsRes, payRes, bazRes, cashRes, settlementRes, utilityPaidResult, lastLoginResult] = await Promise.all([
         supabase
           .from("expense_categories")
@@ -1620,6 +2340,11 @@ function App() {
           toUserId: x.to_user_id,
           sourceType: x.source_type || "direct",
           status: x.status || "pending",
+          paidAmount: roundMoney(
+            x.paid_amount ?? (x.status === "completed" ? x.amount : 0),
+          ),
+          confirmedBy: x.confirmed_by || null,
+          confirmedAt: x.confirmed_at || null,
           note: x.note || "Meal balance settlement",
           month: label,
           createdBy: x.created_by,
@@ -1961,6 +2686,9 @@ function App() {
             .from("rent_payments")
             .insert({ ...payment, created_by: user.id });
       if (error) throw error;
+      void loadNotices(false, user.id).catch((notificationError) =>
+        console.warn("Could not refresh payment notifications:", notificationError?.message),
+      );
       await loadCloudData(user.id, month);
       setPaymentForm((form) => ({ ...form, id: null, amount: "" }));
       setShowAddPayment(false);
@@ -1984,8 +2712,110 @@ function App() {
     });
     setShowAddPayment(true);
   }
-  function askConfirm(message, title = "Are you sure?") {
-    return new Promise((resolve) => setConfirmDialog({ message, title, resolve }));
+  function askConfirm(message, title = "Are you sure?", variant = "") {
+    return new Promise((resolve) => setConfirmDialog({ message, title, variant, resolve }));
+  }
+  async function saveBazarNeededItems(nextItems, successMessage = "") {
+    if (!supabaseConfigured || bazarNeededBusy) return false;
+    const previousItems = bazarNeededItems;
+    setBazarNeededItems(nextItems);
+    setBazarNeededBusy(true);
+    try {
+      const { error } = await supabase.from("app_settings").upsert(
+        {
+          key: "bazar_needed_items",
+          value: JSON.stringify(nextItems),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      );
+      if (error) throw error;
+      if (successMessage) {
+        setBazarSuccessToast(successMessage);
+        window.setTimeout(() => setBazarSuccessToast(""), 2600);
+      }
+      return true;
+    } catch (error) {
+      setBazarNeededItems(previousItems);
+      alert(`Could not update the need-to-buy list: ${error.message}`);
+      return false;
+    } finally {
+      setBazarNeededBusy(false);
+    }
+  }
+  async function addBazarNeededItem(event) {
+    event.preventDefault();
+    const name = bazarNeededDraft.trim();
+    if (!name || bazarNeededBusy) return;
+    const existing = bazarNeededItems.find(
+      (item) => item.name.trim().toLowerCase() === name.toLowerCase(),
+    );
+    if (existing && !existing.done) {
+      alert(`${name} is already in the need-to-buy list.`);
+      return;
+    }
+    const nextItems = existing
+      ? bazarNeededItems.map((item) => item.id === existing.id
+        ? { ...item, done: false, completedAt: "" }
+        : item)
+      : [
+          {
+            id: globalThis.crypto?.randomUUID?.() || `need-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            name,
+            done: false,
+            addedBy: user.id,
+            createdAt: new Date().toISOString(),
+            completedAt: "",
+          },
+          ...bazarNeededItems,
+        ];
+    if (await saveBazarNeededItems(nextItems)) {
+      setBazarNeededDraft("");
+    }
+  }
+  function toggleBazarNeededPanel() {
+    const nextOpen = !showBazarNeeded;
+    setShowBazarNeeded(nextOpen);
+    if (nextOpen) {
+      window.setTimeout(() => {
+        document.getElementById("bazar-needed-input")?.focus();
+      }, 80);
+    }
+  }
+  async function toggleBazarNeededItem(itemId) {
+    const nextItems = bazarNeededItems.map((item) => item.id === itemId
+      ? {
+          ...item,
+          done: !item.done,
+          completedAt: item.done ? "" : new Date().toISOString(),
+        }
+      : item);
+    await saveBazarNeededItems(nextItems);
+  }
+  async function removeBazarNeededItem(itemId) {
+    const item = bazarNeededItems.find((candidate) => candidate.id === itemId);
+    if (
+      !item ||
+      !(await askConfirm(
+        `Remove “${item.name}” from the need-to-buy list?`,
+        "Remove item?",
+        "bazar-needed-item",
+      ))
+    ) return;
+    await saveBazarNeededItems(
+      bazarNeededItems.filter((candidate) => candidate.id !== itemId),
+    );
+  }
+  async function clearAllBazarNeededItems() {
+    if (!bazarNeededItems.length || bazarNeededBusy) return;
+    if (
+      !(await askConfirm(
+        `Delete all ${bazarNeededItems.length} items from the need-to-buy list? This cannot be undone.`,
+        "Delete all items?",
+        "bazar-needed-delete-all",
+      ))
+    ) return;
+    await saveBazarNeededItems([], "All items deleted from need-to-buy list");
   }
   async function deletePayment(p) {
     if (!admin) return;
@@ -2042,6 +2872,9 @@ function App() {
         throw new Error(
           "Saved entry could not be verified. Refresh and check the bazar history.",
         );
+      void loadNotices(false, user.id).catch((notificationError) =>
+        console.warn("Could not refresh bazar notifications:", notificationError?.message),
+      );
       await loadCloudData(user.id, month);
       setBazarRows([{ item: "", price: "" }, { item: "", price: "" }, { item: "", price: "" }]);
       setBazarForm((f) => ({
@@ -2204,6 +3037,9 @@ function App() {
             .from("cash_contributions")
             .insert({ ...contribution, created_by: user.id });
       if (error) throw error;
+      void loadNotices(false, user.id).catch((notificationError) =>
+        console.warn("Could not refresh cash notifications:", notificationError?.message),
+      );
       await loadCloudData(user.id, month);
       setCashForm((form) => ({
         ...form,
@@ -2290,14 +3126,20 @@ function App() {
       toUserId: defaultTo,
       amount: prefill.amount ? String(prefill.amount) : "",
       date: todayForDateInput(),
-      status: prefill.status || "completed",
       note: prefill.note || "Meal balance settlement",
     });
     setShowSettlementModal(true);
   }
   function settlementWriteError(error) {
+    if (
+      /confirm_settlement_payment|paid_amount|partially_paid|member_settlement_payments/i.test(
+        String(error?.message || ""),
+      )
+    ) {
+      return "Partial settlement confirmation is not installed. Run supabase/migrations/202611081900_member_settlement_partial_confirmation.sql in Supabase.";
+    }
     return isMissingSettlementTableError(error)
-      ? "Settlement table is not installed. Run supabase/migrations/20261105_member_settlements.sql in Supabase first."
+      ? "Settlement setup is incomplete. Run the member settlement migrations in Supabase first."
       : error?.message || "Could not save settlement.";
   }
   async function saveSettlement(e) {
@@ -2369,7 +3211,7 @@ function App() {
         to_user_id: toMember.id,
         amount,
         source_type: settlementForm.sourceType,
-        status: settlementForm.status,
+        status: "pending",
         settlement_date: settlementForm.date,
         note: settlementForm.note.trim() || "Meal balance settlement",
         created_by: user.id,
@@ -2377,11 +3219,7 @@ function App() {
       if (error) throw error;
       setShowSettlementModal(false);
       await loadCloudData(user.id, month);
-      setBazarSuccessToast(
-        settlementForm.status === "completed"
-          ? "Settlement completed successfully"
-          : "Settlement plan saved successfully",
-      );
+      setBazarSuccessToast("Settlement created. The receiver can now confirm payments.");
       window.setTimeout(() => setBazarSuccessToast(""), 2600);
     } catch (error) {
       alert(settlementWriteError(error));
@@ -2425,63 +3263,43 @@ function App() {
       setSettlementPlanBusy(false);
     }
   }
-  async function completeSettlement(settlement) {
-    if (!admin || settlementBusy || settlement.status === "completed") return;
-    const fromMember = allActiveUsers.find(
-      (member) => member.id === settlement.fromUserId,
-    );
-    const toMember = allActiveUsers.find(
-      (member) => member.id === settlement.toUserId,
-    );
-    if (!fromMember || !toMember) {
-      alert("One of the settlement members is no longer active.");
+  function openSettlementConfirmation(settlement) {
+    const remaining = settlementRemainingValue(settlement);
+    if (!hasMoney(remaining) || settlementBusy) return;
+    setSettlementConfirmTarget(settlement);
+    setSettlementConfirmAmount(String(remaining));
+  }
+  async function confirmSettlementPayment(e) {
+    e.preventDefault();
+    if (!settlementConfirmTarget || settlementBusy) return;
+    const amount = roundMoney(settlementConfirmAmount);
+    const remaining = settlementRemainingValue(settlementConfirmTarget);
+    const canConfirm =
+      admin || settlementConfirmTarget.toUserId === user?.id;
+    if (!canConfirm) {
+      alert("Only the receiver can confirm this payment.");
       return;
     }
-    if (
-      settlement.sourceType === "cash_contribution" &&
-      Number(settlement.amount) > cashInHand + 0.009
-    ) {
-      alert(`Not enough cash in hand. Available: ${money(Math.max(0, cashInHand))}.`);
+    if (!hasMoney(amount) || amount > remaining + 0.009) {
+      alert(`Enter an amount from ${money(0.01)} to ${money(remaining)}.`);
       return;
-    }
-    if (settlement.sourceType === "cash_contribution") {
-      const refundableBalance = Math.max(
-        0,
-        roundMoney(-Math.min(0, memberMealBalance(toMember))),
-      );
-      if (Number(settlement.amount) > refundableBalance + 0.009) {
-        alert(
-          `Balances changed. ${toMember.name} can now receive at most ${money(refundableBalance)}. Delete this plan and add a smaller settlement.`,
-        );
-        return;
-      }
-    }
-    if (settlement.sourceType === "direct") {
-      const allowed = Math.max(
-        0,
-        roundMoney(
-          Math.min(
-            memberMealBalance(fromMember),
-            Math.abs(Math.min(0, memberMealBalance(toMember))),
-          ),
-        ),
-      );
-      if (Number(settlement.amount) > allowed + 0.009) {
-        alert(
-          `Balances changed. This plan can now settle at most ${money(allowed)}. Delete it and add a smaller settlement.`,
-        );
-        return;
-      }
     }
     setSettlementBusy(true);
     try {
-      const { error } = await supabase
-        .from("member_settlements")
-        .update({ status: "completed", updated_at: new Date().toISOString() })
-        .eq("id", settlement.id);
+      const { error } = await supabase.rpc("confirm_settlement_payment", {
+        p_settlement_id: settlementConfirmTarget.id,
+        p_amount: amount,
+      });
       if (error) throw error;
+      const completed = amount >= remaining - 0.009;
+      setSettlementConfirmTarget(null);
+      setSettlementConfirmAmount("");
       await loadCloudData(user.id, month);
-      setBazarSuccessToast("Settlement marked as completed");
+      setBazarSuccessToast(
+        completed
+          ? "Payment confirmed. Settlement completed."
+          : "Partial payment confirmed successfully.",
+      );
       window.setTimeout(() => setBazarSuccessToast(""), 2600);
     } catch (error) {
       alert(settlementWriteError(error));
@@ -2499,7 +3317,7 @@ function App() {
       "member";
     if (
       !(await askConfirm(
-        `Delete the ${money(settlement.amount)} settlement from ${fromName} to ${toName}?${settlement.status === "completed" ? " Their balances will be reversed." : ""}`,
+        `Delete the ${money(settlement.amount)} settlement from ${fromName} to ${toName}?${settlementPaidValue(settlement) > 0 ? " Confirmed payments and balances will be reversed." : ""}`,
         "Delete settlement?",
       ))
     )
@@ -2636,6 +3454,96 @@ function App() {
       alert("Could not deactivate member: " + e.message);
     }
   }
+  async function persistBulletinNotices(nextItems, toastMsg = "") {
+    setBulletinNotices(nextItems);
+    if (!supabaseConfigured || !supabase || !admin) return;
+    setBulletinSaving(true);
+    try {
+      const { error } = await supabase.from("app_settings").upsert(
+        {
+          key: "bulletin_notices",
+          value: JSON.stringify(nextItems),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      );
+      if (error) throw error;
+      if (toastMsg) {
+        setBazarSuccessToast(toastMsg);
+        window.setTimeout(() => setBazarSuccessToast(""), 2600);
+      }
+    } catch (err) {
+      alert("Could not save bulletin notice: " + (err?.message || "Unknown error"));
+    } finally {
+      setBulletinSaving(false);
+    }
+  }
+  async function saveBulletinNotice(e) {
+    e?.preventDefault();
+    const trimmed = String(bulletinInput || "").trim();
+    if (!admin || !trimmed) return;
+    if (editingBulletinId) {
+      const next = bulletinNotices.map((item) =>
+        item.id === editingBulletinId ? { ...item, text: trimmed } : item,
+      );
+      setBulletinInput("");
+      setEditingBulletinId("");
+      await persistBulletinNotices(next, "Bulletin notice updated");
+    } else {
+      const next = [
+        {
+          id: `bulletin-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          text: trimmed,
+          active: true,
+          createdAt: new Date().toISOString(),
+        },
+        ...bulletinNotices,
+      ];
+      setBulletinInput("");
+      setBulletinIndex(0);
+      await persistBulletinNotices(next, "Bulletin notice published");
+    }
+  }
+  async function toggleBulletinNoticeActive(id) {
+    if (!admin) return;
+    const next = bulletinNotices.map((item) =>
+      item.id === id ? { ...item, active: item.active === false } : item,
+    );
+    await persistBulletinNotices(next, "Bulletin status updated");
+  }
+  async function deleteBulletinNoticeItem(id) {
+    if (!admin || !(await askConfirm("Remove this bulletin notice from the banner?", "Delete bulletin notice?"))) return;
+    const next = bulletinNotices.filter((item) => item.id !== id);
+    if (editingBulletinId === id) {
+      setEditingBulletinId("");
+      setBulletinInput("");
+    }
+    await persistBulletinNotices(next, "Bulletin notice removed");
+  }
+  async function toggleSavedNoticeBulletin(n) {
+    if (!admin) return;
+    const exists = bulletinNotices.some((item) => String(item.noticeId) === String(n.id));
+    if (exists) {
+      const next = bulletinNotices.filter((item) => String(item.noticeId) !== String(n.id));
+      await persistBulletinNotices(next, "Removed from Bulletin Notice banner");
+    } else {
+      const text = [String(n.title || "").trim(), String(n.body || "").trim()]
+        .filter((part) => part && part.toLowerCase() !== "notice")
+        .join(" — ") || String(n.body || n.title || "Notice").trim();
+      const next = [
+        {
+          id: `bulletin-notice-${n.id}`,
+          noticeId: String(n.id),
+          text,
+          active: true,
+          createdAt: new Date().toISOString(),
+        },
+        ...bulletinNotices,
+      ];
+      setBulletinIndex(0);
+      await persistBulletinNotices(next, "Added to Bulletin Notice banner");
+    }
+  }
   async function saveNoticeDraft(e) {
     e?.preventDefault();
     if (!admin || (!noticeForm.title.trim() && !noticeForm.body.trim() && !noticeImage)) return;
@@ -2651,7 +3559,7 @@ function App() {
       }
       const { error } = await supabase.from("notices").insert({ title: noticeForm.title.trim() || "Notice", body: noticeForm.body.trim(), image_url: imageUrl, created_by: user.id, status: "draft" });
       if (error) throw error;
-      await loadNotices(false); setNoticeForm({ title: "", body: "" }); setNoticeImage(null); setNoticeComposerOpen(false);
+      await loadNotices(false); setNoticeForm({ title: "", body: "", isBulletin: false }); setNoticeImage(null); setNoticeComposerOpen(false);
       const fileInput = document.getElementById("notice-image-input"); if (fileInput) fileInput.value = "";
       setBazarSuccessToast("Notice saved as draft. Members have not been notified."); window.setTimeout(() => setBazarSuccessToast(""), 2600);
     } catch (err) { setNoticeError(err.message || "Could not save draft. Apply the notice SQL setup first."); }
@@ -2670,11 +3578,29 @@ function App() {
         if (uploadError) throw uploadError;
         imageUrl = supabase.storage.from("notices").getPublicUrl(path).data.publicUrl;
       }
-      const { error } = await supabase.from("notices").insert({ title: noticeForm.title.trim() || "Notice", body: noticeForm.body.trim(), image_url: imageUrl, created_by: user.id, status: "published" });
+      const { data: insertedNotice, error } = await supabase.from("notices").insert({ title: noticeForm.title.trim() || "Notice", body: noticeForm.body.trim(), image_url: imageUrl, created_by: user.id, status: "published" }).select("id").maybeSingle();
       if (error) throw error;
-      await loadNotices(false); setNoticeForm({ title: "", body: "" }); setNoticeImage(null); setNoticeComposerOpen(false);
+      if (noticeForm.isBulletin) {
+        const bulletinText = [noticeForm.title.trim(), noticeForm.body.trim()]
+          .filter((part) => part && part.toLowerCase() !== "notice")
+          .join(" — ") || noticeForm.body.trim() || noticeForm.title.trim();
+        if (bulletinText) {
+          const nextBulletins = [
+            {
+              id: insertedNotice?.id ? `bulletin-notice-${insertedNotice.id}` : `bulletin-${Date.now()}`,
+              noticeId: insertedNotice?.id ? String(insertedNotice.id) : "",
+              text: bulletinText,
+              active: true,
+              createdAt: new Date().toISOString(),
+            },
+            ...bulletinNotices,
+          ];
+          await persistBulletinNotices(nextBulletins, "");
+        }
+      }
+      await loadNotices(false); setNoticeForm({ title: "", body: "", isBulletin: false }); setNoticeImage(null); setNoticeComposerOpen(false);
       const fileInput = document.getElementById("notice-image-input"); if (fileInput) fileInput.value = "";
-      setBazarSuccessToast("Notice published successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600);
+      setBazarSuccessToast(noticeForm.isBulletin ? "Notice & Bulletin published successfully" : "Notice published successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600);
     } catch (err) { setNoticeError(err.message || "Could not publish notice. Apply the notice SQL/storage setup first."); }
     finally { setNoticeBusy(false); }
   }
@@ -2970,8 +3896,9 @@ function App() {
       <rect width="1200" height="1450" fill="#fff"/>
       <rect x="52" y="38" width="54" height="54" rx="15" fill="url(#green)"/>
       <path d="M66 64 79 53l13 11M69 62v18h20V62m-13 18v-9h7v9" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
-      ${imageText(122, 64, "Monthly Hisab", { size: 25, weight: 700 })}
-      ${imageText(122, 86, "Shared Home Expense Manager", { size: 15, fill: "#61716b" })}
+      ${imageText(122, 64, "MridhaBari 6B", { size: 25, weight: 700 })}
+      ${imageText(122, 86, "Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229", { size: 15, fill: "#61716b" })}
+
       <rect x="916" y="42" width="232" height="48" rx="24" fill="#f6fbf7" stroke="#e1eee5"/>
       <g transform="translate(944 56)" fill="none" stroke="#087343" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1h11l5 5v20H2z"/><path d="M12 1v6h6M6 13h8M6 18h8"/></g>
       ${imageText(1052, 73, "Monthly Bill", { size: 17, weight: 700, anchor: "middle", fill: "#153c2c" })}
@@ -3068,7 +3995,7 @@ function App() {
       <path d="M1001 1112v-23h17v37" fill="#168e4a" stroke="#087342" stroke-width="4"/>
       <path d="M968 1160h33v33h-33z" fill="#fff1c9" stroke="#16884b" stroke-width="3"/>
       <path d="M984 1161v31m-15-16h31" stroke="#e8a72e" stroke-width="2"/>
-      ${imageText(600, 1255, `Generated by Monthly Hisab  ·  ${generatedDate}`, { size: 15, anchor: "middle", fill: "#69756f" })}
+      ${imageText(600, 1255, `Generated by Rahat  ·  ${generatedDate}`, { size: 15, anchor: "middle", fill: "#69756f" })}
     </svg>`;
     reportDocument.open();
     reportDocument.write(`<!doctype html><html><head><meta charset="utf-8">
@@ -3198,17 +4125,134 @@ function App() {
         footer{color:#89918d;letter-spacing:.01em}
         footer:before,footer:after{background:#e1e6e3}
         footer strong{color:#0b6848}
-        @media(max-width:650px){body{padding:12px}.sheet{padding:17px;border-radius:14px}.topbar{margin-bottom:16px}.headline{grid-template-columns:1fr;gap:10px}.member-card{max-width:none}.two-columns,.lower-grid{grid-template-columns:1fr;gap:9px}.summary-panel,.payment-panel{min-height:0}.bill-pill{font-size:13px}h1{font-size:26px}.amount-title{font-size:16px}.amount-note{font-size:13px}}
-        @media print{body{padding:0;font-size:13px;background:#fff}.toolbar{display:none}.sheet{width:100%;max-width:175mm;margin:0 auto;padding:0;border:0;border-radius:0;box-shadow:none}.topbar{margin-bottom:16px}.headline{margin-bottom:11px}.two-columns{gap:9px;margin-bottom:9px}.lower-grid{gap:9px}.panel{padding:9px 10px}.summary-panel,.payment-panel{min-height:0}.amount-due{margin-top:9px}footer{margin-top:10px}}
+        /* Mobile-first 9:16 statement, matching the supplied bill reference. */
+        :root{color-scheme:light}
+        html{min-width:0;background:#e8f1ec}
+        body{display:flex;justify-content:center;min-width:0;min-height:100vh;padding:24px;overflow-x:hidden;background:radial-gradient(circle at 50% 0,#f7fffa 0,#e7f0eb 52%,#dbe8e1 100%);color:#07192d}
+        .sheet{--page-pad:clamp(18px,3.6vw,34px);isolation:isolate;position:relative;display:flex;flex-direction:column;width:min(100%,210mm);min-height:297mm;margin:0;padding:0 0 70px;overflow:hidden;border:1px solid #bfe5d6;border-radius:28px;background:linear-gradient(180deg,#fbfffd 0,#fff 67%,#f7fffa 100%);box-shadow:0 26px 80px rgba(1,72,48,.16)}
+        .hero{position:relative;min-height:clamp(170px,24vw,218px);padding:clamp(24px,3.9vw,38px) var(--page-pad) 62px;overflow:hidden;background:radial-gradient(circle at 17% -30%,rgba(36,219,127,.68) 0 25%,transparent 25.3%),radial-gradient(ellipse at 105% 2%,rgba(0,151,85,.72) 0 38%,transparent 38.3%),linear-gradient(125deg,#009452 0,#00633e 52%,#003f2f 100%);color:#fff}
+        .hero:before{content:"";position:absolute;z-index:0;right:-13%;bottom:-42px;width:76%;height:94px;border-radius:50% 0 0 0/100% 0 0 0;background:linear-gradient(110deg,rgba(32,211,115,.92),rgba(170,246,193,.9));transform:rotate(-3deg)}
+        .hero:after{content:"";position:absolute;z-index:1;left:-7%;right:-7%;bottom:-62px;height:102px;border-radius:50% 50% 0 0/32% 32% 0 0;background:#fbfffd;transform:rotate(-1.4deg)}
+        .topbar{position:relative;z-index:2;display:grid;grid-template-columns:minmax(0,1fr) clamp(132px,24vw,185px);align-items:center;gap:clamp(14px,3vw,34px);padding:0;margin:0;border:0}
+        .brand{min-width:0;gap:clamp(10px,2vw,18px)}
+        .brand-mark{width:clamp(50px,7.4vw,72px);height:clamp(50px,7.4vw,72px);border:1px solid rgba(54,255,149,.78);border-radius:clamp(14px,2vw,20px);background:linear-gradient(145deg,rgba(5,90,58,.52),rgba(18,217,108,.78));box-shadow:0 8px 20px rgba(0,0,0,.2),inset 0 1px 0 rgba(255,255,255,.24)}
+        .brand-mark svg{width:58%;height:58%}
+        .brand>div:last-child{min-width:0;padding-left:clamp(10px,2vw,20px);border-left:1px solid rgba(255,255,255,.75)}
+        .brand-title{overflow:hidden;color:#fff;font-size:clamp(22px,4vw,36px);line-height:1.08;letter-spacing:-.04em;text-overflow:ellipsis;white-space:nowrap}
+        .brand-subtitle{overflow:hidden;margin-top:clamp(4px,.7vw,8px);color:rgba(255,255,255,.94);font-size:clamp(12px,2vw,20px);line-height:1.2;text-overflow:ellipsis;white-space:nowrap}
+        .toolbar{display:grid;gap:10px;width:100%;margin:0}
+        .toolbar button{display:flex;align-items:center;justify-content:center;gap:9px;min-width:0;height:clamp(38px,5.7vw,52px);padding:0 12px;border:1px solid #1deb80;border-radius:999px;background:rgba(0,91,57,.42);box-shadow:0 8px 18px rgba(0,0,0,.18);color:#fff;font:700 clamp(12px,1.8vw,17px)/1 "Hind Siliguri",sans-serif;white-space:nowrap}
+        .toolbar button:last-child{border-color:rgba(255,255,255,.9);background:#fff;color:#072035}
+        .toolbar button svg{width:clamp(17px,2.4vw,22px);height:clamp(17px,2.4vw,22px);flex:none;color:#fff}
+        .toolbar button:last-child svg{color:#008550}
+        .headline{position:relative;z-index:4;display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,32%);align-items:center;gap:16px;min-height:92px;margin:-28px var(--page-pad) 17px;padding:12px 15px;border:1px solid #bce6d5;border-radius:24px;background:linear-gradient(110deg,rgba(255,255,255,.96),rgba(231,249,239,.94));box-shadow:0 11px 28px rgba(0,67,45,.08)}
+        .title-block{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:15px;min-width:0;padding:0;border:0}
+        .title-icon{display:grid;place-items:center;width:48px;height:48px;flex:none;border-radius:15px;background:#e0f9e9;color:#008854}
+        .title-icon svg{width:29px;height:29px}
+        h1{overflow:hidden;color:#07192d;font-size:clamp(23px,3.4vw,32px);line-height:1.05;letter-spacing:-.035em;text-overflow:ellipsis;white-space:nowrap}
+        .month{overflow:hidden;margin-top:5px;color:#31435d;font-size:clamp(14px,2.2vw,20px);line-height:1.1;text-overflow:ellipsis;white-space:nowrap}
+        .member-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:11px;min-width:0;min-height:64px;padding:9px 12px;border:1px solid #bce8d4;border-radius:20px;background:linear-gradient(120deg,#effbf4,#e3f8ec)}
+        .member-icon{width:36px;height:36px;color:#00965a}
+        .member-caption{overflow:hidden;color:#41516b;font-size:clamp(10px,1.5vw,13px);line-height:1;text-overflow:ellipsis;white-space:nowrap}
+        .member-name{overflow:hidden;margin-top:5px;color:#07192d;font-size:clamp(15px,2.3vw,21px);line-height:1;text-overflow:ellipsis;white-space:nowrap}
+        .member-arrow{width:19px;height:19px;color:#07192d}
+        .two-columns,.lower-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:0 var(--page-pad)}
+        .two-columns{margin:0 0 13px}
+        .lower-grid{margin:0}
+        .panel{min-width:0;padding:12px 13px;border:1px solid #bfe0d6;border-radius:22px;background:rgba(255,255,255,.98);box-shadow:0 9px 24px rgba(0,64,47,.08)}
+        .panel-title{min-width:0;gap:10px;padding:0 0 9px;margin:0 0 3px;border-bottom:1px solid #dfe9e5;color:#07192d;font-size:clamp(14px,2vw,18px);line-height:1.1;letter-spacing:-.02em;white-space:nowrap}
+        .panel-title{overflow:hidden;text-overflow:ellipsis}
+        .panel-icon{width:39px;height:39px;flex:none;border-radius:50%;background:linear-gradient(145deg,#effff5,#c9f6d9);color:#008b51}
+        .panel-icon svg{width:23px;height:23px}
+        .line{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:9px;min-width:0;min-height:39px;padding:7px 5px;border-bottom:1px solid #e4ece9;color:#15243a;font-size:clamp(11px,1.55vw,14px);line-height:1.15}
+        .line>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .line>strong{color:#07192d;font-size:clamp(12px,1.75vw,16px);line-height:1;white-space:nowrap}
+        .line.paid{margin:0;padding:7px 5px;border-bottom:1px solid #e4ece9;border-radius:0;background:transparent;color:#15243a}
+        .line.paid strong,.positive{color:#004c38!important}
+        .line.due{min-height:45px;margin:4px -4px -2px;padding:8px 10px;border:0;border-radius:12px;background:linear-gradient(90deg,#ddf8e8,#cff3dc);color:#07192d}
+        .line.due strong{color:#00563b!important}
+        .summary-panel,.payment-panel{min-height:300px}
+        .summary-panel .line,.payment-panel .line{min-height:39px;padding:7px 5px}
+        .line.highlight{min-height:47px;margin:4px -4px;padding:8px 10px;border:0;border-radius:12px;background:linear-gradient(90deg,#ddf8e8,#cef3dc);color:#07192d}
+        .line.highlight strong{color:#00563b}
+        .line.final-line{min-height:61px;margin:5px -1px 0;padding:11px 13px;border:0;border-radius:15px;background:linear-gradient(110deg,#009c58,#00442f);box-shadow:0 8px 18px rgba(0,103,62,.17);color:#fff;font-size:clamp(13px,1.85vw,17px)}
+        .line.final-line>span:before{content:"✓";display:inline-grid;place-items:center;width:29px;height:29px;margin-right:9px;border-radius:50%;background:#4bdd66;box-shadow:0 5px 10px rgba(0,0,0,.16);color:#fff;font-weight:800;vertical-align:middle}
+        .line.final-line strong{color:#fff;font-size:clamp(15px,2.1vw,19px)}
+        .line.final-line.estimated-line{display:none}
+        .payment-options-inline{display:grid;gap:5px;margin:5px 0 0;padding:0;border:0}
+        .payment-panel .panel-title{font-size:clamp(15px,2.15vw,19px)}
+        .payment-panel .line{font-size:clamp(12px,1.7vw,15px)}
+        .payment-panel .line>strong{font-size:clamp(13px,1.9vw,17px)}
+        .payment-option-line{display:grid;grid-template-columns:42px minmax(0,1fr) minmax(74px,auto);align-items:center;gap:8px;min-width:0;min-height:39px;padding:4px 5px;border:0;border-bottom:1px solid #e4ece9;border-radius:0;background:transparent}
+        .payment-option-line:last-child{border-bottom:0}
+        .payment-option-line img,.payment-option-line>span{width:42px;height:27px;padding:3px;border:1px solid #dbe8e2;border-radius:999px;background:#fff;object-fit:contain;box-shadow:0 3px 7px rgba(0,55,40,.08)}
+        .payment-option-line strong{min-width:0;overflow:hidden;color:#07192d;font-size:clamp(11px,1.6vw,14px);line-height:1;text-overflow:ellipsis;white-space:nowrap}
+        .payment-option-line small{min-width:0;overflow:hidden;justify-self:end;padding:6px 9px;border-radius:999px;background:#dcf7e7;color:#173a2e;font-size:clamp(10px,1.4vw,13px);font-weight:650;line-height:1;text-overflow:ellipsis;white-space:nowrap}
+        .amount-due{position:relative;display:flex;align-items:center;gap:13px;min-height:86px;margin:19px var(--page-pad) 0;padding:13px 150px 13px 18px;overflow:hidden;border:1px solid #99e6bd;border-radius:24px;background:linear-gradient(95deg,#effff3 0,#d9f8e4 70%,#bff2d0 100%);color:#005237}
+        .amount-due:after{content:"";position:absolute;right:-36px;bottom:-54px;width:230px;height:120px;border-radius:55% 0 0 0;background:linear-gradient(135deg,rgba(94,227,151,.44),rgba(0,178,91,.95));transform:rotate(-12deg)}
+        .amount-icon{z-index:1;width:48px;height:48px;border-radius:50%;background:linear-gradient(145deg,#00a85b,#006e43);box-shadow:0 7px 15px rgba(0,93,55,.2);color:#fff}
+        .amount-icon svg{width:28px;height:28px}
+        .amount-due>div{z-index:1;min-width:0}
+        .amount-title{overflow:hidden;color:#005237;font-size:clamp(19px,2.9vw,27px);line-height:1.1;text-overflow:ellipsis;white-space:nowrap}
+        .amount-note{overflow:hidden;margin-top:5px;color:#162a30;font-size:clamp(11px,1.7vw,15px);line-height:1.15;text-overflow:ellipsis;white-space:nowrap}
+        .house-art{display:none}
+        footer{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;gap:13px;margin:24px var(--page-pad) 0;color:#5d6b82;font-size:clamp(10px,1.45vw,13px);line-height:1;white-space:nowrap}
+        footer:before,footer:after{background:#a8b9c5}
+        footer strong{color:#007446}
+        .bottom-waves{position:absolute;z-index:1;right:0;bottom:0;left:0;height:58px;overflow:hidden;pointer-events:none}
+        .bottom-waves:before,.bottom-waves:after{content:"";position:absolute;right:-8%;bottom:-43px;width:116%;height:94px;border-radius:50% 50% 0 0/34% 34% 0 0;transform:rotate(2deg)}
+        .bottom-waves:before{bottom:-29px;background:#92edb1;transform:rotate(-2deg)}
+        .bottom-waves:after{background:linear-gradient(100deg,#008a50,#00a55c)}
+
+        @media(max-width:650px){
+          body{display:block;min-height:100svh;padding:0;background:#fff}
+          .sheet{--page-pad:clamp(9px,3vw,16px);width:100%;min-height:max(100svh,calc(100vw * 16 / 9));aspect-ratio:9/16;border:0;border-radius:0;box-shadow:none;padding-bottom:clamp(49px,13vw,62px)}
+          .hero{min-height:clamp(116px,31vw,145px);padding:clamp(14px,4vw,21px) var(--page-pad) clamp(39px,10vw,52px)}
+          .hero:before{bottom:-32px;height:65px}.hero:after{bottom:-45px;height:76px}
+          .topbar{grid-template-columns:minmax(0,1fr) clamp(102px,28vw,126px);gap:8px}
+          .brand{gap:8px}.brand-mark{width:clamp(42px,12vw,53px);height:clamp(42px,12vw,53px);border-radius:13px}.brand>div:last-child{padding-left:8px}
+          .brand-title{font-size:clamp(17px,5.3vw,23px)}.brand-subtitle{font-size:clamp(8px,2.55vw,11px)}
+          .toolbar{gap:6px}.toolbar button{height:clamp(28px,8.2vw,35px);gap:5px;padding:0 7px;font-size:clamp(8px,2.65vw,11px)}.toolbar button svg{width:clamp(13px,3.8vw,16px);height:clamp(13px,3.8vw,16px)}
+          .headline{grid-template-columns:minmax(0,1fr) minmax(121px,36%);gap:7px;min-height:clamp(57px,17vw,72px);margin:clamp(-21px,-5.3vw,-16px) var(--page-pad) 8px;padding:7px;border-radius:clamp(13px,4vw,18px)}
+          .title-block{gap:7px}.title-icon{width:clamp(31px,9vw,39px);height:clamp(31px,9vw,39px);border-radius:10px}.title-icon svg{width:61%;height:61%}
+          h1{font-size:clamp(15px,4.6vw,20px)}.month{margin-top:3px;font-size:clamp(9px,2.9vw,12px)}
+          .member-card{gap:6px;min-height:44px;padding:5px 7px;border-radius:13px}.member-icon{width:clamp(24px,7vw,30px);height:clamp(24px,7vw,30px)}.member-caption{font-size:clamp(7px,2.1vw,9px)}.member-name{margin-top:3px;font-size:clamp(10px,3.15vw,13px)}.member-arrow{width:13px;height:13px}
+          .two-columns,.lower-grid{gap:clamp(6px,2vw,9px)}.two-columns{margin-bottom:8px}
+          .panel{padding:clamp(6px,2vw,9px);border-radius:clamp(13px,4vw,18px)}
+          .panel-title{gap:5px;padding-bottom:5px;font-size:clamp(9px,2.85vw,12px)}.panel-icon{width:clamp(25px,7.5vw,32px);height:clamp(25px,7.5vw,32px)}.panel-icon svg{width:58%;height:58%}
+          .line{gap:4px;min-height:clamp(24px,7.2vw,30px);padding:4px 2px;font-size:clamp(7.5px,2.25vw,9.6px)}.line>strong{font-size:clamp(8.5px,2.65vw,11px)}
+          .line.paid{padding:4px 2px}.line.due{min-height:clamp(29px,8.3vw,36px);margin:3px -3px -1px;padding:5px;border-radius:8px}
+          .summary-panel,.payment-panel{min-height:clamp(203px,58vw,248px)}.summary-panel .line,.payment-panel .line{min-height:clamp(24px,7vw,29px);padding:4px 2px}
+          .line.highlight{min-height:clamp(31px,8.8vw,37px);margin:3px -3px;padding:5px;border-radius:8px}
+          .line.final-line{min-height:clamp(40px,11.5vw,49px);margin-top:3px;padding:7px;border-radius:10px;font-size:clamp(8.5px,2.5vw,11px)}.line.final-line>span:before{width:clamp(19px,5.6vw,24px);height:clamp(19px,5.6vw,24px);margin-right:4px}.line.final-line strong{font-size:clamp(9px,2.8vw,12px)}
+          .payment-panel .panel-title{font-size:clamp(10px,3.05vw,13px)}.payment-panel .line{font-size:clamp(8.2px,2.5vw,10.5px)}.payment-panel .line>strong{font-size:clamp(9px,2.8vw,11.7px)}
+          .payment-options-inline{gap:1px;margin-top:2px}.payment-option-line{grid-template-columns:clamp(25px,7.4vw,31px) minmax(0,1fr) minmax(42px,42%);gap:3px;min-height:clamp(25px,7.5vw,31px);padding:2px 1px}.payment-option-line img,.payment-option-line>span{width:clamp(25px,7.4vw,31px);height:clamp(17px,4.9vw,21px);padding:2px}.payment-option-line strong{font-size:clamp(7.6px,2.3vw,9.7px)}.payment-option-line small{padding:4px;font-size:clamp(6.8px,2.05vw,8.7px)}
+          .amount-due{min-height:clamp(49px,14vw,59px);margin:9px var(--page-pad) 0;padding:7px clamp(64px,20vw,86px) 7px 9px;border-radius:clamp(13px,4vw,18px);gap:7px}.amount-due:after{right:-34px;bottom:-50px;width:132px;height:84px}.amount-icon{width:clamp(30px,8.8vw,37px);height:clamp(30px,8.8vw,37px)}.amount-icon svg{width:58%;height:58%}.amount-title{font-size:clamp(12px,3.7vw,16px)}.amount-note{margin-top:3px;font-size:clamp(7px,2.15vw,9px)}
+          footer{gap:7px;margin:clamp(12px,3.5vw,16px) var(--page-pad) 0;font-size:clamp(6.8px,2.05vw,8.7px)}.bottom-waves{height:clamp(42px,12vw,53px)}
+        }
+        @page{size:A4 portrait;margin:0}
+        @media print{
+          html,body{width:210mm;height:297mm;background:#fff}
+          body{display:block;min-height:297mm;padding:0;overflow:hidden}
+          .sheet{--page-pad:9mm;width:210mm;height:297mm;min-height:297mm;max-height:297mm;margin:0;padding-bottom:18mm;overflow:hidden;border:0;border-radius:0;box-shadow:none}
+          .hero{min-height:57mm;padding:9mm var(--page-pad) 17mm}.topbar{grid-template-columns:1fr}.toolbar{display:none}.brand-mark{width:18mm;height:18mm}.brand-title{font-size:9mm}.brand-subtitle{font-size:4.8mm}
+          .headline{min-height:24mm;margin:-8mm var(--page-pad) 4.5mm;padding:3mm 4mm}.title-icon{width:13mm;height:13mm}h1{font-size:8mm}.month{font-size:4.8mm}.member-card{min-height:17mm}.member-name{font-size:5.5mm}
+          .two-columns,.lower-grid{gap:3.5mm}.two-columns{margin-bottom:3.5mm}.panel{padding:3.3mm 3.6mm}.panel-title{font-size:4.8mm}.line{min-height:10mm;font-size:3.7mm}.line>strong{font-size:4.2mm}.line.due{min-height:11mm}.summary-panel,.payment-panel{min-height:77mm}.payment-panel .panel-title{font-size:5.1mm}.payment-panel .line{font-size:4mm}.payment-panel .line>strong{font-size:4.5mm}.payment-option-line{min-height:9.4mm}.payment-option-line strong{font-size:3.6mm}.payment-option-line small{font-size:3.2mm}
+          .amount-due{min-height:22mm;margin-top:5mm}.amount-title{font-size:7mm}.amount-note{font-size:4mm}footer{margin-top:6mm;font-size:3.4mm}.bottom-waves{height:16mm}
+        }
       </style></head><body lang="en"><main class="sheet">
-        <div class="toolbar">${popupBlocked ? '<button onclick="window.history.back()">Back to app</button>' : ""}<button onclick="window.print()">Save as PDF / Print</button></div>
-        <header class="topbar">
-          <div class="brand"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg></div><div><div class="brand-title">Monthly Hisab</div><div class="brand-subtitle">Shared Home Expense Manager</div></div></div>
-          <div class="bill-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7m-7 4h7"/></svg>Monthly Bill</div>
+        <header class="hero">
+          <div class="topbar">
+            <div class="brand"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg></div><div><div class="brand-title">MridhaBari 6B</div><div class="brand-subtitle">Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</div></div></div>
+            <div class="toolbar">
+              <button type="button" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 17v3h14v-3"/></svg>Save as PDF</button>
+              <button type="button" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="9" rx="2"/><path d="M7 15h10v6H7zM17 12h.01"/></svg>Print</button>
+            </div>
+          </div>
         </header>
         <div class="headline">
-          <div class="title-block"><h1>Monthly Bill</h1><div class="month">${escapeHtml(month)}</div></div>
-          <div class="member-card"><svg class="member-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><div><div class="member-caption">Member</div><div class="member-name">${escapeHtml(member.name)}</div></div></div>
+          <div class="title-block"><span class="title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg></span><div><h1>Monthly Bill</h1><div class="month">${escapeHtml(month)}</div></div></div>
+          <div class="member-card"><svg class="member-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><div><div class="member-caption">Member</div><div class="member-name">${escapeHtml(member.name)}</div></div><svg class="member-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></div>
         </div>
         <div class="two-columns">
           <section class="panel"><div class="panel-title"><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg></span>Rent &amp; Utilities</div>
@@ -3239,7 +4283,8 @@ function App() {
           </section>
         </div>
         <div class="amount-due"><span class="amount-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg></span><div><div class="amount-title">Amount Due: ${signedMoney(finalBalance)}</div><div class="amount-note">${finalBalance > 0 ? "Please clear the due amount at your earliest convenience." : "Your account has a credit balance."}</div></div><svg class="house-art" viewBox="0 0 160 100" fill="none" aria-hidden="true"><path d="M5 88c22-7 36-4 53 0 20 5 41 5 58-1 16-5 27-4 39 1v12H5V88Z" fill="#B9E8A6"/><path d="m31 62 34-31 34 31v31H31V62Z" fill="#FFF9E8" stroke="#14864D" stroke-width="5" stroke-linejoin="round"/><path d="m21 62 44-40 44 40-7 7-37-33-37 33-7-7Z" fill="#078C4A"/><path d="M84 34V18h13v28" fill="#168E4A" stroke="#087342" stroke-width="4"/><path d="M53 67h23v26H53z" fill="#FFF1C9" stroke="#16884B" stroke-width="3"/><path d="M64.5 68v24M54 80h21" stroke="#E8A72E" stroke-width="2"/><path d="M16 87c-8-10-4-20 2-23 7 5 9 14 4 22m-8 0c-2-12 2-19 9-21m-4 21h14" stroke="#36A84C" stroke-width="4" stroke-linecap="round"/><path d="M125 88c-5-9-2-17 4-20 7 5 8 13 3 20m-7 0c-2-10 2-16 8-18m-6 18h16" stroke="#36A84C" stroke-width="4" stroke-linecap="round"/><circle cx="21" cy="80" r="7" fill="#84D66F"/><circle cx="133" cy="78" r="8" fill="#78CE64"/></svg></div>
-        <footer>Generated by <strong>Monthly Hisab</strong> · ${escapeHtml(generatedDate)}</footer>
+        <footer>Generated by <strong>Rahat</strong> &middot; ${escapeHtml(generatedDate)}</footer>
+        <div class="bottom-waves" aria-hidden="true"></div>
       </main></body></html>`);
     reportDocument.close();
     if (popupBlocked) {
@@ -3307,7 +4352,7 @@ function App() {
           .eq("month_id", monthRow.id),
         supabase
           .from("member_settlements")
-          .select("amount,from_user_id,to_user_id,source_type,status")
+          .select("*")
           .eq("month_id", monthRow.id),
         supabase
           .from("app_settings")
@@ -3392,9 +4437,7 @@ function App() {
       const contributions = contributionsResult.data || [];
       const reportSettlements = settlementsResult.error
         ? []
-        : (settlementsResult.data || []).filter(
-            (settlement) => settlement.status === "completed",
-          );
+        : settlementsResult.data || [];
       const payments = paymentsResult.data || [];
       const rentPayments = payments
         .filter(
@@ -3436,13 +4479,13 @@ function App() {
               settlement.from_user_id === member.id,
           )
           .reduce(
-            (sum, settlement) => sum + Number(settlement.amount || 0),
+            (sum, settlement) => sum + settlementPaidValue(settlement),
             0,
           ) -
         reportSettlements
           .filter((settlement) => settlement.to_user_id === member.id)
           .reduce(
-            (sum, settlement) => sum + Number(settlement.amount || 0),
+            (sum, settlement) => sum + settlementPaidValue(settlement),
             0,
           );
       const mealCost = mealMemberIds.includes(member.id)
@@ -3692,7 +4735,7 @@ function App() {
     );
   if (!session || !user)
     return (
-      <div className="login-wrap">
+      <div className={`login-wrap${theme === "dark" ? " dark-theme" : ""}`}>
         <div className="login-shell">
           <aside className="login-brand-panel">
             <div className="login-brand-name"><Home size={27} /> <strong>Monthly Hisab</strong></div>
@@ -3798,7 +4841,7 @@ function App() {
       : []),
   ];
   return (
-    <div className="app premium-theme">
+    <div className={`app premium-theme${theme === "dark" ? " dark-theme" : ""}`}>
       <aside className={menu ? "sidebar open" : "sidebar"}>
         <div className="brand">
           <div className="brand-mark">
@@ -3817,7 +4860,6 @@ function App() {
             <X />
           </button>
         </div>
-        <div className="nav-label">WORKSPACE</div>
         {nav.map(([key, label, Icon]) => (
           <button
             key={key}
@@ -3867,11 +4909,10 @@ function App() {
                 </span>
                 <span className="profile-trigger-info">
                   <b>{user.name}</b>
-                  <small><span className="sidebar-role-dot" />{admin ? "Administrator" : "Member"}</small>
                 </span>
                 <ChevronRight className="sidebar-profile-chevron" size={16} aria-hidden="true" />
               </button>
-              <button className="sidebar-logout-btn bazar-action" type="button" aria-label="Logout" title="Logout" onClick={(e) => { e.stopPropagation(); logout(); }}><LogOut size={18}/></button>
+              <button className="sidebar-logout-btn" type="button" aria-label="Logout" title="Logout" onClick={(e) => { e.stopPropagation(); logout(); }}><LogOut size={18}/></button>
             </div>
           </div>
         </div>
@@ -3910,7 +4951,7 @@ function App() {
           </section>
         </div>
       )}
-      <main className={page === "overview" ? "main overview-page" : page === "my-account" ? "main my-account-page" : page === "settlements" ? "main settlement-page" : page === "contacts" ? "main contacts-page" : page === "inbox" ? "main inbox-page" : page === "pay-rent" ? "main pay-rent-app-page" : page === "bazar" ? "main bazar-page" : "main"}>
+      <main className={page === "overview" ? "main overview-page" : page === "my-account" ? "main my-account-page" : page === "settlements" ? "main settlement-page" : page === "contacts" ? "main contacts-page" : page === "inbox" ? "main inbox-page" : page === "pay-rent" ? "main pay-rent-app-page" : page === "bazar" ? "main bazar-page" : page === "payments" ? "main payments-page" : "main"}>
         <header className={`${page === "my-account" ? "account-header " : ""}${page === "overview" ? "overview-page-header" : ""}${page === "settlements" ? "settlement-page-header" : ""}`}>
           <button
             type="button"
@@ -3923,21 +4964,32 @@ function App() {
           {page !== "my-account" && (
             <div className={page === "overview" ? "overview-page-heading" : page === "settlements" ? "settlement-page-heading" : "app-page-heading"}>
               {page === "inbox" && <span className="inbox-page-mark"><MessageCircle size={23} /></span>}
+              {page === "payments" && <span className="payments-page-mark" aria-hidden="true"><span className="payments-page-mark-inner"><Wallet size={20} /></span></span>}
               {page === "settlements" && (
                 <span className="settlement-page-mark" aria-hidden="true">
-                  <Utensils size={21} />
-                  <ArrowDownRight size={14} />
+                  <span className="settlement-page-mark-inner">
+                    <Utensils size={21} />
+                  </span>
                 </span>
               )}
-              <h2>{nav.find((x) => x[0] === page)?.[1] || "My Account"}</h2>
+              <h2>{page === "settlements" ? "Member meal balances" : nav.find((x) => x[0] === page)?.[1] || "My Account"}</h2>
               <p>
                 {page === "settlements"
-                  ? "Review balances, plan transfers, and close the month clearly."
+                  ? "Current meal balance of all members"
                   : "Manage your home, one month at a time."}
               </p>
             </div>
           )}
           <div className="header-actions">
+            <button
+              type="button"
+              className="icon-btn theme-mode-toggle"
+              aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}
+              title={theme === "dark" ? "Use light theme" : "Use dark theme"}
+              onClick={() => setTheme((currentTheme) => currentTheme === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
             <div className="notice-bell-wrap">
               <button
                 className="icon-btn notice-bell"
@@ -3945,75 +4997,96 @@ function App() {
                 title="Notifications"
               >
                 <Bell size={18} />
-                {notices.filter((n) => !readNoticeIds.includes(n.id)).length >
-                  0 && (
+                {unreadNotifications.length > 0 && (
                   <span className="notice-badge">
-                    {notices.filter((n) => !readNoticeIds.includes(n.id))
-                      .length > 9
+                    {unreadNotifications.length > 9
                       ? "9+"
-                      : notices.filter((n) => !readNoticeIds.includes(n.id))
-                          .length}
+                      : unreadNotifications.length}
                   </span>
                 )}
               </button>
               {noticePanelOpen && (
                 <div className="notice-popover">
                   <div className="notice-popover-head">
-                    <b>Notifications</b>
-                    <div className="notice-popover-tools">
-                      <button
-                        className="read-all-btn"
-                        onClick={() => markAllNoticesRead(user.id)}
-                        disabled={noticeReadBusy}
-                      >
-                        {noticeReadBusy ? "Saving…" : "Read all notifications"}
-                      </button>
-                      <button
-                        className="icon-btn bazar-action"
-                        onClick={() => setNoticePanelOpen(false)}
-                        aria-label="Close notifications"
-                      >
-                        <X size={15} />
-                      </button>
+                    <div className="notice-popover-heading">
+                      <span className="notice-popover-heading-icon" aria-hidden="true">
+                        <Bell size={17} />
+                      </span>
+                      <span className="notice-popover-heading-copy">
+                        <b>Notifications</b>
+                        <small>
+                          {publishedNotifications.length
+                            ? `${unreadNotifications.length} unread · ${publishedNotifications.length} total`
+                            : "You're all caught up"}
+                        </small>
+                      </span>
                     </div>
+                    <button
+                      className="icon-btn bazar-action notice-popover-close"
+                      onClick={() => setNoticePanelOpen(false)}
+                      aria-label="Close notifications"
+                    >
+                      <X size={16} />
+                    </button>
                   </div>
-                  {notices.length ? (
-                    notices.map((n) => (
-                      <article
-                        className={
-                          "notice-mini " +
-                          (readNoticeIds.includes(n.id)
-                            ? "is-read"
-                            : "is-unread")
-                        }
-                        key={n.id}
-                      >
-                        <div className="notice-mini-title">
-                          <b>{n.title || "Notice"}</b>
-                          {!readNoticeIds.includes(n.id) && (
-                            <span className="unread-dot" title="Unread" />
-                          )}
-                        </div>
-                        <small>{new Date(n.created_at).toLocaleString()}</small>
-                        {n.body && <p>{n.body}</p>}
-                        {n.image_url && (
-                          <img src={n.image_url} alt="Notice attachment" />
-                        )}
-                      </article>
-                    ))
-                  ) : (
-                    <p className="notice-empty">No notifications yet.</p>
-                  )}
+                  <div className="notice-popover-tools">
+                    <button
+                      className="read-all-btn"
+                      onClick={() => markAllNoticesRead(user.id)}
+                      disabled={noticeReadBusy || !unreadNotifications.length}
+                    >
+                      <Check size={14} aria-hidden="true" />
+                      <span>{noticeReadBusy ? "Saving…" : "Mark all read"}</span>
+                    </button>
+                    <button
+                      className="clear-all-btn"
+                      onClick={() => clearAllNotifications(user.id)}
+                      disabled={noticeReadBusy || !publishedNotifications.length}
+                    >
+                      <PremiumDeleteIcon size={14} />
+                      <span>Clear all</span>
+                    </button>
+                  </div>
+                  <div className="notice-popover-list">
+                    {publishedNotifications.length ? (
+                      publishedNotifications.map((n) => (
+                        <article
+                          className={
+                            `notice-mini notice-kind-${n.kind || "announcement"} ` +
+                            (readNoticeIds.includes(n.id)
+                              ? "is-read"
+                              : "is-unread")
+                          }
+                          key={n.id}
+                        >
+                          <span className={`notice-mini-icon notice-mini-icon-${n.activity_type || "announcement"}`}>
+                            <NotificationGlyph notification={n} />
+                          </span>
+                          <div className="notice-mini-content">
+                            <div className="notice-mini-title">
+                              <b>{n.title || "Notice"}</b>
+                              {!readNoticeIds.includes(n.id) && (
+                                <span className="unread-dot" title="Unread" />
+                              )}
+                            </div>
+                            <p>{getNotificationBody(n, user)}</p>
+                            <small>{formatNotificationTime(n.created_at)}</small>
+                            {n.image_url && (
+                              <img src={n.image_url} alt="Notice attachment" />
+                            )}
+                          </div>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="notice-empty">
+                        <span aria-hidden="true"><CheckCircle2 size={18} /></span>
+                        No notifications yet.
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
-            <button
-              className="icon-btn"
-              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-              title="Toggle theme"
-            >
-              {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
-            </button>
             <div className="month-picker" ref={monthPickerRef}>
               <button
                 type="button"
@@ -4104,7 +5177,7 @@ function App() {
                   className="danger reset-month-btn"
                   onClick={resetMonth}
                 >
-                  <Trash2 size={16} /> Reset Hisab
+                  <RotateCcw size={16} /> Reset Hisab
                 </button>
               </div>
             </section>
@@ -4113,49 +5186,63 @@ function App() {
                 title="Total Rent"
                 value={money(totalRent + utilitiesTotal)}
                 icon={Home}
+                watermarkIcon={Home}
                 tone="purple"
-                hint="Total rent for this month"
+                hint="Rent + utilities"
                 className="summary-stat summary-indigo"
+                showAction
               />
               <Stat
-                title="Rent paid"
+                title="Rent Paid"
                 value={money(utilitiesPaidTotal)}
                 icon={ArrowDownRight}
+                watermarkIcon={CheckCircle2}
                 tone="green"
-                hint="Checked utilities"
+                hint="Utilities paid"
                 className="summary-stat summary-cyan"
+                showAction
+                actionKind="check"
               />
               <Stat
                 title="Rent in Hand"
                 value={money(rentInHand)}
                 icon={Wallet}
+                watermarkIcon={Wallet}
                 tone="green"
-                hint="Member payments less paid utilities"
+                hint="Available rent"
                 className="summary-stat summary-green"
+                showAction
               />
               <Stat
-                title="Rent due"
+                title="Rent Due"
                 value={money(Math.max(0, totalRent + utilitiesTotal - rentPaid))}
                 icon={Wallet}
+                watermarkIcon={TriangleAlert}
                 tone="orange"
-                hint="Rent remaining"
+                hint="Outstanding rent"
                 className="summary-stat summary-amber"
+                showAction
+                actionKind="alert"
               />
               <Stat
-                title="Meal cost"
+                title="Meal Cost"
                 value={money(bazarTotal)}
                 icon={Receipt}
+                watermarkIcon={ShoppingBasket}
                 tone="blue"
-                hint="Monthly bazar total"
+                hint="Monthly bazar"
                 className="summary-stat summary-rose"
+                showAction
               />
               <Stat
-                title="Cash in hand"
+                title="Cash in Hand"
                 value={money(cashInHand)}
                 icon={Wallet}
+                watermarkIcon={Wallet}
                 tone="purple"
-                hint="Contributions less cash purchases and refunds"
+                hint="Available cash"
                 className="summary-stat summary-violet"
+                showAction
               />
             </div>
             <div className="grid-two">
@@ -4215,52 +5302,181 @@ function App() {
                 </div>
               </section>
               <section className="panel overview-utilities-panel">
-                <div className="overview-panel-heading">
-                  <span className="overview-panel-icon"><Zap size={20} /></span>
-                  <PanelHead
-                    title="Utilities breakdown"
-                    sub="Flat rent is separate; shared utilities are divided among members"
-                  />
-                </div>
-                <div className={`break-row utility-payment-row flat-rent-payment-row${utilityPaidStatus[FLAT_RENT_NAME] ? " is-paid" : ""}`}>
-                  <label className="utility-payment-check">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(utilityPaidStatus[FLAT_RENT_NAME])}
-                      disabled={utilityPaidSaving || flatRentAmount <= 0}
-                      onChange={(event) => saveUtilityPaidStatus(FLAT_RENT_NAME, event.target.checked)}
-                    />
-                    <span>{FLAT_RENT_NAME}</span>
-                  </label>
-                  <b>{money(flatRentAmount)}</b>
-                  <small>{flatRentAmount <= 0 ? "Not set" : utilityPaidStatus[FLAT_RENT_NAME] ? "Paid · Not divided" : "Unpaid · Not divided"}</small>
-                </div>
-                {regularUtilityCategories.map((c) => (
-                  <div className={`break-row utility-payment-row${utilityPaidStatus[c.name] ? " is-paid" : ""}`} key={c.id || c.name}>
-                    <label className="utility-payment-check">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(utilityPaidStatus[c.name])}
-                        disabled={utilityPaidSaving}
-                        onChange={(event) => saveUtilityPaidStatus(c.name, event.target.checked)}
-                      />
-                      <span>{c.name}</span>
-                    </label>
-                    <b>
-                      {money(
-                        c.name.toLowerCase() === "bazar" && monthBazar.length
-                          ? bazarTotal
-                          : c.amount,
-                      )}
-                    </b>
-                    <small>{utilityPaidStatus[c.name] ? "Paid" : "Unpaid"}</small>
+                <div className="overview-panel-heading overview-utilities-heading">
+                  <div className="overview-utilities-heading-main">
+                    <span className="overview-panel-icon"><Zap size={20} /></span>
+                    <PanelHead title="Utilities breakdown" />
                   </div>
-                ))}
-                <div className="total-row">
-                  <b>Total utilities</b>
-                  <b>{money(utilitiesTotal)}</b>
+                  <div className="overview-utilities-total-badge" aria-label="Total utilities">
+                    <span>Total utilities</span>
+                    <strong>{money(utilitiesTotal)}</strong>
+                  </div>
                 </div>
-                <div className="total-row light">
+                <div className="overview-utilities-list">
+                {(() => {
+                  const flatPaid = getUtilityPaidAmount(FLAT_RENT_NAME, flatRentAmount);
+                  const flatIsPaid = flatRentAmount > 0 && flatPaid >= flatRentAmount;
+                  const flatIsPartial = flatPaid > 0 && flatPaid < flatRentAmount;
+                  return (
+                    <div className={`break-row utility-payment-row flat-rent-payment-row${flatIsPaid ? " is-paid" : flatIsPartial ? " is-partial" : " is-unpaid"}`}>
+                      <div
+                        className="utility-payment-check"
+                        role={admin && flatRentAmount > 0 ? "button" : undefined}
+                        tabIndex={admin && flatRentAmount > 0 ? 0 : undefined}
+                        onClick={() => {
+                          if (!admin || flatRentAmount <= 0) return;
+                          void saveUtilityPaidStatus(FLAT_RENT_NAME, !flatIsPaid, true);
+                        }}
+                        onKeyDown={(event) => {
+                          if (!admin || flatRentAmount <= 0) return;
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            void saveUtilityPaidStatus(FLAT_RENT_NAME, !flatIsPaid, true);
+                          }
+                        }}
+                        title={admin && flatRentAmount > 0 ? (flatIsPaid ? "Click to mark unpaid" : "Click to mark fully paid") : undefined}
+                      >
+                        <span className={`utility-category-icon tone-${getUtilityTone(FLAT_RENT_NAME)}`} aria-hidden="true">
+                          <Home size={19} />
+                        </span>
+                        <span className="utility-category-name">{FLAT_RENT_NAME}</span>
+                      </div>
+                      <b className="utility-partial-amount">
+                        <input
+                          type="number"
+                          className="utility-paid-input"
+                          min="0"
+                          max={Math.max(0, flatRentAmount)}
+                          step="any"
+                          placeholder="0"
+                          aria-label={`Paid amount for ${FLAT_RENT_NAME}`}
+                          disabled={!admin || flatRentAmount <= 0}
+                          value={flatPaid > 0 ? flatPaid : ""}
+                          onChange={(event) => {
+                            const raw = event.target.value;
+                            if (raw === "") {
+                              void saveUtilityPaidStatus(FLAT_RENT_NAME, 0, false);
+                              return;
+                            }
+                            const clamped = Math.min(Math.max(0, Number(raw) || 0), Math.max(0, flatRentAmount));
+                            void saveUtilityPaidStatus(FLAT_RENT_NAME, clamped >= flatRentAmount && flatRentAmount > 0 ? true : clamped, false);
+                          }}
+                        />
+                        <span className="utility-paid-slash">/</span>
+                        <span className="utility-total-value">{money(flatRentAmount)}</span>
+                      </b>
+                      <button
+                        type="button"
+                        className={`utility-status-pill${flatIsPaid ? " is-paid" : flatIsPartial ? " is-partial" : " is-unpaid"}`}
+                        disabled={!admin || flatRentAmount <= 0}
+                        onClick={() => void saveUtilityPaidStatus(FLAT_RENT_NAME, !flatIsPaid, true)}
+                        title={admin && flatRentAmount > 0 ? (flatIsPaid ? "Mark unpaid" : "Mark fully paid") : undefined}
+                      >
+                        {flatRentAmount <= 0 ? (
+                          <span>Not set</span>
+                        ) : flatIsPaid ? (
+                          <>
+                            <span className="utility-status-badge-icon check" aria-hidden="true"><Check size={12} strokeWidth={3} /></span>
+                            <span>Paid</span>
+                          </>
+                        ) : flatIsPartial ? (
+                          <>
+                            <span className="utility-status-badge-icon alert" aria-hidden="true">!</span>
+                            <span>Due {money(flatRentAmount - flatPaid)}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="utility-status-badge-icon alert" aria-hidden="true">!</span>
+                            <span>Unpaid</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })()}
+                {regularUtilityCategories.map((c) => {
+                  const catTotal = c.name.toLowerCase() === "bazar" && monthBazar.length ? bazarTotal : Number(c.amount || 0);
+                  const paidAmt = getUtilityPaidAmount(c.name, catTotal);
+                  const isPaid = catTotal > 0 && paidAmt >= catTotal;
+                  const isPartial = paidAmt > 0 && paidAmt < catTotal;
+                  const UtilityIcon = getUtilityIcon(c.name);
+                  const tone = getUtilityTone(c.name);
+                  return (
+                    <div className={`break-row utility-payment-row${isPaid ? " is-paid" : isPartial ? " is-partial" : " is-unpaid"}`} key={c.id || c.name}>
+                      <div
+                        className="utility-payment-check"
+                        role={admin && catTotal > 0 ? "button" : undefined}
+                        tabIndex={admin && catTotal > 0 ? 0 : undefined}
+                        onClick={() => {
+                          if (!admin || catTotal <= 0) return;
+                          void saveUtilityPaidStatus(c.name, !isPaid, true);
+                        }}
+                        onKeyDown={(event) => {
+                          if (!admin || catTotal <= 0) return;
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            void saveUtilityPaidStatus(c.name, !isPaid, true);
+                          }
+                        }}
+                        title={admin && catTotal > 0 ? (isPaid ? "Click to mark unpaid" : "Click to mark fully paid") : undefined}
+                      >
+                        <span className={`utility-category-icon tone-${tone}`} aria-hidden="true">
+                          <UtilityIcon size={19} />
+                        </span>
+                        <span className="utility-category-name">{c.name}</span>
+                      </div>
+                      <b className="utility-partial-amount">
+                        <input
+                          type="number"
+                          className="utility-paid-input"
+                          min="0"
+                          max={Math.max(0, catTotal)}
+                          step="any"
+                          placeholder="0"
+                          aria-label={`Paid amount for ${c.name}`}
+                          disabled={!admin || catTotal <= 0}
+                          value={paidAmt > 0 ? paidAmt : ""}
+                          onChange={(event) => {
+                            const raw = event.target.value;
+                            if (raw === "") {
+                              void saveUtilityPaidStatus(c.name, 0, false);
+                              return;
+                            }
+                            const clamped = Math.min(Math.max(0, Number(raw) || 0), Math.max(0, catTotal));
+                            void saveUtilityPaidStatus(c.name, clamped >= catTotal && catTotal > 0 ? true : clamped, false);
+                          }}
+                        />
+                        <span className="utility-paid-slash">/</span>
+                        <span className="utility-total-value">{money(catTotal)}</span>
+                      </b>
+                      <button
+                        type="button"
+                        className={`utility-status-pill${isPaid ? " is-paid" : isPartial ? " is-partial" : " is-unpaid"}`}
+                        disabled={!admin || catTotal <= 0}
+                        onClick={() => void saveUtilityPaidStatus(c.name, !isPaid, true)}
+                        title={admin && catTotal > 0 ? (isPaid ? "Mark unpaid" : "Mark fully paid") : undefined}
+                      >
+                        {isPaid ? (
+                          <>
+                            <span className="utility-status-badge-icon check" aria-hidden="true"><Check size={12} strokeWidth={3} /></span>
+                            <span>Paid</span>
+                          </>
+                        ) : isPartial ? (
+                          <>
+                            <span className="utility-status-badge-icon alert" aria-hidden="true">!</span>
+                            <span>Due {money(catTotal - paidAmt)}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="utility-status-badge-icon alert" aria-hidden="true">!</span>
+                            <span>Unpaid</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+                </div>                <div className="total-row light">
                   <span>Utilities per member</span>
                   <b>{money(utilitiesPerMember)}</b>
                 </div>
@@ -4273,61 +5489,126 @@ function App() {
             <section className="welcome account-welcome">
               <div>
                 <span className="eyebrow">PERSONAL ACCOUNT</span>
-                <h1>Hello, {user.name}</h1>
+                <h1>Hello, {user.name}{<span className="account-wave" aria-hidden="true"> 👋</span>}</h1>
                 <p>Your room rent, utilities, and meal cost for {month}.</p>
               </div>
-              <button className="btn secondary account-pdf-btn" type="button" onClick={exportMyAccountPdf}><Download size={16} /> Export PDF</button>
+              <button className="btn secondary account-pdf-btn" type="button" onClick={() => exportMemberBill(user)}><Download size={16} /> Export PDF</button>
             </section>
+            {activeBulletinNotices.length > 0 && (
+              <div className="bulletin-notice-bar" role="region" aria-label="Bulletin notice">
+                <span className="bulletin-notice-badge">
+                  <Megaphone size={14} aria-hidden="true" />
+                  <span>Bulletin Notice</span>
+                </span>
+                <span className="bulletin-notice-divider" aria-hidden="true" />
+                <div className="bulletin-notice-content">
+                  <span className="bulletin-notice-megaphone" aria-hidden="true">📢</span>
+                  <p className="bulletin-notice-text">
+                    {activeBulletinNotices[bulletinIndex % activeBulletinNotices.length]?.text}
+                  </p>
+                </div>
+                <div className="bulletin-notice-controls">
+                  <button
+                    type="button"
+                    className="bulletin-ctrl-btn"
+                    aria-label="Previous bulletin notice"
+                    title="Previous notice"
+                    onClick={() =>
+                      setBulletinIndex((prev) =>
+                        (prev - 1 + activeBulletinNotices.length) % activeBulletinNotices.length,
+                      )
+                    }
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className={`bulletin-ctrl-btn is-play-pause${bulletinPaused ? " is-paused" : ""}`}
+                    aria-label={bulletinPaused ? "Resume bulletin rotation" : "Pause bulletin rotation"}
+                    title={bulletinPaused ? "Play" : "Pause"}
+                    onClick={() => setBulletinPaused((prev) => !prev)}
+                  >
+                    {bulletinPaused ? <Play size={11} /> : <Pause size={11} />}
+                  </button>
+                  <button
+                    type="button"
+                    className="bulletin-ctrl-btn"
+                    aria-label="Next bulletin notice"
+                    title="Next notice"
+                    onClick={() =>
+                      setBulletinIndex((prev) => (prev + 1) % activeBulletinNotices.length)
+                    }
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="stats account-stats">
               <Stat
-                title="Total rent"
+                title="Total Rent"
                 value={money(ownTotalRent)}
                 icon={Home}
                 tone="blue"
-                hint={`Room rent + utilities share`}
+                hint="Rent + utilities"
                 className="summary-stat summary-indigo"
+                showAction
               />
               <Stat
                 title="Rent Paid"
                 value={money(memberRentPaid(user.id))}
-                icon={ArrowDownRight}
+                icon={Wallet}
+                watermarkIcon={Wallet}
                 tone="green"
-                hint="Rent payment"
+                hint="Recorded payment"
                 className="summary-stat summary-cyan"
+                showAction
+                actionKind="check"
               />
               <Stat
                 title="Meal Cost"
                 value={money(mealActiveIds.includes(user.id) ? individualMealCost : 0)}
                 icon={Utensils}
+                watermarkIcon={Utensils}
                 tone="orange"
-                hint={`${bazarMemberCount} members sharing bazar`}
+                hint={`${bazarMemberCount} members`}
                 className="summary-stat summary-rose"
+                showAction
               />
               <Stat
                 title="Meal Paid"
                 value={money(memberMealPaid(user.id))}
                 icon={Utensils}
+                watermarkIcon={CheckCircle2}
                 tone="green"
-                hint="Cash contributions and bazar credits"
+                hint="Payments + credits"
                 className="summary-stat summary-green"
+                showAction
+                actionKind="check"
               />
               <Stat
                 title="Previous Due"
                 value={previousDueLoading ? "Loading…" : money(previousDueByUser[user.id] ?? previousDue)}
-                icon={Wallet}
+                icon={FileText}
+                watermarkIcon={Clock3}
                 tone="orange"
-                hint="Unpaid balance from past months"
+                hint="Carried forward"
                 className="summary-stat summary-violet"
+                showAction
               />
               <Stat
                 title="Due"
                 value={money(ownDue + (previousDueByUser[user.id] ?? previousDue))}
                 icon={Wallet}
+                watermarkIcon={TriangleAlert}
                 tone="orange"
                 hint={`${money(previousDueByUser[user.id] ?? previousDue)} + ${money(ownDue)}`}
                 className="summary-stat summary-amber"
+                showAction
+                actionKind="alert"
               />
             </div>
+            <div className="account-details-grid">
             <section className="panel account-breakdown-panel">
               <div className="overview-panel-heading">
                 <span className="overview-panel-icon"><Zap size={20} /></span>
@@ -4373,22 +5654,119 @@ function App() {
                 </div>
               </div>
             </section>
-            <section className="panel">
-              <PanelHead
-                title="Payment history"
-                sub="Payments recorded by admin"
-              />
-              {db.payments
-                .filter((p) => p.userId === user.id)
-                .map((p) => (
-                  <div className="break-row">
-                    <span>
-                      {p.date} · {p.note}
-                    </span>
-                    <b className="green-text">{money(p.amount)}</b>
+            <section className="panel account-payment-timeline-panel">
+              <div className="account-payment-timeline-heading">
+                <div className="overview-panel-heading">
+                  <span className="overview-panel-icon account-payment-heading-icon">
+                    <Receipt size={20} />
+                  </span>
+                  <PanelHead
+                    title="Spending & Payment Timeline"
+                  />
+                </div>
+                <div className="account-payment-timeline-total">
+                  <small>
+                    {accountPaymentTimeline.length} transaction{accountPaymentTimeline.length === 1 ? "" : "s"}
+                  </small>
+                  <strong>{money(accountPaymentTimelineTotal)}</strong>
+                </div>
+              </div>
+              {accountPaymentTimeline.length ? (
+                <div className="account-payment-timeline" role="list">
+                  {accountPaymentTimeline.map((payment) => {
+                    const paymentDate = new Date(`${payment.date}T00:00:00`);
+                    const validDate = !Number.isNaN(paymentDate.getTime());
+                    const isCashContribution = payment.timelineType === "cash";
+                    const isMealPayment = payment.timelineType === "meal";
+                    const isBazar = payment.timelineType === "bazar";
+                    const isSettlementPaid = payment.timelineType === "settlement-paid";
+                    const isSettlementReceived = payment.timelineType === "settlement-received";
+                    const paymentLabel = isCashContribution
+                      ? "Cash contribution"
+                      : isMealPayment
+                        ? "Meal payment"
+                        : isBazar
+                          ? "Bazar purchase"
+                          : isSettlementPaid
+                            ? "Meal settlement paid"
+                            : isSettlementReceived
+                              ? "Meal settlement received"
+                              : "Rent payment";
+                    const statusLabel = isBazar
+                      ? "Bazar credit"
+                      : isSettlementReceived
+                        ? "Refund credit"
+                        : isSettlementPaid
+                          ? "Settled"
+                          : isCashContribution
+                            ? "Recorded"
+                            : "Confirmed";
+                    return (
+                      <article
+                        className={`account-payment-event ${payment.timelineType || "rent"}`}
+                        key={payment.timelineId || payment.id}
+                        role="listitem"
+                      >
+                        <time className="account-payment-date" dateTime={payment.date || undefined}>
+                          <strong>
+                            {validDate
+                              ? paymentDate.toLocaleDateString("en-US", { day: "2-digit" })
+                              : "--"}
+                          </strong>
+                          <span>
+                            {validDate
+                              ? paymentDate.toLocaleDateString("en-US", { month: "short" })
+                              : "Date"}
+                          </span>
+                        </time>
+                        <span className="account-payment-marker" aria-hidden="true">
+                          {isBazar
+                            ? <ShoppingBasket size={15} />
+                            : isCashContribution
+                              ? <Wallet size={15} />
+                              : isMealPayment
+                                ? <Utensils size={15} />
+                                : isSettlementPaid || isSettlementReceived
+                                  ? <ArrowUpDown size={15} />
+                                  : <Receipt size={15} />}
+                        </span>
+                        <div className="account-payment-content">
+                          <div className="account-payment-title-row">
+                            <strong>{paymentLabel}</strong>
+                          </div>
+                          <p>{payment.note || `${paymentLabel} recorded for ${month}`}</p>
+                          <small>
+                            {validDate
+                              ? paymentDate.toLocaleDateString("en-BD", {
+                                  weekday: "short",
+                                  day: "numeric",
+                                  month: "long",
+                                  year: "numeric",
+                                })
+                              : payment.date || "Payment date unavailable"}
+                          </small>
+                        </div>
+                        <div className="account-payment-value">
+                          <span className="account-payment-status">
+                            <CheckCircle2 size={12} /> {statusLabel}
+                          </span>
+                          <strong className="account-payment-amount">{money(payment.amount)}</strong>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="account-payment-empty">
+                  <span><Receipt size={22} /></span>
+                  <div>
+                    <strong>No timeline entries yet</strong>
+                    <p>Your rent, meal, and cash contributions for {month} will appear here.</p>
                   </div>
-                ))}
+                </div>
+              )}
             </section>
+            </div>
           </>
         )}
         {page === "settlements" && (
@@ -4413,15 +5791,12 @@ function App() {
             <div className="settlement-dashboard settlement-dashboard-v2 settlement-dashboard-compact">
             <div className="settlement-balance-row">
               <section className="panel settlement-surface settlement-members-panel">
-                <div className="settlement-section-heading">
-                  <div className="settlement-heading-main">
-                    <span className="settlement-panel-icon balance"><Users size={19} /></span>
-                    <div className="settlement-balance-heading-copy">
-                      <h3>Member meal balances</h3>
-                    </div>
-                  </div>
+                <div className="settlement-section-heading settlement-members-toolbar">
                   <div className="settlement-heading-actions">
-                    <span className="settlement-count-chip">{settlementBalanceRows.length} members</span>
+                    <span className="settlement-count-chip">
+                      <Users size={14} aria-hidden="true" />
+                      {settlementBalanceRows.length} members
+                    </span>
                     {admin && (
                       <button
                         type="button"
@@ -4446,7 +5821,16 @@ function App() {
                     </thead>
                     <tbody>
                       {settlementBalanceRows.map((row) => (
-                        <tr key={row.member.id}>
+                        <tr
+                          key={row.member.id}
+                          className={
+                            row.balance > 0.009
+                              ? "balance-row-pay"
+                              : row.balance < -0.009
+                                ? "balance-row-receive"
+                                : "balance-row-settled"
+                          }
+                        >
                           <td>
                             <div className="person settlement-person">
                               {row.member.photo_url ? (
@@ -4456,7 +5840,6 @@ function App() {
                               )}
                               <span>
                                 <b>{row.member.name}</b>
-                                <small>{row.member.role === "admin" ? "Administrator" : "Member"}</small>
                               </span>
                             </div>
                           </td>
@@ -4473,40 +5856,45 @@ function App() {
                               }`}
                             >
                               {row.balance > 0.009
-                                ? <><span>Will pay</span><strong>{money(row.balance)}</strong></>
+                                ? <><span>Will pay</span><strong>{money(row.balance)}</strong><ChevronRight size={13} className="settlement-pill-chevron" aria-hidden="true" /></>
                                 : row.balance < -0.009
-                                  ? <><span>Will receive</span><strong>{money(Math.abs(row.balance))}</strong></>
+                                  ? <><span>Will receive</span><strong>{money(Math.abs(row.balance))}</strong><ChevronRight size={13} className="settlement-pill-chevron" aria-hidden="true" /></>
                                   : "Settled"}
                             </span>
-                            <small className="settlement-projected-balance">
-                              After pending: {money(row.projectedBalance)}
-                            </small>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-
+                <div className="settlement-balance-footer" aria-label="Meal balance summary">
+                  <span className="settlement-footer-layers" aria-hidden="true">
+                    <Layers3 size={15} />
+                  </span>
+                  <span className="is-paying">
+                    <strong>{settlementBalanceRows.filter((row) => row.balance > 0.009).length}</strong> paying
+                  </span>
+                  <span className="is-receiving">
+                    <CheckCircle2 size={14} aria-hidden="true" />
+                    <strong>{settlementBalanceRows.filter((row) => row.balance < -0.009).length}</strong> receiving
+                  </span>
+                  <small>Based on meal cost and recorded payments</small>
+                </div>
               </section>
-            </div>
-            <div className="settlement-workflow-grid settlement-workflow-grid-themed">
               <section className="panel settlement-surface settlement-plan-panel">
                 <div className="settlement-section-heading">
                   <div className="settlement-heading-main">
                     <span className="settlement-panel-icon plan"><Zap size={20} /></span>
                     <div>
-                      <span className="eyebrow">SMART MATCHING</span>
-                      <h3>Suggested auto plan</h3>
+                      <h3>Smart Matching</h3>
+                      <p>Suggested auto plan</p>
                     </div>
                   </div>
                   <span className="settlement-count-chip">
+                    <Wallet size={13} aria-hidden="true" />
                     {settlementSuggestions.length} match{settlementSuggestions.length === 1 ? "" : "es"}
                   </span>
                 </div>
-                <p className="settlement-plan-intro">
-                  Matches available contribution cash and direct member balances automatically.
-                </p>
                 {settlementLoadError ? (
                   <div className="settlement-plan-empty">
                     <span><ArrowUpDown size={22} /></span>
@@ -4524,14 +5912,14 @@ function App() {
                             type="button"
                             className={`settlement-suggestion-row ${suggestion.sourceType === "cash_contribution" ? "cash-refund" : "direct-transfer"}`}
                             key={`${suggestion.sourceType}-${suggestion.fromUserId}-${suggestion.toUserId}-${index}`}
-                            onClick={admin ? () => openSettlementModal({ ...suggestion, status: "pending" }) : undefined}
+                            onClick={admin ? () => openSettlementModal(suggestion) : undefined}
                             disabled={!admin}
-                            title={admin ? "Open as a partial settlement" : "Only an admin can change settlement plans"}
+                            title={admin ? "Open settlement" : "Only an admin can change settlement plans"}
                           >
                             <span className="settlement-suggestion-route">
-                              <span className="settlement-suggestion-person">
+                              <span className="settlement-suggestion-person payer">
                                 <span className="settlement-mini-avatar payer">
-                                  {fromMember?.name?.[0] || "M"}
+                                  {fromMember?.photo_url ? <img className="settlement-mini-avatar-img" src={fromMember.photo_url} alt="" /> : (fromMember?.name?.[0] || "M")}
                                 </span>
                                 <b>{fromMember?.name || "Member"}</b>
                               </span>
@@ -4540,16 +5928,24 @@ function App() {
                               </span>
                               <span className="settlement-suggestion-person receiver">
                                 <span className="settlement-mini-avatar receiver">
-                                  {toMember?.name?.[0] || "M"}
+                                  {toMember?.photo_url ? <img className="settlement-mini-avatar-img" src={toMember.photo_url} alt="" /> : (toMember?.name?.[0] || "M")}
                                 </span>
                                 <b>{toMember?.name || "Member"}</b>
                               </span>
                             </span>
                             <span className="settlement-suggestion-value">
                               <small>
-                                {suggestion.sourceType === "cash_contribution"
-                                  ? "Cash refund"
-                                  : "Direct transfer"}
+                                {suggestion.sourceType === "cash_contribution" ? (
+                                  <>
+                                    <Wallet size={13} aria-hidden="true" />
+                                    Cash refund
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send size={13} aria-hidden="true" />
+                                    Direct transfer
+                                  </>
+                                )}
                               </small>
                               <strong>{money(suggestion.amount)}</strong>
                             </span>
@@ -4565,8 +5961,9 @@ function App() {
                           onClick={createAutoSettlementPlan}
                           disabled={settlementPlanBusy}
                         >
-                          <ArrowUpDown size={15} />
-                          {settlementPlanBusy ? "Creating plan..." : "Create plan"}
+                          <Sparkles size={15} aria-hidden="true" />
+                          <span>{settlementPlanBusy ? "Creating plan..." : "Create plan"}</span>
+                          <ArrowRight size={15} aria-hidden="true" />
                         </button>
                       </div>
                     )}
@@ -4582,15 +5979,17 @@ function App() {
                   </div>
                 )}
               </section>
+            </div>
+            <div className="settlement-history-section-row">
 
               <section className="panel settlement-surface settlement-history-panel settlement-ledger-panel">
                 <div className="settlement-section-heading">
                   <div className="settlement-heading-main">
-                    <span className="settlement-panel-icon history"><Layers3 size={20} /></span>
+                    <span className="settlement-panel-icon history"><FileText size={20} /></span>
                     <div>
-                      <span className="eyebrow">LEDGER</span>
+                      <span className="eyebrow">Ledger</span>
                       <h3>Settlement history</h3>
-                      <p>Pending plans do not change balances until they are completed.</p>
+                      <p>Receiver-confirmed payments update paid, remaining, and status automatically.</p>
                     </div>
                   </div>
                   <span className="settlement-count-chip">
@@ -4607,7 +6006,9 @@ function App() {
                   <div className="settlement-history-list">
                     {[...monthSettlements]
                       .sort((a, b) => {
-                        if (a.status !== b.status) return a.status === "pending" ? -1 : 1;
+                        const statusOrder = { pending: 0, partially_paid: 1, completed: 2 };
+                        if (a.status !== b.status)
+                          return (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
                         return String(b.date).localeCompare(String(a.date));
                       })
                       .map((settlement) => {
@@ -4616,85 +6017,121 @@ function App() {
                         const fromName = fromMember?.name || "Member";
                         const toName = toMember?.name || "Member";
                         const isCashRefund = settlement.sourceType === "cash_contribution";
+                        const paidAmount = settlementPaidValue(settlement);
+                        const remainingAmount = settlementRemainingValue(settlement);
+                        const canConfirmPayment =
+                          settlement.status !== "completed" &&
+                          (admin || settlement.toUserId === user?.id);
                         const transferSentence = isCashRefund
                           ? settlement.status === "completed"
-                            ? `Cash in Hand refunded ${toName} ${money(settlement.amount)} using ${fromName}'s contribution.`
-                            : `Cash in Hand will refund ${toName} ${money(settlement.amount)} using ${fromName}'s contribution.`
+                             ? `Cash in Hand fully refunded ${toName} ${money(settlement.amount)} using ${fromName}'s contribution.`
+                             : paidAmount > 0
+                               ? `${toName} confirmed ${money(paidAmount)} received; ${money(remainingAmount)} remains.`
+                               : `Cash in Hand owes ${toName} ${money(settlement.amount)} using ${fromName}'s contribution.`
                           : settlement.status === "completed"
-                            ? `${fromName} paid ${toName} ${money(settlement.amount)} directly.`
-                            : `${fromName} will pay ${toName} ${money(settlement.amount)} directly.`;
+                             ? `${fromName} fully paid ${toName} ${money(settlement.amount)}.`
+                             : paidAmount > 0
+                               ? `${toName} confirmed ${money(paidAmount)} from ${fromName}; ${money(remainingAmount)} remains.`
+                               : `${fromName} owes ${toName} ${money(settlement.amount)}.`;
                         return (
                           <article
                             className={`settlement-ledger-card ${settlement.status} ${isCashRefund ? "cash-refund" : "direct-transfer"}`}
                             key={settlement.id}
                             aria-label={transferSentence}
                           >
-                            <div className="settlement-ledger-route">
-                              <div className="settlement-ledger-party payer">
-                                <small>{isCashRefund ? "Contribution by" : "Paid by"}</small>
-                                <div>
-                                  <span className="settlement-ledger-avatar payer">{fromName[0] || "M"}</span>
-                                  <span>
-                                    <strong>{fromName}</strong>
-                                    <em>{isCashRefund ? "Cash source" : "Payer"}</em>
-                                  </span>
+                            <div className="settlement-ledger-top-box">
+                              <div className="settlement-ledger-route">
+                                <div className="settlement-ledger-party payer">
+                                  <small>{isCashRefund ? "Contribution by" : "Paid by"}</small>
+                                  <div>
+                                    <span className="settlement-ledger-avatar payer">{fromName[0] || "M"}</span>
+                                    <span>
+                                      <strong>{fromName}</strong>
+                                      <em>{isCashRefund ? "Cash source" : "Payer"}</em>
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="settlement-ledger-transfer">
+                                  <small>{isCashRefund ? "Total refund due" : "Total due"}</small>
+                                  <div>
+                                    <span className="settlement-transfer-dash" aria-hidden="true">—</span>
+                                    <strong>{money(settlement.amount)}</strong>
+                                    <span className="settlement-transfer-dash" aria-hidden="true">—</span>
+                                  </div>
+                                </div>
+                                <div className="settlement-ledger-party receiver">
+                                  <small>Received by</small>
+                                  <div>
+                                    <span>
+                                      <strong>{toName}</strong>
+                                      <em>Receiver</em>
+                                    </span>
+                                    <span className="settlement-ledger-avatar receiver">{toName[0] || "M"}</span>
+                                  </div>
                                 </div>
                               </div>
-                              <div className="settlement-ledger-transfer">
-                                <small>{isCashRefund ? "Cash in hand refunds" : "Pays directly"}</small>
-                                <div>
-                                  <ArrowRight size={15} aria-hidden="true" />
-                                  <strong>{money(settlement.amount)}</strong>
-                                  <ArrowRight size={15} aria-hidden="true" />
-                                </div>
-                              </div>
-                              <div className="settlement-ledger-party receiver">
-                                <small>Received by</small>
-                                <div>
-                                  <span>
-                                    <strong>{toName}</strong>
-                                    <em>Receiver</em>
-                                  </span>
-                                  <span className="settlement-ledger-avatar receiver">{toName[0] || "M"}</span>
-                                </div>
+                              <div className="settlement-ledger-sentence">
+                                <CheckCircle2 size={15} aria-hidden="true" />
+                                <strong>{transferSentence}</strong>
                               </div>
                             </div>
-                            <div className="settlement-ledger-sentence">
-                              <ArrowRight size={14} aria-hidden="true" />
-                              <strong>{transferSentence}</strong>
+                            <div className="settlement-payment-summary" aria-label="Settlement payment progress">
+                              <span className="is-due">
+                                <i className="settlement-summary-icon due" aria-hidden="true"><Scale size={15} /></i>
+                                <div>
+                                  <small>Total Due</small>
+                                  <strong>{money(settlement.amount)}</strong>
+                                </div>
+                              </span>
+                              <span className="is-paid">
+                                <i className="settlement-summary-icon paid" aria-hidden="true"><CreditCard size={15} /></i>
+                                <div>
+                                  <small>Paid</small>
+                                  <strong>{money(paidAmount)}</strong>
+                                </div>
+                              </span>
+                              <span className="is-remaining">
+                                <i className="settlement-summary-icon remaining" aria-hidden="true"><Clock3 size={15} /></i>
+                                <div>
+                                  <small>Remaining</small>
+                                  <strong>{money(remainingAmount)}</strong>
+                                </div>
+                              </span>
                             </div>
                             <footer className="settlement-ledger-footer">
                               <div className="settlement-ledger-meta">
                                 <span className={`settlement-status ${settlement.status}`}>
-                                  {settlement.status === "completed" ? "Completed" : "Pending"}
+                                  {settlementStatusLabel(settlement.status)}
                                 </span>
                                 <span className="settlement-method-badge">
                                   {isCashRefund ? "Cash contribution refund" : "Direct transfer"}
                                 </span>
                                 <small>{settlement.date}{settlement.note ? ` · ${settlement.note}` : ""}</small>
                               </div>
-                              {admin && (
+                              {(canConfirmPayment || admin) && (
                                 <div className="settlement-history-actions">
-                                  {settlement.status === "pending" && (
+                                  {canConfirmPayment && (
                                     <button
                                       type="button"
                                       className="primary settlement-history-complete"
-                                      onClick={() => completeSettlement(settlement)}
+                                      onClick={() => openSettlementConfirmation(settlement)}
                                       disabled={settlementBusy}
                                     >
-                                      <CheckCircle2 size={14} /> <span>Mark paid</span>
+                                      <CheckCircle2 size={14} /> <span>Confirm payment</span>
                                     </button>
                                   )}
-                                  <button
-                                    type="button"
-                                    className="icon-btn danger-text bazar-action"
-                                    aria-label="Delete settlement"
-                                    title="Delete settlement"
-                                    onClick={() => deleteSettlement(settlement)}
-                                    disabled={settlementBusy}
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
+                                  {admin && (
+                                    <button
+                                      type="button"
+                                      className="icon-btn danger-text premium-delete-action bazar-action"
+                                      aria-label="Delete settlement"
+                                      title="Delete settlement"
+                                      onClick={() => deleteSettlement(settlement)}
+                                      disabled={settlementBusy}
+                                    >
+                                      <PremiumDeleteIcon size={15} />
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </footer>
@@ -4706,7 +6143,6 @@ function App() {
               </section>
             </div>
             </div>
-
             {showSettlementModal && admin && (
               <div
                 className="modal-backdrop settlement-modal-backdrop"
@@ -4725,9 +6161,9 @@ function App() {
                 >
                   <header className="settlement-modal-heading">
                     <div>
-                      <span className="eyebrow">PARTIAL OR FULL</span>
+                      <span className="eyebrow">SETTLEMENT DUE</span>
                       <h2 id="settlement-modal-title">Add settlement</h2>
-                      <p>Enter any amount up to the currently available balance.</p>
+                      <p>Create the total due. The receiver can confirm full or partial payments later.</p>
                     </div>
                     <button
                       type="button"
@@ -4800,9 +6236,9 @@ function App() {
                         </select>
                       </label>
                     </div>
-                    <div className="settlement-form-grid three">
+                    <div className="settlement-form-grid">
                       <label>
-                        Amount (৳)
+                        Total due (৳)
                         <input
                           type="number"
                           min="0.01"
@@ -4825,18 +6261,6 @@ function App() {
                           required
                         />
                       </label>
-                      <label>
-                        Status
-                        <select
-                          value={settlementForm.status}
-                          onChange={(event) =>
-                            setSettlementForm({ ...settlementForm, status: event.target.value })
-                          }
-                        >
-                          <option value="completed">Completed now</option>
-                          <option value="pending">Save as pending</option>
-                        </select>
-                      </label>
                     </div>
                     <label>
                       Note
@@ -4850,8 +6274,8 @@ function App() {
                     </label>
                     <div className="settlement-form-note">
                       {settlementForm.sourceType === "cash_contribution"
-                        ? "The contributor is already credited by the cash contribution. Completing this entry reduces cash in hand and clears the receiver's overpayment."
-                        : "Completing this entry credits the payer and clears the same amount from the receiver's overpayment."}
+                        ? "The receiver can confirm full or partial refunds. Confirmed amounts reduce cash in hand and the remaining balance automatically."
+                        : "The receiver can confirm full or partial payments. Status and remaining due update automatically after each confirmation."}
                     </div>
                     <div className="settlement-modal-actions">
                       <button
@@ -4863,11 +6287,97 @@ function App() {
                         Cancel
                       </button>
                       <button type="submit" className="primary" disabled={settlementBusy}>
-                        {settlementBusy
-                          ? "Saving…"
-                          : settlementForm.status === "completed"
-                            ? "Complete settlement"
-                            : "Save pending plan"}
+                        {settlementBusy ? "Saving…" : "Create settlement"}
+                      </button>
+                    </div>
+                  </form>
+                </section>
+              </div>
+            )}
+            {settlementConfirmTarget && (
+              <div
+                className="modal-backdrop settlement-modal-backdrop"
+                role="presentation"
+                onClick={(event) => {
+                  if (event.target === event.currentTarget && !settlementBusy) {
+                    setSettlementConfirmTarget(null);
+                    setSettlementConfirmAmount("");
+                  }
+                }}
+              >
+                <section
+                  className="modal panel settlement-modal settlement-confirm-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="settlement-confirm-title"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <header className="settlement-modal-heading">
+                    <div>
+                      <span className="eyebrow">RECEIVER CONFIRMATION</span>
+                      <h2 id="settlement-confirm-title">Confirm received payment</h2>
+                      <p>
+                        Confirm the amount you received from {db.users.find((member) => member.id === settlementConfirmTarget.fromUserId)?.name || "the payer"}.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="icon-btn bazar-action"
+                      aria-label="Close payment confirmation"
+                      onClick={() => {
+                        setSettlementConfirmTarget(null);
+                        setSettlementConfirmAmount("");
+                      }}
+                      disabled={settlementBusy}
+                    >
+                      <X size={18} />
+                    </button>
+                  </header>
+                  <form className="settlement-form" onSubmit={confirmSettlementPayment}>
+                    <div className="settlement-confirm-summary">
+                      <span>
+                        <small>Total Due</small>
+                        <strong>{money(settlementConfirmTarget.amount)}</strong>
+                      </span>
+                      <span>
+                        <small>Already Paid</small>
+                        <strong>{money(settlementPaidValue(settlementConfirmTarget))}</strong>
+                      </span>
+                      <span>
+                        <small>Remaining</small>
+                        <strong>{money(settlementRemainingValue(settlementConfirmTarget))}</strong>
+                      </span>
+                    </div>
+                    <label>
+                      Amount received (৳)
+                      <input
+                        type="number"
+                        min="0.01"
+                        max={settlementRemainingValue(settlementConfirmTarget)}
+                        step="0.01"
+                        value={settlementConfirmAmount}
+                        onChange={(event) => setSettlementConfirmAmount(event.target.value)}
+                        autoFocus
+                        required
+                      />
+                    </label>
+                    <div className="settlement-form-note">
+                      A smaller amount marks this settlement as Partially Paid. Confirming the full remaining amount marks it Completed.
+                    </div>
+                    <div className="settlement-modal-actions">
+                      <button
+                        type="button"
+                        className="secondary bazar-action"
+                        onClick={() => {
+                          setSettlementConfirmTarget(null);
+                          setSettlementConfirmAmount("");
+                        }}
+                        disabled={settlementBusy}
+                      >
+                        Cancel
+                      </button>
+                      <button type="submit" className="primary" disabled={settlementBusy}>
+                        {settlementBusy ? "Confirming…" : "Confirm payment"}
                       </button>
                     </div>
                   </form>
@@ -5018,11 +6528,11 @@ function App() {
                               <Edit size={16} />
                             </button>
                             <button
-                              className="icon-btn danger member-delete-action bazar-action"
+                              className="icon-btn danger member-delete-action premium-delete-action bazar-action"
                               title="Deactivate"
                               onClick={() => removeUser(u.id)}
                             >
-                              <Trash2 size={16} />
+                              <PremiumDeleteIcon size={16} />
                             </button>
                           </div>
                         </td>
@@ -5131,7 +6641,9 @@ function App() {
                   <b>{money(c.amount)}</b>
                   <button className="icon-btn secondary" type="button" aria-label={`Edit ${c.name}`} onClick={() => setUtilityEditModal({ originalName: c.name, name: c.name, amount: String(c.amount), shared: !!c.shared })}><Edit size={15} /></button>
                   <button
-                    className="icon-btn danger bazar-action"
+                    className="icon-btn danger premium-delete-action bazar-action"
+                    title={`Delete ${c.name}`}
+                    aria-label={`Delete ${c.name}`}
                     onClick={async () => {
                       if (!admin) return;
                       if (!(await askConfirm(`Are you sure you want to delete "${c.name}" from ${month}?`, "Delete utility?"))) return;
@@ -5149,7 +6661,7 @@ function App() {
                       }
                     }}
                   >
-                    <Trash2 size={15} />
+                    <PremiumDeleteIcon size={15} />
                   </button>
                 </div>
               ))}
@@ -5177,85 +6689,128 @@ function App() {
         {page === "payments" && admin && (
           <div className="grid-two payments-cash-grid">
             <section className="panel rent-payment-history-panel">
-              <PanelHead title="Rent payment history" sub={month} />
-              <button type="button" className="primary rent-history-add-button" onClick={() => {
-                setPaymentForm((form) => ({
-                  ...form,
-                  id: null,
-                  month,
-                  date: todayForDateInput(),
-                  amount: "",
-                  note: "Rent payment",
-                }));
-                setShowAddPayment(true);
-              }}><Plus size={16} /> Add Payment</button>
-              {db.payments.filter((p) => p.month === month).length === 0 && (
-                <div className="payments-empty-state" role="status">
-                  <strong>No rent payments yet</strong>
-                  <span>Payments for {month} will appear here.</span>
+              <div className="payments-panel-head">
+                <div className="payments-panel-title-wrap">
+                  <span className="payments-panel-icon" aria-hidden="true"><Home size={24} /></span>
+                  <PanelHead title="Rent payment history" sub={month} />
                 </div>
-              )}
-              {db.payments
-                .filter((p) => p.month === month)
-                .map((p) => (
-                  <div className="break-row" key={p.id}>
-                    <span>
-                      {db.users.find((u) => u.id === p.userId)?.name ||
-                        "Member"}
-                      <small>
-                        {p.date} · {p.note}
-                      </small>
-                    </span>
-                    <b className="green-text">{money(p.amount)}</b>
-                    <div className="row-actions">
-                      <button type="button" className="icon-btn" title="Edit payment" aria-label="Edit payment" onClick={() => editPayment(p)}><Edit size={15} /></button>
-                      <button type="button" className="icon-btn danger-text bazar-action" title="Delete payment" aria-label="Delete payment" onClick={() => deletePayment(p)}><Trash2 size={15} /></button>
-                    </div>
+                <button type="button" className="primary rent-history-add-button" onClick={() => {
+                  setPaymentForm((form) => ({
+                    ...form,
+                    id: null,
+                    month,
+                    date: todayForDateInput(),
+                    amount: "",
+                    note: "Rent payment",
+                  }));
+                  setShowAddPayment(true);
+                }}><Plus size={16} /> Add Payment</button>
+              </div>
+              <div className="payments-entry-list">
+                {db.payments.filter((p) => p.month === month).length === 0 && (
+                  <div className="payments-empty-state" role="status">
+                    <strong>No rent payments yet</strong>
+                    <span>Payments for {month} will appear here.</span>
                   </div>
-                ))}
+                )}
+                {db.payments
+                  .filter((p) => p.month === month)
+                  .map((p) => {
+                    const parsedDate = new Date(`${p.date}T00:00:00`);
+                    const validDate = !Number.isNaN(parsedDate.getTime());
+                    const dayText = validDate ? parsedDate.toLocaleDateString("en-US", { day: "2-digit" }) : "--";
+                    const monthText = validDate ? parsedDate.toLocaleDateString("en-US", { month: "short" }).toUpperCase() : "DATE";
+                    return (
+                      <div className="break-row payments-entry-row" key={p.id}>
+                        <time className="payments-date-tile" dateTime={p.date || undefined}>
+                          <strong>{dayText}</strong>
+                          <span>{monthText}</span>
+                        </time>
+                        <span className="payments-entry-copy">
+                          <b>{db.users.find((u) => u.id === p.userId)?.name || "Member"}</b>
+                          <small>{p.date} · {p.note}</small>
+                        </span>
+                        <b className="green-text payments-entry-amount">{money(p.amount)}</b>
+                        <div className="row-actions payments-entry-actions">
+                          <button type="button" className="icon-btn payments-edit-btn" title="Edit payment" aria-label="Edit payment" onClick={() => editPayment(p)}><Edit size={15} /></button>
+                          <button type="button" className="icon-btn danger-text premium-delete-action bazar-action payments-delete-btn" title="Delete payment" aria-label="Delete payment" onClick={() => deletePayment(p)}><PremiumDeleteIcon size={15} /></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+              <div className="payments-total-banner" aria-label="Total rent payments">
+                <span className="payments-total-label">
+                  <span className="payments-total-info-badge" aria-hidden="true">i</span>
+                  <b>Total Rent Payments</b>
+                </span>
+                <strong className="payments-total-value">
+                  {money(db.payments.filter((p) => p.month === month).reduce((s, p) => s + Number(p.amount || 0), 0))}
+                </strong>
+              </div>
             </section>
             <section className="panel payments-cash-history-panel">
-              <PanelHead
-                title="Cash contribution history"
-                sub={`${month} · deposits only`}
-              />
-              <button type="button" className="primary rent-history-add-button" onClick={() => {
-                setCashForm((form) => ({
-                  ...form,
-                  id: null,
-                  date: todayForDateInput(),
-                  month,
-                  amount: "",
-                  note: "Cash contribution",
-                }));
-                setShowAddCash(true);
-              }}>
-                <Plus size={16} /> Add Cash
-              </button>
-              {(db.contributions || []).filter((c) => c.month === month).length === 0 && (
-                <div className="payments-empty-state" role="status">
-                  <strong>No cash contributions yet</strong>
-                  <span>Contributions for {month} will appear here.</span>
+              <div className="payments-panel-head">
+                <div className="payments-panel-title-wrap">
+                  <span className="payments-panel-icon" aria-hidden="true"><Users size={24} /></span>
+                  <PanelHead title="Cash contribution history" sub={`${month} · deposits only`} />
                 </div>
-              )}
-              {(db.contributions || [])
-                .filter((c) => c.month === month)
-                .map((c) => (
-                  <div className="break-row" key={c.id}>
-                    <span>
-                      {db.users.find((u) => u.id === c.paidBy)?.name ||
-                        "Member"}
-                      <small>
-                        {c.date} · {c.note || "Cash contribution"}
-                      </small>
-                    </span>
-                    <b className="green-text">{money(c.amount)}</b>
-                    <div className="row-actions">
-                      <button type="button" className="icon-btn" title="Edit contribution" aria-label="Edit contribution" onClick={() => editCash(c)}><Edit size={15} /></button>
-                      <button type="button" className="icon-btn danger-text bazar-action" title="Delete contribution" aria-label="Delete contribution" onClick={() => deleteCash(c)}><Trash2 size={15} /></button>
-                    </div>
+                <button type="button" className="primary rent-history-add-button" onClick={() => {
+                  setCashForm((form) => ({
+                    ...form,
+                    id: null,
+                    date: todayForDateInput(),
+                    month,
+                    amount: "",
+                    note: "Cash contribution",
+                  }));
+                  setShowAddCash(true);
+                }}>
+                  <Plus size={16} /> Add Cash
+                </button>
+              </div>
+              <div className="payments-entry-list">
+                {(db.contributions || []).filter((c) => c.month === month).length === 0 && (
+                  <div className="payments-empty-state" role="status">
+                    <strong>No cash contributions yet</strong>
+                    <span>Contributions for {month} will appear here.</span>
                   </div>
-                ))}
+                )}
+                {(db.contributions || [])
+                  .filter((c) => c.month === month)
+                  .map((c) => {
+                    const parsedDate = new Date(`${c.date}T00:00:00`);
+                    const validDate = !Number.isNaN(parsedDate.getTime());
+                    const dayText = validDate ? parsedDate.toLocaleDateString("en-US", { day: "2-digit" }) : "--";
+                    const monthText = validDate ? parsedDate.toLocaleDateString("en-US", { month: "short" }).toUpperCase() : "DATE";
+                    return (
+                      <div className="break-row payments-entry-row" key={c.id}>
+                        <time className="payments-date-tile" dateTime={c.date || undefined}>
+                          <strong>{dayText}</strong>
+                          <span>{monthText}</span>
+                        </time>
+                        <span className="payments-entry-copy">
+                          <b>{db.users.find((u) => u.id === c.paidBy)?.name || "Member"}</b>
+                          <small>{c.date} · {c.note || "Cash contribution"}</small>
+                        </span>
+                        <b className="green-text payments-entry-amount">{money(c.amount)}</b>
+                        <div className="row-actions payments-entry-actions">
+                          <button type="button" className="icon-btn payments-edit-btn" title="Edit contribution" aria-label="Edit contribution" onClick={() => editCash(c)}><Edit size={15} /></button>
+                          <button type="button" className="icon-btn danger-text premium-delete-action bazar-action payments-delete-btn" title="Delete contribution" aria-label="Delete contribution" onClick={() => deleteCash(c)}><PremiumDeleteIcon size={15} /></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+              <div className="payments-total-banner" aria-label="Total cash contribution">
+                <span className="payments-total-label">
+                  <span className="payments-total-wallet-badge" aria-hidden="true"><Wallet size={16} /></span>
+                  <b>Total Cash Contribution</b>
+                </span>
+                <strong className="payments-total-value">
+                  {money((db.contributions || []).filter((c) => c.month === month).reduce((s, c) => s + Number(c.amount || 0), 0))}
+                </strong>
+              </div>
             </section>
           </div>
         )}
@@ -5308,7 +6863,7 @@ function App() {
                     {allActiveUsers.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name}
-                        {u.role === "admin" ? " (Admin)" : ""}
+                        {u.role === "admin" ? " (Admin)" : ""} — {money(memberRentShare(u))}
                       </option>
                     ))}
                   </select>
@@ -5358,7 +6913,7 @@ function App() {
                     {allActiveUsers.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name}
-                        {u.role === "admin" ? " (Admin)" : ""}
+                        {u.role === "admin" ? " (Admin)" : ""} — {money(memberRentShare(u))}
                       </option>
                     ))}
                   </select>
@@ -5511,18 +7066,152 @@ function App() {
               <section className="panel bazar-history-panel">
                 <div className="bazar-history-head">
                 <div className="bazar-history-title">
-                  <span className="bazar-history-icon"><ShoppingBasket size={21} /></span>
+                  <span className="bazar-history-icon">
+                    <img
+                      className="bazar-cart-artwork-icon"
+                      src="/bazar-grocery-cart-transparent.png"
+                      alt=""
+                    />
+                  </span>
                   <span className="bazar-history-divider" aria-hidden="true" />
                   <PanelHead title="Monthly bazar history" sub={`${month} · purchases only`} />
                 </div>
+                <button
+                  type="button"
+                  className={`secondary bazar-needed-trigger${showBazarNeeded ? " is-active" : ""}`}
+                  aria-controls="bazar-needed-panel"
+                  aria-expanded={showBazarNeeded}
+                  onClick={toggleBazarNeededPanel}
+                >
+                  <ShoppingBasket size={16} />
+                  <span>Need to buy</span>
+                  <small>{bazarNeededItems.filter((item) => !item.done).length}</small>
+                </button>
                 <button type="button" className="primary" onClick={() => {
                   setBazarActionMenuId(null);
                   setBazarForm((form) => ({ ...form, date: todayForDateInput() }));
                   setShowAddBazar(true);
                 }}><Plus size={16}/> Add Bazar</button>
               </div>
+                {showBazarNeeded && (
+                  <div
+                    className="modal-backdrop bazar-needed-backdrop"
+                    role="presentation"
+                    onClick={(event) => {
+                      if (event.target === event.currentTarget && !bazarNeededBusy) {
+                        setShowBazarNeeded(false);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape" && !bazarNeededBusy) {
+                        setShowBazarNeeded(false);
+                      }
+                    }}
+                  >
+                  <section
+                    className="panel bazar-needed-panel bazar-needed-modal is-open"
+                    id="bazar-needed-panel"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="bazar-needed-title"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                  <button
+                    type="button"
+                    className="icon-btn bazar-needed-modal-close"
+                    aria-label="Close need-to-buy list"
+                    onClick={() => setShowBazarNeeded(false)}
+                    disabled={bazarNeededBusy}
+                  >
+                    <X size={18} />
+                  </button>
+                  <div className="bazar-needed-head">
+                    <span className="bazar-needed-icon"><ShoppingBasket size={19} /></span>
+                    <div>
+                      <h3 id="bazar-needed-title">Need to buy</h3>
+                      <p>Shared shopping checklist for the house</p>
+                    </div>
+                    <span className="bazar-needed-count">
+                      {bazarNeededItems.filter((item) => !item.done).length} pending
+                    </span>
+                  </div>
+                  <form className="bazar-needed-form" onSubmit={addBazarNeededItem}>
+                    <input
+                      id="bazar-needed-input"
+                      type="text"
+                      value={bazarNeededDraft}
+                      onChange={(event) => setBazarNeededDraft(event.target.value)}
+                      placeholder="Add an item to buy"
+                      aria-label="Item that needs to be bought"
+                      disabled={bazarNeededBusy}
+                    />
+                    <button
+                      type="submit"
+                      className="primary"
+                      disabled={bazarNeededBusy || !bazarNeededDraft.trim()}
+                    >
+                      <Plus size={16} /> Add item
+                    </button>
+                  </form>
+                  {bazarNeededItems.length ? (
+                    <div className="bazar-needed-toolbar">
+                      <div className="bazar-needed-toolbar-title">
+                        <span>Checklist items</span>
+                        <span className="bazar-needed-toolbar-badge">
+                          {bazarNeededItems.length}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="bazar-needed-delete-all-btn"
+                        onClick={clearAllBazarNeededItems}
+                        disabled={bazarNeededBusy}
+                        title="Delete all items from the list"
+                      >
+                        <PremiumDeleteIcon size={14} />
+                        <span>Delete all</span>
+                      </button>
+                    </div>
+                  ) : null}
+                  {bazarNeededItems.length ? (
+                    <div className="bazar-needed-list">
+                      {[...bazarNeededItems]
+                        .sort((a, b) => Number(a.done) - Number(b.done))
+                        .map((item) => (
+                          <div className={`bazar-needed-item${item.done ? " is-done" : ""}`} key={item.id}>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={item.done}
+                                onChange={() => toggleBazarNeededItem(item.id)}
+                                disabled={bazarNeededBusy}
+                              />
+                              <span>
+                                <b>{item.name}</b>
+                                <small>{item.done ? "Bought" : "Need to buy"}</small>
+                              </span>
+                            </label>
+                            <button
+                              type="button"
+                              className="icon-btn danger-text premium-delete-action bazar-action"
+                              aria-label={`Remove ${item.name}`}
+                              title="Remove item"
+                              onClick={() => removeBazarNeededItem(item.id)}
+                              disabled={bazarNeededBusy}
+                            >
+                              <PremiumDeleteIcon size={15} />
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <p className="bazar-needed-empty">No items are waiting to be bought.</p>
+                  )}
+                  </section>
+                  </div>
+                )}
                 <label className="history-filter">
-                  <span className="bazar-filter-label"><Filter size={16} aria-hidden="true" /> Filter by member</span>
+                  <span className="bazar-filter-label"><Filter size={16} aria-hidden="true" /> Member</span>
                   <span className="bazar-filter-select" ref={bazarFilterRef}>
                     <Users size={15} aria-hidden="true" />
                     <button
@@ -5611,6 +7300,16 @@ function App() {
                     )}
                   </span>
                 </label>
+                <label className="bazar-search">
+                  <Search size={18} aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={bazarSearch}
+                    onChange={(event) => setBazarSearch(event.target.value)}
+                    placeholder="Search items, e.g. rice, oil, dal..."
+                    aria-label="Search bazar items"
+                  />
+                </label>
                 <div className="total-row bazar-total-row">
                   <b>Total bazar purchased</b>
                   <b><span>{money(bazarTotal)}</span></b>
@@ -5620,46 +7319,38 @@ function App() {
                   <table>
                     <thead>
                       <tr>
-                        <th><CalendarDays size={14} aria-hidden="true" /> Date</th>
-                        <th><ShoppingBasket size={14} aria-hidden="true" /> Items</th>
-                        <th><Users size={14} aria-hidden="true" /> Paid by</th>
-                        <th><Wallet size={14} aria-hidden="true" /> Amount</th>
-                        <th><Zap size={14} aria-hidden="true" /> Actions</th>
+                        <th className="bazar-date-heading"><CalendarDays size={14} aria-hidden="true" /> Date</th>
+                        <th className="bazar-amount-heading"><Wallet size={14} aria-hidden="true" /> Amount</th>
+                        <th className="bazar-items-heading"><ShoppingBasket size={14} aria-hidden="true" /> Items</th>
+                        <th className="bazar-paid-heading"><Users size={14} aria-hidden="true" /> Paid by</th>
+                        <th className="bazar-actions-heading"><Zap size={14} aria-hidden="true" /> Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredMonthBazar.length ? filteredMonthBazar.map((b) => (
                           <tr key={b.id}>
-                            <td>
-                              <span className="bazar-date-label">{b.date}</span>
-                              <span className="bazar-date-tile">
-                                <small>
+                            <td className="bazar-date-cell">
+                              <span className="bazar-date-label"><CalendarDays size={13} aria-hidden="true" />{b.date}</span>
+                              <time className="bazar-date-tile" dateTime={b.date || undefined}>
+                                <strong>
                                   {Number.isNaN(new Date(`${b.date}T00:00:00`).getTime())
-                                    ? ""
+                                    ? "--"
+                                    : new Date(`${b.date}T00:00:00`).toLocaleDateString("en-US", { day: "2-digit" })}
+                                </strong>
+                                <span>
+                                  {Number.isNaN(new Date(`${b.date}T00:00:00`).getTime())
+                                    ? "Date"
                                     : new Date(`${b.date}T00:00:00`).toLocaleDateString("en-US", { month: "short" })}
-                                </small>
-                                <b>{String(b.date || "").slice(-2)}</b>
-                              </span>
+                                </span>
+                              </time>
                             </td>
-                            <td>
+                            <td className="bazar-history-amount bazar-amount-cell">{money(b.amount)}</td>
+                            <td className="bazar-items-cell">
                               <span className="bazar-item-summary">
-                                {(() => {
-                                  const raw = b.items;
-                                  let entries = Array.isArray(raw) ? raw : null;
-                                  if (!entries && typeof raw === "string") {
-                                    try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) entries = parsed; } catch {}
-                                  }
-                                  const getName = (entry) => {
-                                    if (typeof entry === "string") return entry.trim();
-                                    if (!entry || typeof entry !== "object") return "";
-                                    const value = entry.item ?? entry.name ?? entry.title;
-                                    return String(typeof value === "string" ? value : (value?.name ?? value?.item ?? "")).trim();
-                                  };
-                                  return entries ? entries.map(getName).filter(Boolean).join(", ") : String(raw || "");
-                                })()}
+                                {getBazarItemSummary(b.items)}
                               </span>
                             </td>
-                            <td>
+                            <td className="bazar-paid-cell">
                               <span
                                 className="bazar-paid-by"
                                 style={{
@@ -5669,15 +7360,17 @@ function App() {
                                 }}
                               >
                                 <span className="bazar-paid-avatar">
-                                  {(b.paidFromCash ? "Cash" : db.users.find((u) => u.id === b.paidBy)?.name || "Member").slice(0, 1).toUpperCase()}
+                                  {!b.paidFromCash && db.users.find((u) => u.id === b.paidBy)?.photo_url ? (
+                                    <img className="bazar-paid-avatar-image" src={db.users.find((u) => u.id === b.paidBy).photo_url} alt="" />
+                                  ) : (b.paidFromCash ? "Cash" : db.users.find((u) => u.id === b.paidBy)?.name || "Member").slice(0, 1).toUpperCase()}
                                 </span>
                                 {b.paidFromCash
                                   ? "Cash in Hand"
                                   : db.users.find((u) => u.id === b.paidBy)?.name || "Member"}
                               </span>
                             </td>
-                            <td className="bazar-history-amount">{money(b.amount)}</td>
                             <td className="row-actions">
+                              <div className="bazar-actions-group">
                               <div className="bazar-row-actions-desktop">
                                 <button
                                   type="button"
@@ -5688,31 +7381,9 @@ function App() {
                                 >
                                   <Eye size={14} />
                                 </button>
-                                {(admin || b.createdBy === user?.id) && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className="icon-btn bazar-desktop-action"
-                                      title="Edit bazar entry"
-                                      aria-label={`Edit bazar entry for ${b.date}`}
-                                      onClick={() => editBazar(b)}
-                                    >
-                                      <Edit size={14} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="icon-btn bazar-desktop-action bazar-desktop-action-delete"
-                                      title="Delete bazar entry"
-                                      aria-label={`Delete bazar entry for ${b.date}`}
-                                      onClick={() => void deleteBazar(b)}
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </>
-                                )}
                               </div>
                               <div
-                                className="bazar-row-menu"
+                                className={`bazar-row-menu${admin || b.createdBy === user?.id ? "" : " is-view-only"}`}
                                 ref={bazarActionMenuId === b.id ? bazarActionMenuRef : null}
                                 onBlur={(event) => {
                                   if (!event.currentTarget.contains(event.relatedTarget)) setBazarActionMenuId(null);
@@ -5737,6 +7408,7 @@ function App() {
                                     <button
                                       type="button"
                                       role="menuitem"
+                                      className="bazar-menu-view-mobile"
                                       onClick={() => {
                                         setBazarActionMenuId(null);
                                         setBazarDetailsEntry(b);
@@ -5758,19 +7430,20 @@ function App() {
                                         </button>
                                         <button
                                           type="button"
-                                          className="bazar-row-menu-delete"
+                                          className="bazar-row-menu-delete premium-delete-menu-action"
                                           role="menuitem"
                                           onClick={() => {
                                             setBazarActionMenuId(null);
                                             void deleteBazar(b);
                                           }}
                                         >
-                                          <Trash2 size={16} /> Delete entry
+                                          <PremiumDeleteIcon size={16} /> Delete entry
                                         </button>
                                       </>
                                     )}
                                   </div>
                                 )}
+                              </div>
                               </div>
                             </td>
                           </tr>
@@ -5891,7 +7564,7 @@ function App() {
                       <div className="bazar-edit-item-row" key={index}>
                         <label>Item {index + 1}<input value={row.item} placeholder={`Item ${index + 1}`} onChange={(e) => setBazarEditEntry((old) => ({...old, editItems:old.editItems.map((it,i)=>i===index?{...it,item:e.target.value}:it)}))}/></label>
                         <label>Price (৳)<input type="number" min="0" step="0.01" value={row.price} placeholder="0.00" onChange={(e) => setBazarEditEntry((old) => ({...old, editItems:old.editItems.map((it,i)=>i===index?{...it,price:e.target.value}:it)}))}/></label>
-                        <button type="button" className="danger-text icon-btn bazar-action" aria-label={`Remove item ${index+1}`} disabled={bazarEditEntry.editItems.length===1} onClick={() => setBazarEditEntry((old) => ({...old,editItems:old.editItems.filter((_,i)=>i!==index)}))}><Trash2 size={15}/></button>
+                        <button type="button" className="danger-text icon-btn premium-delete-action bazar-action" aria-label={`Remove item ${index+1}`} disabled={bazarEditEntry.editItems.length===1} onClick={() => setBazarEditEntry((old) => ({...old,editItems:old.editItems.filter((_,i)=>i!==index)}))}><PremiumDeleteIcon size={15}/></button>
                       </div>
                     ))}
                     <button type="button" className="secondary full" onClick={() => setBazarEditEntry((old) => ({...old,editItems:[...old.editItems,{item:"",price:""}]}))}>＋ Add item</button>
@@ -5941,13 +7614,13 @@ function App() {
               <div className="modal-backdrop delete-confirm-backdrop">
                 <section className="modal panel delete-confirm-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
                   <div className="delete-confirm-icon delete-confirm-square">
-                    <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 25.5 20 35 38 14"/></svg>
+                    <PremiumDeleteIcon size={30} />
                   </div>
                   <h3>Delete bazar entry?</h3>
                   <p>This entry will be permanently removed. This action cannot be undone.</p>
                   <div className="delete-confirm-actions">
-                    <button className="secondary bazar-action" onClick={() => setPendingBazarDelete(null)}>Cancel</button>
-                    <button className="danger bazar-action" onClick={async () => { const entry=pendingBazarDelete; try { const {error}=await supabase.from("bazar_entries").delete().eq("id",entry.id); if(error) throw error; setPendingBazarDelete(null); await loadCloudData(user.id,month); setBazarSuccessToast("Bazar deleted successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600); } catch(e) { alert("Could not delete bazar: "+e.message); } }}>Delete entry</button>
+                    <button className="secondary delete-confirm-cancel bazar-action" onClick={() => setPendingBazarDelete(null)}>Cancel</button>
+                    <button className="danger delete-confirm-confirm bazar-action" onClick={async () => { const entry=pendingBazarDelete; try { const {error}=await supabase.from("bazar_entries").delete().eq("id",entry.id); if(error) throw error; setPendingBazarDelete(null); await loadCloudData(user.id,month); setBazarSuccessToast("Bazar deleted successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600); } catch(e) { alert("Could not delete bazar: "+e.message); } }}>Delete entry</button>
                   </div>
                 </section>
               </div>
@@ -5955,14 +7628,41 @@ function App() {
           </>
         )}
         {confirmDialog && (
-          <div className="modal-backdrop delete-confirm-backdrop">
-            <section className="modal panel delete-confirm-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-              <div className="delete-confirm-icon"><Trash2 size={22}/></div>
+          <div
+            className={`modal-backdrop delete-confirm-backdrop${confirmDialog.variant?.startsWith("bazar-needed") ? " bazar-needed-delete-backdrop" : ""}`}
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                confirmDialog.resolve(false);
+                setConfirmDialog(null);
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                confirmDialog.resolve(false);
+                setConfirmDialog(null);
+              }
+            }}
+          >
+            <section
+              className={`modal panel delete-confirm-modal${confirmDialog.variant?.startsWith("bazar-needed") ? " bazar-needed-delete-modal" : ""}`}
+              role="dialog"
+              aria-modal="true"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="delete-confirm-icon"><PremiumDeleteIcon size={28}/></div>
               <h3>{confirmDialog.title}</h3>
               <p>{confirmDialog.message}</p>
               <div className="delete-confirm-actions">
-                <button className="secondary close-red bazar-action" onClick={() => { confirmDialog.resolve(false); setConfirmDialog(null); }}>Cancel</button>
-                <button className="danger bazar-action" onClick={() => { confirmDialog.resolve(true); setConfirmDialog(null); }}>Confirm</button>
+                <button
+                  className="secondary delete-confirm-cancel bazar-action"
+                  autoFocus={confirmDialog.variant?.startsWith("bazar-needed")}
+                  onClick={() => { confirmDialog.resolve(false); setConfirmDialog(null); }}
+                >
+                  Cancel
+                </button>
+                <button className="danger delete-confirm-confirm bazar-action" onClick={() => { confirmDialog.resolve(true); setConfirmDialog(null); }}>
+                  {confirmDialog.variant === "bazar-needed-delete-all" ? "Delete all" : confirmDialog.variant === "bazar-needed-item" ? "Remove item" : "Confirm"}
+                </button>
               </div>
             </section>
           </div>
@@ -6254,12 +7954,12 @@ function App() {
                             </button>
                             <button
                               type="button"
-                              className="delete-conversation-action"
+                              className="delete-conversation-action premium-delete-menu-action"
                               role="menuitem"
                               onClick={() => void deleteInboxConversation()}
                               disabled={inboxDeleteBusy || inboxMediaBusy}
                             >
-                              <Trash2 size={16} />
+                              <PremiumDeleteIcon size={16} />
                               {inboxDeleteBusy ? "Deleting…" : "Delete conversation"}
                             </button>
                           </div>
@@ -6302,7 +8002,12 @@ function App() {
                           )}
                           <span className="inbox-message-meta">
                             <time dateTime={message.created_at}>{new Date(message.created_at).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}</time>
-                            {message.sender_id === session.id && <CheckCheck size={16} aria-label={message.read_at ? "Read" : "Sent"} />}
+                            {message.sender_id === session.id && (
+                              <span className={`inbox-message-status ${message.read_at ? "is-seen" : "is-sent"}`} title={message.read_at ? `Seen ${new Date(message.read_at).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}` : "Sent"}>
+                                {message.read_at ? <CheckCheck size={15} aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}
+                                {message.read_at ? "Seen" : "Sent"}
+                              </span>
+                            )}
                           </span>
                         </article>
                       )) : <p className="inbox-empty-thread">No messages yet. Send a message to start the conversation.</p>}
@@ -6482,13 +8187,13 @@ function App() {
                               <button type="button" className="icon-btn saved-contact-edit" aria-label={`Edit ${contact.name}`} title="Edit contact" onClick={() => { setContactForm({ id: contact.id, category: contact.category, name: contact.name, phone: contact.phone }); setContactError(""); setContactModalOpen(true); }}>
                                 <Edit size={15} />
                               </button>
-                              <button type="button" className="icon-btn saved-contact-delete bazar-action" aria-label={`Delete ${contact.name}`} title="Delete contact" onClick={async () => {
+                              <button type="button" className="icon-btn saved-contact-delete premium-delete-action bazar-action" aria-label={`Delete ${contact.name}`} title="Delete contact" onClick={async () => {
                                 if (!(await askConfirm(`Delete ${contact.name || "this contact"}? This cannot be undone.`, "Delete contact?"))) return;
                                 const { error } = await supabase.from("member_contacts").delete().eq("id", contact.id);
                                 if (error) alert("Could not delete contact: " + error.message);
                                 else setContactRows((rows) => rows.filter((row) => row.id !== contact.id));
                               }}>
-                                <Trash2 size={15} />
+                                <PremiumDeleteIcon size={15} />
                               </button>
                             </div>
                           </div>
@@ -6540,6 +8245,113 @@ function App() {
         )}
         {page === "notices" && admin && (
           <div className="notices-page">
+            <section className="panel notices-admin-panel bulletin-admin-panel">
+              <div className="notices-admin-heading bulletin-admin-heading">
+                <div className="bulletin-admin-title-wrap">
+                  <span className="bulletin-admin-icon" aria-hidden="true">
+                    <Megaphone size={19} />
+                  </span>
+                  <PanelHead
+                    title="Bulletin Notice"
+                    sub="Set the scrolling bulletin banner shown on member accounts"
+                  />
+                </div>
+                <span className="bulletin-admin-count-badge">
+                  {activeBulletinNotices.length} active
+                </span>
+              </div>
+              <form className="bulletin-admin-form" onSubmit={saveBulletinNotice}>
+                <input
+                  type="text"
+                  className="bulletin-admin-input"
+                  value={bulletinInput}
+                  onChange={(e) => setBulletinInput(e.target.value)}
+                  placeholder="e.g. This month's meal cost has been updated. Please check your balance and settle dues on time."
+                  disabled={bulletinSaving}
+                />
+                {editingBulletinId && (
+                  <button
+                    type="button"
+                    className="secondary bulletin-cancel-btn"
+                    onClick={() => {
+                      setEditingBulletinId("");
+                      setBulletinInput("");
+                    }}
+                    disabled={bulletinSaving}
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="primary bulletin-submit-btn"
+                  disabled={bulletinSaving || !String(bulletinInput || "").trim()}
+                >
+                  <Megaphone size={15} />
+                  {bulletinSaving
+                    ? "Saving…"
+                    : editingBulletinId
+                      ? "Update Bulletin"
+                      : "Set Bulletin"}
+                </button>
+              </form>
+              {bulletinNotices.length ? (
+                <div className="bulletin-admin-list">
+                  {bulletinNotices.map((item) => {
+                    const isActive = item.active !== false;
+                    return (
+                      <div
+                        className={`bulletin-admin-row${isActive ? " is-active" : " is-muted"}`}
+                        key={item.id}
+                      >
+                        <div className="bulletin-admin-row-main">
+                          <span className="bulletin-notice-megaphone" aria-hidden="true">📢</span>
+                          <p>{item.text}</p>
+                        </div>
+                        <div className="bulletin-admin-row-actions">
+                          <button
+                            type="button"
+                            className={`bulletin-status-toggle ${isActive ? "is-active" : "is-hidden"}`}
+                            onClick={() => toggleBulletinNoticeActive(item.id)}
+                            disabled={bulletinSaving}
+                            title={isActive ? "Click to hide from banner" : "Click to show on banner"}
+                          >
+                            {isActive ? "Active" : "Hidden"}
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn bazar-action bulletin-row-edit"
+                            title="Edit bulletin notice"
+                            aria-label="Edit bulletin notice"
+                            onClick={() => {
+                              setEditingBulletinId(item.id);
+                              setBulletinInput(item.text);
+                            }}
+                          >
+                            <Edit size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn danger premium-delete-action bazar-action notice-delete-button"
+                            title="Delete bulletin notice"
+                            aria-label="Delete bulletin notice"
+                            onClick={() => deleteBulletinNoticeItem(item.id)}
+                          >
+                            <PremiumDeleteIcon size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="notices-admin-empty bulletin-admin-empty">
+                  <span className="notices-empty-icon"><Megaphone size={20} /></span>
+                  <strong>No bulletin notices active</strong>
+                  <p>Type a message above and click Set Bulletin to display it on the account banner.</p>
+                </div>
+              )}
+            </section>
             <section className="panel notices-admin-panel">
               <div className="notices-admin-heading">
                 <PanelHead
@@ -6550,9 +8362,13 @@ function App() {
                   <Plus size={16} /> Add Notice
                 </button>
               </div>
-              {notices.length ? (
+              {announcementNotices.length ? (
                 <div className="notices-admin-list">
-                {notices.map((n) => (
+                {announcementNotices.map((n) => {
+                  const isPinnedToBulletin = bulletinNotices.some(
+                    (b) => String(b.noticeId) === String(n.id),
+                  );
+                  return (
                   <article className="notice-card" key={n.id}>
                     <div className="notice-card-top">
                       <div>
@@ -6567,6 +8383,14 @@ function App() {
                         {n.status === "draft" ? "Draft" : "Published"}
                       </span>
                       <div className="notice-card-actions">
+                        <button
+                          type="button"
+                          className={`secondary bulletin-pin-btn${isPinnedToBulletin ? " is-pinned" : ""}`}
+                          onClick={() => toggleSavedNoticeBulletin(n)}
+                        >
+                          <Megaphone size={14} />
+                          {isPinnedToBulletin ? "In Bulletin" : "Set as Bulletin"}
+                        </button>
                         {n.status !== "published" && (
                           <button type="button" className="secondary" onClick={() => publishSavedNotice(n)}>
                             Publish
@@ -6579,17 +8403,18 @@ function App() {
                         )}
                         <button
                           type="button"
-                          className="icon-btn danger bazar-action notice-delete-button"
+                          className="icon-btn danger premium-delete-action bazar-action notice-delete-button"
                           title="Delete notice"
                           aria-label="Delete notice"
                           onClick={() => deleteNotice(n)}
                         >
-                          <Trash2 size={14} />
+                          <PremiumDeleteIcon size={15} />
                         </button>
                       </div>
                     </div>
                   </article>
-                ))}
+                  );
+                })}
                 </div>
               ) : (
                 <div className="notices-admin-empty">
@@ -6639,6 +8464,14 @@ function App() {
                         onChange={(e) => setNoticeImage(e.target.files?.[0] || null)}
                       />
                     </label>
+                    <label className="notice-bulletin-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(noticeForm.isBulletin)}
+                        onChange={(e) => setNoticeForm({ ...noticeForm, isBulletin: e.target.checked })}
+                      />
+                      <span>Also display in Bulletin Notice banner</span>
+                    </label>
                     {noticeImage && <div className="notice-file-name">Selected: {noticeImage.name}</div>}
                     {noticeError && <div className="error">{noticeError}</div>}
                     <div className="notice-composer-actions">
@@ -6657,7 +8490,7 @@ function App() {
         )}
         {noticeModal &&
           user?.role === "member" &&
-          notices.some((n) => !readNoticeIds.includes(n.id)) && (
+          unreadAnnouncementNotices.length > 0 && (
             <div className="notice-modal-backdrop" role="presentation">
               <section
                 className="notice-modal"
@@ -6679,8 +8512,7 @@ function App() {
                   </button>
                 </div>
                 <div className="notice-modal-list">
-                  {notices
-                    .filter((n) => !readNoticeIds.includes(n.id))
+                  {unreadAnnouncementNotices
                     .slice(0, 10)
                     .map((n) => (
                       <article className="notice-card" key={n.id}>
@@ -6702,7 +8534,7 @@ function App() {
                 <button
                   className="primary full"
                   onClick={async () => {
-                    await markAllNoticesRead(user.id);
+                    await markAllNoticesRead(user.id, unreadAnnouncementNotices);
                     setNoticeModal(false);
                   }}
                 >
@@ -6712,11 +8544,27 @@ function App() {
             </div>
           )}
         {bazarSuccessToast && (
-          <div className="bazar-success-toast" role="status" aria-live="polite">
-            <span className="bazar-success-check" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M5 12.5 9.5 17 19 7.5"/></svg>
-            </span>
-            <span>{bazarSuccessToast}</span>
+          <div
+            className="app-success-layer"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <div className="app-success-popup">
+              <span className="app-success-visual" aria-hidden="true">
+                <span className="app-success-halo" />
+                <svg viewBox="0 0 48 48">
+                  <circle cx="24" cy="24" r="21" />
+                  <path d="m14.5 24.5 6.1 6.2 13-14" />
+                </svg>
+              </span>
+              <span className="app-success-copy">
+                <small><i /> Action completed</small>
+                <strong>{bazarSuccessToast}</strong>
+                <span>Your latest changes are now up to date.</span>
+              </span>
+              <span className="app-success-progress" aria-hidden="true" />
+            </div>
           </div>
         )}
             {utilityEditModal && (
@@ -6805,12 +8653,18 @@ function App() {
     </div>
   );
 }
-function Stat({ title, value, icon: Icon, tone, hint, className = "" }) {
+function Stat({ title, value, icon: Icon, watermarkIcon: WatermarkIcon, tone, hint, className = "", showAction = false, actionKind = "arrow" }) {
   return (
     <div className={`stat${className ? ` ${className}` : ""}`}>
       <div className={"stat-icon " + tone}>
         <Icon size={19} />
       </div>
+      {showAction && (
+        <span className={`stat-action is-${actionKind}`} aria-hidden="true">
+          {actionKind === "check" ? <Check size={18} /> : actionKind === "alert" ? "!" : <ArrowRight size={17} />}
+        </span>
+      )}
+      {showAction && WatermarkIcon && <WatermarkIcon className="stat-watermark" aria-hidden="true" />}
       <span>{title}</span>
       <strong>{value}</strong>
       {hint && <small>{hint}</small>}
@@ -6829,12 +8683,25 @@ function PanelHead({ title, sub }) {
 }
 function getUtilityIcon(name) {
   const category = String(name || "").toLowerCase();
+  if (category.includes("flat") || category.includes("rent")) return Home;
   if (category.includes("wifi") || category.includes("wi-fi") || category.includes("internet")) return Wifi;
   if (category.includes("gas")) return Flame;
   if (category.includes("water")) return Droplets;
-  if (category.includes("lift") || category.includes("elevator")) return ArrowUpDown;
-  if (category.includes("moyla") || category.includes("waste") || category.includes("garbage") || category.includes("trash")) return Trash2;
-  if (category.includes("bua") || category.includes("maid") || category.includes("clean")) return Brush;
+  if (category.includes("lift") || category.includes("elevator") || category.includes("service")) return Wrench;
+  if (category.includes("moyla") || category.includes("waste") || category.includes("garbage") || category.includes("trash")) return Lightbulb;
+  if (category.includes("bua") || category.includes("maid") || category.includes("clean")) return Droplets;
   return Zap;
 }
+function getUtilityTone(name) {
+  const category = String(name || "").toLowerCase();
+  if (category.includes("flat") || category.includes("rent")) return "mint";
+  if (category.includes("wifi") || category.includes("wi-fi") || category.includes("internet")) return "sky";
+  if (category.includes("gas")) return "orange";
+  if (category.includes("water")) return "azure";
+  if (category.includes("lift") || category.includes("elevator") || category.includes("service")) return "purple";
+  if (category.includes("moyla") || category.includes("waste") || category.includes("garbage") || category.includes("trash")) return "yellow";
+  if (category.includes("bua") || category.includes("maid") || category.includes("clean")) return "teal";
+  return "amber";
+}
 createRoot(document.getElementById("root")).render(<App />);
+

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 252 942" preserveAspectRatio="none" shape-rendering="geometricPrecision">
+  <defs>
+    <linearGradient id="sideBase" x1="0" y1="0" x2=".85" y2="1">
+      <stop offset="0" stop-color="#003e2d"/>
+      <stop offset=".55" stop-color="#00372a"/>
+      <stop offset="1" stop-color="#002f25"/>
+    </linearGradient>
+    <linearGradient id="sideWaveOne" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#008a52" stop-opacity=".68"/>
+      <stop offset="1" stop-color="#006b43" stop-opacity=".34"/>
+    </linearGradient>
+    <linearGradient id="sideWaveTwo" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#006a43" stop-opacity=".82"/>
+      <stop offset="1" stop-color="#004a35" stop-opacity=".44"/>
+    </linearGradient>
+  </defs>
+  <rect width="252" height="942" fill="url(#sideBase)"/>
+  <path d="M0 804c47-100 108-122 160-149 36-19 66-43 92-72v359H0Z" fill="url(#sideWaveOne)"/>
+  <path d="M0 858c51-85 118-111 169-131 35-14 61-31 83-55v270H0Z" fill="url(#sideWaveTwo)"/>
+  <path d="M0 805c47-100 108-122 160-149 36-19 66-43 92-72" fill="none" stroke="#13d97d" stroke-opacity=".72" stroke-width="1.2"/>
+  <path d="M0 942c38-105 111-169 252-211v211Z" fill="#002d24" fill-opacity=".72"/>
+  <g fill="#19c979" fill-opacity=".62">
+    <circle cx="25" cy="756" r="1.8"/><circle cx="39" cy="756" r="1.8"/><circle cx="53" cy="756" r="1.8"/><circle cx="67" cy="756" r="1.8"/><circle cx="81" cy="756" r="1.8"/>
+    <circle cx="25" cy="770" r="1.8"/><circle cx="39" cy="770" r="1.8"/><circle cx="53" cy="770" r="1.8"/><circle cx="67" cy="770" r="1.8"/><circle cx="81" cy="770" r="1.8"/>
+    <circle cx="25" cy="784" r="1.8"/><circle cx="39" cy="784" r="1.8"/><circle cx="53" cy="784" r="1.8"/><circle cx="67" cy="784" r="1.8"/><circle cx="81" cy="784" r="1.8"/>
+    <circle cx="25" cy="798" r="1.8"/><circle cx="39" cy="798" r="1.8"/><circle cx="53" cy="798" r="1.8"/><circle cx="67" cy="798" r="1.8"/><circle cx="81" cy="798" r="1.8"/>
+    <circle cx="25" cy="812" r="1.8"/><circle cx="39" cy="812" r="1.8"/><circle cx="53" cy="812" r="1.8"/><circle cx="67" cy="812" r="1.8"/><circle cx="81" cy="812" r="1.8"/>
+  </g>
+</svg>
