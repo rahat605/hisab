@@ -58,7 +58,6 @@ import {
   Lightbulb,
   Megaphone,
   Gauge,
-  MapPin,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -419,6 +418,52 @@ const BULLETIN_SPEED_OPTIONS = [
   { value: 46, label: "Normal" },
   { value: 72, label: "Fast" },
 ];
+
+const dhakaDateFormatters = {
+  weekday: new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", weekday: "long" }),
+  date: new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", day: "numeric", month: "long", year: "numeric" }),
+  month: new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", month: "short" }),
+  day: new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", day: "numeric" }),
+  time: new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Dhaka",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }),
+};
+
+function AccountTodayCard() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const weekday = dhakaDateFormatters.weekday.format(now);
+  const formattedDate = dhakaDateFormatters.date.format(now);
+  const shortMonth = dhakaDateFormatters.month.format(now).toUpperCase();
+  const dayNumber = dhakaDateFormatters.day.format(now);
+  const liveTime = dhakaDateFormatters.time.format(now);
+
+  return (
+    <div className="account-today-card" title="Current date and time in Dhaka">
+      <span className="account-live-clock">
+        <time className="account-today-time-label" dateTime={now.toISOString()}>{liveTime}</time>
+      </span>
+      <div className="account-today-cal-badge" aria-hidden="true">
+        <span className="account-today-cal-month">{shortMonth}</span>
+        <span className="account-today-cal-day">{dayNumber}</span>
+      </div>
+      <div className="account-today-details">
+        <span className="account-today-day-label">{weekday}</span>
+        <span className="account-today-date-label">{formattedDate}</span>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [db, setDb] = useState(starter);
   const [theme, setTheme] = useState(() => {
@@ -470,15 +515,6 @@ function App() {
   const monthPickerRef = useRef(null);
   const monthPickerTriggerRef = useRef(null);
   const monthChoices = (() => { const now = new Date(); return [-2,-1,0,1].map(offset => new Date(now.getFullYear(), now.getMonth()+offset, 1).toLocaleDateString("en-US", {month:"long",year:"numeric"})); })();
-  const todayDateObj = new Date();
-  const todayWeekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(todayDateObj);
-  const todayFormattedDate = new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(todayDateObj);
-  const todayShortMonth = new Intl.DateTimeFormat("en-US", { month: "short" }).format(todayDateObj).toUpperCase();
-  const todayDayNum = new Intl.DateTimeFormat("en-US", { day: "numeric" }).format(todayDateObj);
   useEffect(() => {
     if (!monthMenuOpen) return undefined;
     const closeOnOutsideClick = (event) => {
@@ -4523,6 +4559,7 @@ function App() {
       day: "2-digit",
       month: "long",
       year: "numeric",
+      timeZone: "Asia/Dhaka",
     }).format(new Date());
     const reportPaymentOptions = paymentOptions.filter(
       (option) => option.enabled && String(option.account_number || "").trim(),
@@ -4668,7 +4705,7 @@ function App() {
       <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
         *{box-sizing:border-box}
         @page{size:A4;margin:16mm}
         body{margin:0;padding:24px;color:#17231f;background:#fff;font:13px/1.35 "Hind Siliguri",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -4903,29 +4940,118 @@ function App() {
           .amount-due{min-height:clamp(49px,14vw,59px);margin:9px var(--page-pad) 0;padding:7px clamp(64px,20vw,86px) 7px 9px;border-radius:clamp(13px,4vw,18px);gap:7px}.amount-due:after{right:-34px;bottom:-50px;width:132px;height:84px}.amount-icon{width:clamp(30px,8.8vw,37px);height:clamp(30px,8.8vw,37px)}.amount-icon svg{width:58%;height:58%}.amount-title{font-size:clamp(12px,3.7vw,16px)}.amount-note{margin-top:3px;font-size:clamp(7px,2.15vw,9px)}
           footer{gap:7px;margin:clamp(12px,3.5vw,16px) var(--page-pad) 0;font-size:clamp(6.8px,2.05vw,8.7px)}.bottom-waves{height:clamp(42px,12vw,53px)}
         }
+        /* Reference-matched MridhaBari statement */
+        html{background:#eaf3ee}
+        body{font-family:"Manrope","Hind Siliguri",sans-serif;background:radial-gradient(circle at 50% 0,#f9fffc,#e5f0ea 65%,#dce9e2)}
+        body>.toolbar{position:fixed;z-index:1000;top:16px;right:16px;display:flex;gap:8px;width:auto;margin:0;padding:7px;border:1px solid rgba(5,103,70,.14);border-radius:16px;background:rgba(255,255,255,.92);box-shadow:0 12px 34px rgba(0,71,48,.16);backdrop-filter:blur(12px)}
+        body>.toolbar button{height:40px;padding:0 14px;border-radius:11px;font-family:inherit}
+        .sheet{--page-pad:34px;width:min(100%,210mm);min-height:297mm;padding:0 0 74px;border:1px solid #c5e6d8;border-radius:28px;background:linear-gradient(180deg,#fbfffd 0,#fff 70%,#f6fff9 100%);box-shadow:0 28px 90px rgba(0,72,48,.17)}
+        .hero{position:relative;min-height:238px;padding:28px var(--page-pad) 74px;overflow:hidden;background:linear-gradient(90deg,rgba(248,253,250,.98) 0%,rgba(243,251,247,.91) 31%,rgba(234,247,241,.52) 53%,rgba(224,242,236,.08) 100%),url("/modern-apartment-building-amid-greenery.png") center 59%/cover no-repeat;color:#071d17}
+        .hero:before{content:"";position:absolute;z-index:0;top:-124px;left:80px;width:470px;height:300px;border-radius:50%;border:1px solid rgba(0,104,67,.08);background:rgba(255,255,255,.2);transform:rotate(-15deg)}
+        .hero:after{content:"";position:absolute;z-index:3;right:-8%;bottom:-62px;left:-8%;height:100px;border-radius:50% 50% 0 0/34% 34% 0 0;background:#fbfffd;transform:rotate(-1.5deg)}
+        .topbar{position:relative;z-index:5;display:flex;grid-template-columns:none;align-items:flex-start;justify-content:space-between;gap:24px;margin:0;padding:0;border:0}
+        .brand{align-items:center;gap:15px;color:#075f43}
+        .brand-mark{width:72px;height:72px;flex:0 0 72px;border:0;border-radius:0;background:transparent;box-shadow:none;color:#076c4b}
+        .brand-mark svg{width:68px;height:68px}
+        .brand-divider{width:1px;height:62px;flex:0 0 1px;background:#168063}
+        .brand>div:last-child{padding:0;border:0}
+        .brand-title{overflow:visible;color:#050b09;font-family:"Manrope",sans-serif;font-size:34px;font-weight:800;letter-spacing:-.045em;white-space:nowrap}
+        .brand-subtitle{display:flex;align-items:center;gap:8px;overflow:visible;margin-top:8px;color:#17251f;font-size:14px;font-weight:500;white-space:nowrap}
+        .brand-subtitle svg{width:19px;height:19px;flex:none;color:#006d4b}
+        .bill-pill{position:relative;z-index:6;display:flex;align-items:center;gap:10px;min-height:49px;padding:0 20px;border:0;border-radius:999px;background:rgba(255,255,255,.83);box-shadow:0 9px 24px rgba(33,79,66,.08);color:#111915;font-size:16px;font-weight:750;white-space:nowrap}
+        .bill-pill svg{width:22px;height:22px;color:#07120e}
+        .hero-scene{display:none!important}
+        .headline{position:relative;z-index:6;display:grid;grid-template-columns:minmax(0,1fr) 205px;align-items:center;gap:24px;min-height:126px;margin:-47px var(--page-pad) 16px;padding:25px 17px 8px;border:0;border-radius:0;background:transparent;box-shadow:none}
+        .title-block{display:block;min-width:0;padding:0;border:0}
+        .statement-kicker{margin-bottom:3px;color:#08714f;font-size:14px;font-weight:800;letter-spacing:.24em}
+        h1{overflow:visible;color:#063c2b;font-family:"Manrope",sans-serif;font-size:43px;font-weight:800;line-height:1;letter-spacing:-.045em;white-space:nowrap}
+        .month{overflow:visible;margin-top:7px;color:#24323d;font-size:16px;font-weight:500;line-height:1.15;white-space:nowrap}
+        .member-card{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:13px;min-height:73px;padding:11px 18px;border:1px solid #9eddbf;border-radius:24px;background:linear-gradient(115deg,#eefaf3,#c9f1da);box-shadow:none}
+        .member-icon{width:42px;height:42px;color:#006c48}
+        .member-caption{color:#30443a;font-size:14px;text-transform:none;letter-spacing:0}
+        .member-name{overflow:hidden;margin-top:3px;color:#080e0b;font-size:22px;font-weight:800;line-height:1;text-overflow:ellipsis;white-space:nowrap}
+        .two-columns,.lower-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:0 var(--page-pad)}
+        .two-columns{margin-bottom:16px}
+        .panel{padding:16px 17px;border:1px solid #a9ddc5;border-radius:24px;background:rgba(255,255,255,.98);box-shadow:0 8px 20px rgba(0,74,49,.065)}
+        .panel-title{gap:14px;padding:0 0 12px;margin-bottom:4px;border-bottom-color:#d9e5df;color:#07130e;font-family:"Manrope",sans-serif;font-size:21px;font-weight:800;letter-spacing:-.035em}
+        .panel-icon{width:54px;height:54px;flex:0 0 54px;border-radius:50%;background:linear-gradient(145deg,#0ca464,#00462f);box-shadow:0 7px 15px rgba(0,86,52,.22);color:#fff}
+        .panel-icon svg{width:29px;height:29px}
+        .line{min-height:43px;padding:8px 6px;border-bottom-color:#dde6e1;color:#132039;font-size:15px}
+        .line>strong{color:#050a08;font-size:17px;font-weight:800}
+        .line.paid{padding:8px 6px;color:#132039}
+        .line.due{min-height:52px;margin:5px -5px -3px;padding:10px 13px;border-radius:13px;background:linear-gradient(90deg,#e0f8ea,#c9f1d8)}
+        .line.due strong{color:#00683f!important}
+        .summary-panel,.payment-panel{min-height:350px}
+        .summary-panel .line,.payment-panel .line{min-height:43px;padding:8px 6px}
+        .line.highlight{min-height:53px;margin:5px -5px;padding:10px 13px;border-radius:13px;background:linear-gradient(90deg,#e0f8ea,#c9f1d8)}
+        .line.final-line{min-height:68px;margin:8px -1px 0;padding:12px 15px;border-radius:17px;background:linear-gradient(110deg,#0b9c5e,#00442f);box-shadow:0 9px 20px rgba(0,91,53,.2);font-size:16px}
+        .line.final-line>span{display:flex;align-items:center}
+        .line.final-line>span:before{width:34px;height:34px;margin-right:11px;background:#4bdc73}
+        .line.final-line strong{font-size:21px}
+        .payment-panel .panel-title{font-size:21px}
+        .payment-panel .line{font-size:15px}
+        .payment-panel .line>strong{font-size:17px}
+        .payment-methods-panel{margin:16px var(--page-pad) 0;padding:14px 15px 15px;border:1px solid #a9ddc5;border-radius:22px;background:rgba(255,255,255,.98);box-shadow:0 8px 20px rgba(0,74,49,.065)}
+        .payment-methods-heading{display:flex;align-items:center;gap:11px;margin-bottom:12px;color:#07130e}
+        .payment-methods-icon{display:grid;width:39px;height:39px;flex:0 0 39px;place-items:center;border-radius:12px;background:linear-gradient(145deg,#0ca464,#00462f);color:#fff}
+        .payment-methods-icon svg{width:22px;height:22px}
+        .payment-methods-heading strong{display:block;font-size:18px;font-weight:800;line-height:1.05}
+        .payment-methods-heading small{display:block;margin-top:3px;color:#607269;font-size:11px;font-weight:550}
+        .payment-options-inline{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:0;padding:0;border:0}
+        .payment-option-line{display:grid;grid-template-columns:54px minmax(0,1fr);grid-template-rows:auto auto;gap:7px 8px;min-width:0;min-height:76px;padding:9px 10px;border:1px solid #d8e9e1;border-radius:14px;background:linear-gradient(145deg,#ffffff,#f4faf7);box-shadow:0 4px 11px rgba(0,61,42,.055)}
+        .payment-option-line img,.payment-option-line>span{grid-column:1;grid-row:1;width:54px;height:29px;padding:3px;border:1px solid #e1e9e5;border-radius:999px;background:#fff;object-fit:contain;box-shadow:0 3px 8px rgba(0,55,40,.07)}
+        .payment-option-line>span{display:grid;place-items:center;color:#087343;font-weight:800}
+        .payment-option-line strong{grid-column:1/-1;grid-row:2;min-width:0;overflow:visible;color:#07192d;font-size:12px;font-weight:800;line-height:1.1;letter-spacing:.015em;overflow-wrap:anywhere;white-space:normal}
+        .payment-option-line small{grid-column:2;grid-row:1;align-self:center;justify-self:end;padding:6px 9px;border-radius:999px;background:#d3f2df;color:#163c2d;font-size:10px;font-weight:750;line-height:1;white-space:nowrap}
+        .amount-due{min-height:95px;margin:25px var(--page-pad) 0;padding:15px 150px 15px 24px;border:1px solid #8ed9b5;border-radius:25px;background:linear-gradient(95deg,#f0fcf4 0,#d8f5e3 70%,#bcf0ce 100%)}
+        .amount-due:after{right:-30px;bottom:-63px;width:270px;height:140px;background:linear-gradient(135deg,rgba(99,228,153,.38),rgba(0,165,85,.78))}
+        .amount-icon{width:53px;height:53px;border-radius:13px;background:linear-gradient(145deg,#079d5b,#00643e)}
+        .amount-icon svg{width:31px;height:31px}
+        .amount-title{color:#07130e;font-size:27px;font-weight:800}
+        .amount-note{margin-top:5px;color:#20332a;font-size:14px}
+        footer{display:flex;flex-wrap:wrap;gap:8px 14px;margin:31px var(--page-pad) 0;color:#26354a;font-size:13px}
+        footer span{display:flex;align-items:center;gap:7px;white-space:nowrap}
+        footer small{flex:0 0 100%;color:#2e3a4e;font-size:12px;text-align:center}
+        footer:before,footer:after{background:#09764e}
+        footer strong{color:#08734d}
+        .bottom-waves{height:72px}
+        .bottom-waves:before{bottom:-28px;background:#8ae3a9}
+        .bottom-waves:after{bottom:-45px;background:linear-gradient(100deg,#006d45,#07985b)}
+
+        @media(max-width:650px){
+          body{padding:0}.sheet{--page-pad:10px;min-height:max(100svh,calc(100vw * 1.414));padding-bottom:52px;border:0;border-radius:0}
+          body>.toolbar{top:auto;right:10px;bottom:10px;left:10px;justify-content:center}.hero{min-height:145px;padding:14px var(--page-pad) 46px;background-position:center,62% 59%}.hero-scene{display:none!important}
+          .brand{gap:6px}.brand-mark{width:44px;height:44px;flex-basis:44px}.brand-mark svg{width:42px;height:42px}.brand-divider{height:40px}.brand-title{font-size:18px}.brand-subtitle{gap:4px;margin-top:4px;font-size:8px}.brand-subtitle svg{width:12px;height:12px}.bill-pill{min-height:34px;padding:0 10px;font-size:10px}.bill-pill svg{width:14px;height:14px}
+          .headline{grid-template-columns:minmax(0,1fr) 125px;gap:8px;min-height:74px;margin:-29px var(--page-pad) 8px;padding:15px 6px 4px}.statement-kicker{font-size:8px;letter-spacing:.16em}h1{font-size:22px}.month{margin-top:3px;font-size:9px}.member-card{gap:6px;min-height:47px;padding:6px 8px;border-radius:14px}.member-icon{width:27px;height:27px}.member-caption{font-size:8px}.member-name{font-size:12px}
+          .two-columns,.lower-grid{gap:7px}.two-columns{margin-bottom:8px}.panel{padding:8px;border-radius:15px}.panel-title{gap:6px;padding-bottom:6px;font-size:11px}.panel-icon{width:30px;height:30px;flex-basis:30px}.panel-icon svg{width:17px;height:17px}.line{min-height:29px;padding:5px 2px;font-size:8.7px}.line>strong{font-size:10px}.line.due{min-height:35px;margin:3px -3px -2px;padding:6px;border-radius:8px}.summary-panel,.payment-panel{min-height:236px}.summary-panel .line,.payment-panel .line{min-height:29px;padding:5px 2px}.line.highlight{min-height:36px;margin:3px -3px;padding:6px;border-radius:8px}.line.final-line{min-height:47px;padding:7px;border-radius:10px;font-size:9px}.line.final-line>span:before{width:22px;height:22px;margin-right:5px}.line.final-line strong{font-size:11px}.payment-panel .panel-title{font-size:11px}.payment-panel .line{font-size:9px}.payment-panel .line>strong{font-size:10.5px}.payment-methods-panel{margin:8px var(--page-pad) 0;padding:8px;border-radius:14px}.payment-methods-heading{gap:6px;margin-bottom:7px}.payment-methods-icon{width:28px;height:28px;flex-basis:28px;border-radius:8px}.payment-methods-icon svg{width:16px;height:16px}.payment-methods-heading strong{font-size:11px}.payment-methods-heading small{font-size:7px}.payment-options-inline{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.payment-option-line{grid-template-columns:36px minmax(0,1fr);gap:4px;min-height:54px;padding:6px;border-radius:9px}.payment-option-line img,.payment-option-line>span{width:36px;height:22px;padding:2px}.payment-option-line strong{font-size:8px}.payment-option-line small{padding:4px 5px;font-size:6.5px}.amount-due{min-height:59px;margin:10px var(--page-pad) 0;padding:8px 75px 8px 10px;border-radius:15px;gap:7px}.amount-icon{width:35px;height:35px}.amount-icon svg{width:21px;height:21px}.amount-title{font-size:15px}.amount-note{font-size:8px}.bottom-waves{height:50px}footer{margin:14px var(--page-pad) 0;font-size:8px}footer small{font-size:7px}
+        }
+
         @page{size:A4 portrait;margin:0}
         @media print{
           html,body{width:210mm;height:100%;margin:0!important;padding:0!important;background:#fff}
           body{display:block;min-height:297mm;overflow:visible}
-          .sheet{--page-pad:9mm;width:210mm;height:auto;min-height:296mm;max-height:297mm;margin:0;padding-bottom:14mm;overflow:hidden;border:0;border-radius:0;box-shadow:none;page-break-after:avoid;break-after:avoid;page-break-inside:avoid;break-inside:avoid}
-          .hero{min-height:57mm;padding:9mm var(--page-pad) 17mm}.topbar{grid-template-columns:1fr}.toolbar{display:none!important}.brand-mark{width:18mm;height:18mm}.brand-title{font-size:9mm}.brand-subtitle{font-size:4.8mm}
-          .headline{min-height:24mm;margin:-8mm var(--page-pad) 4.5mm;padding:3mm 4mm}.title-icon{width:13mm;height:13mm}h1{font-size:8mm}.month{font-size:4.8mm}.member-card{min-height:17mm}.member-name{font-size:5.5mm}
-          .two-columns,.lower-grid{gap:3.5mm}.two-columns{margin-bottom:3.5mm}.panel{padding:3.3mm 3.6mm}.panel-title{font-size:4.8mm}.line{min-height:10mm;font-size:3.7mm}.line>strong{font-size:4.2mm}.line.due{min-height:11mm}.summary-panel,.payment-panel{min-height:77mm}.payment-panel .panel-title{font-size:5.1mm}.payment-panel .line{font-size:4mm}.payment-panel .line>strong{font-size:4.5mm}.payment-option-line{min-height:9.4mm}.payment-option-line strong{font-size:3.6mm}.payment-option-line small{font-size:3.2mm}
+          .sheet{--page-pad:9mm;width:210mm;height:auto;min-height:296mm;max-height:none;margin:0;padding-bottom:14mm;overflow:visible;border:0;border-radius:0;box-shadow:none;page-break-inside:auto;break-inside:auto}
+          .hero{min-height:63mm;padding:8mm var(--page-pad) 19mm}.topbar{display:flex;grid-template-columns:none}.toolbar{display:none!important}.brand-mark{width:18mm;height:18mm;flex-basis:18mm}.brand-title{font-size:9mm}.brand-subtitle{font-size:3.7mm}.bill-pill{min-height:13mm;font-size:4.2mm}.hero-scene{height:54mm}
+          .headline{min-height:31mm;margin:-12mm var(--page-pad) 4.5mm;padding:6mm 4mm 2mm}.statement-kicker{font-size:3.7mm}h1{font-size:11mm}.month{font-size:4.1mm}.member-card{min-height:19mm}.member-name{font-size:5.5mm}
+          .two-columns,.lower-grid{gap:3.5mm}.two-columns{margin-bottom:3.5mm}.panel{padding:3.3mm 3.6mm}.panel-title{font-size:4.8mm}.line{min-height:10mm;font-size:3.7mm}.line>strong{font-size:4.2mm}.line.due{min-height:11mm}.summary-panel,.payment-panel{min-height:77mm}.payment-panel .panel-title{font-size:5.1mm}.payment-panel .line{font-size:4mm}.payment-panel .line>strong{font-size:4.5mm}.payment-methods-panel{margin-top:4mm;padding:3mm 3.5mm;break-inside:avoid}.payment-methods-heading{margin-bottom:2.5mm}.payment-options-inline{grid-template-columns:repeat(4,minmax(0,1fr));gap:2mm}.payment-option-line{min-height:20mm;padding:2mm}.payment-option-line strong{font-size:3.2mm}.payment-option-line small{font-size:2.7mm}
           .amount-due{min-height:22mm;margin-top:5mm}.amount-title{font-size:7mm}.amount-note{font-size:4mm}footer{margin-top:6mm;font-size:3.4mm}.bottom-waves{height:16mm}
         }
-      </style></head><body lang="en"><main class="sheet">
+      </style></head><body lang="en">
+        <div class="toolbar" data-html2canvas-ignore="true">
+          <button type="button" class="btn-save-pdf" onclick="window.saveBillAsPdf(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6m-3 3 3 3 3-3"/></svg><span>Save as PDF</span></button>
+          <button type="button" class="btn-save-image" onclick="window.saveBillAsImage(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>Save as image</span></button>
+        </div>
+        <main class="sheet">
         <header class="hero">
           <div class="topbar">
-            <div class="brand"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg></div><div><div class="brand-title">MridhaBari 6B</div><div class="brand-subtitle">Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</div></div></div>
-            <div class="toolbar" data-html2canvas-ignore="true">
-              <button type="button" class="btn-save-pdf" onclick="window.saveBillAsPdf(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6m-3 3 3 3 3-3"/></svg><span>Save as PDF</span></button>
-              <button type="button" class="btn-save-image" onclick="window.saveBillAsImage(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>Save as image</span></button>
-            </div>
+            <div class="brand"><div class="brand-mark"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 29 32 7l25 22" stroke-width="4"/><path d="M13 27v29h38V27" stroke-width="4"/><path d="M32 54V31" stroke-width="3"/><path d="M31 42c-10-1-15-7-16-17 10 0 17 5 19 14" fill="currentColor" stroke="none"/><path d="M33 42c10-1 15-7 16-17-10 0-17 5-19 14" fill="currentColor" stroke="none"/></svg></div><span class="brand-divider" aria-hidden="true"></span><div><div class="brand-title">MridhaBari 6B</div><div class="brand-subtitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</div></div></div>
+            <div class="bill-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg><span>${escapeHtml(month)}</span></div>
           </div>
+          <div class="hero-scene" aria-hidden="true"><svg viewBox="0 0 620 270" preserveAspectRatio="xMidYMax meet"><defs><linearGradient id="wall" x1="0" x2="1"><stop stop-color="#fdfefe"/><stop offset="1" stop-color="#dce8e7"/></linearGradient><linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#385d62"/><stop offset="1" stop-color="#0d292d"/></linearGradient></defs><g opacity=".98"><path d="M175 76 302 25v226H175Z" fill="url(#wall)"/><path d="M302 25 405 68v183H302Z" fill="#cbd8d8"/><path d="M270 49h31v202h-31z" fill="#f7fbfb"/><path d="M187 90h67v161h-67z" fill="#eef3f3"/><path d="M319 81h73v170h-73z" fill="#edf3f2"/><g fill="url(#glass)"><path d="M198 104h42v34h-42zM198 158h42v34h-42zM198 212h42v31h-42zM326 96h48v35h-48zM326 150h48v35h-48zM326 204h48v38h-48z"/></g><g fill="#fff"><path d="M190 139h58v8h-58zM190 193h58v8h-58zM318 132h64v8h-64zM318 186h64v8h-64z"/></g><path d="M405 68 515 42v209H405Z" fill="url(#wall)"/><path d="M515 42 587 83v168h-72Z" fill="#c9d8d8"/><g fill="url(#glass)"><path d="M422 82h37v39h-37zM470 70h31v42h-31zM422 143h37v39h-37zM470 132h31v42h-31zM422 204h37v39h-37zM470 194h31v45h-31zM530 91h37v40h-37zM530 153h37v40h-37zM530 214h37v30h-37z"/></g></g><g fill="#2b9a4f"><circle cx="130" cy="220" r="46"/><circle cx="92" cy="238" r="38"/><circle cx="560" cy="211" r="55"/><circle cx="606" cy="232" r="44"/></g><g fill="#66bd63"><circle cx="151" cy="237" r="31"/><circle cx="531" cy="239" r="36"/></g></svg></div>
         </header>
         <div class="headline">
-          <div class="title-block"><span class="title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg></span><div><h1>Monthly Bill</h1><div class="month">${escapeHtml(month)}</div></div></div>
-          <div class="member-card"><svg class="member-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><div><div class="member-caption">Member</div><div class="member-name">${escapeHtml(member.name)}</div></div><svg class="member-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></div>
+          <div class="title-block"><div><div class="statement-kicker">— MONTHLY BILL STATEMENT</div><h1>${escapeHtml(month)}</h1><div class="month">Your residence account summary for this month</div></div></div>
+          <div class="member-card"><svg class="member-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><div><div class="member-caption">Member</div><div class="member-name">${escapeHtml(member.name)}</div></div></div>
         </div>
         <div class="two-columns">
           <section class="panel"><div class="panel-title"><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg></span>Rent &amp; Utilities</div>
@@ -4952,11 +5078,11 @@ function App() {
             <div class="line"><span>Rent Paid</span><strong>${money(rentPaid)}</strong></div>
             <div class="line"><span>Meal Paid</span><strong>${money(mealPaid)}</strong></div>
             <div class="line highlight"><span>Total Paid</span><strong class="positive">${money(totalPaid)}</strong></div>
-            ${paymentMethodsHtml}
           </section>
         </div>
-        <div class="amount-due"><span class="amount-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg></span><div><div class="amount-title">Amount Due: ${signedMoney(finalBalance)}</div><div class="amount-note">${finalBalance > 0 ? "Please clear the due amount at your earliest convenience." : "Your account has a credit balance."}</div></div><svg class="house-art" viewBox="0 0 160 100" fill="none" aria-hidden="true"><path d="M5 88c22-7 36-4 53 0 20 5 41 5 58-1 16-5 27-4 39 1v12H5V88Z" fill="#B9E8A6"/><path d="m31 62 34-31 34 31v31H31V62Z" fill="#FFF9E8" stroke="#14864D" stroke-width="5" stroke-linejoin="round"/><path d="m21 62 44-40 44 40-7 7-37-33-37 33-7-7Z" fill="#078C4A"/><path d="M84 34V18h13v28" fill="#168E4A" stroke="#087342" stroke-width="4"/><path d="M53 67h23v26H53z" fill="#FFF1C9" stroke="#16884B" stroke-width="3"/><path d="M64.5 68v24M54 80h21" stroke="#E8A72E" stroke-width="2"/><path d="M16 87c-8-10-4-20 2-23 7 5 9 14 4 22m-8 0c-2-12 2-19 9-21m-4 21h14" stroke="#36A84C" stroke-width="4" stroke-linecap="round"/><path d="M125 88c-5-9-2-17 4-20 7 5 8 13 3 20m-7 0c-2-10 2-16 8-18m-6 18h16" stroke="#36A84C" stroke-width="4" stroke-linecap="round"/><circle cx="21" cy="80" r="7" fill="#84D66F"/><circle cx="133" cy="78" r="8" fill="#78CE64"/></svg></div>
-        <footer>Generated by <strong>Rahat</strong> &middot; ${escapeHtml(generatedDate)}</footer>
+        ${paymentMethodsHtml ? `<section class="payment-methods-panel"><div class="payment-methods-heading"><span class="payment-methods-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18m-4 5h.01"/></svg></span><div><strong>Payment Methods</strong><small>Use any account below to make your payment</small></div></div>${paymentMethodsHtml}</section>` : ""}
+        <div class="amount-due"><span class="amount-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h14a2 2 0 0 1 2 2v9H4a2 2 0 0 1-2-2V7a3 3 0 0 1 3-3h12"/><path d="M16 12h6v4h-6a2 2 0 0 1 0-4Z"/></svg></span><div><div class="amount-title">Amount Due: ${signedMoney(finalBalance)}</div><div class="amount-note">${finalBalance > 0 ? "Please clear the due amount at your earliest convenience." : "Your account has a credit balance."}</div></div><svg class="house-art" viewBox="0 0 160 100" fill="none" aria-hidden="true"><path d="M5 88c22-7 36-4 53 0 20 5 41 5 58-1 16-5 27-4 39 1v12H5V88Z" fill="#B9E8A6"/><path d="m31 62 34-31 34 31v31H31V62Z" fill="#FFF9E8" stroke="#14864D" stroke-width="5" stroke-linejoin="round"/><path d="m21 62 44-40 44 40-7 7-37-33-37 33-7-7Z" fill="#078C4A"/><path d="M84 34V18h13v28" fill="#168E4A" stroke="#087342" stroke-width="4"/><path d="M53 67h23v26H53z" fill="#FFF1C9" stroke="#16884B" stroke-width="3"/><path d="M64.5 68v24M54 80h21" stroke="#E8A72E" stroke-width="2"/><path d="M16 87c-8-10-4-20 2-23 7 5 9 14 4 22m-8 0c-2-12 2-19 9-21m-4 21h14" stroke="#36A84C" stroke-width="4" stroke-linecap="round"/><path d="M125 88c-5-9-2-17 4-20 7 5 8 13 3 20m-7 0c-2-10 2-16 8-18m-6 18h16" stroke="#36A84C" stroke-width="4" stroke-linecap="round"/><circle cx="21" cy="80" r="7" fill="#84D66F"/><circle cx="133" cy="78" r="8" fill="#78CE64"/></svg></div>
+        <footer><span>Generated by <strong>MridhaBari 6B</strong></span><small>${escapeHtml(generatedDate)} &nbsp;•&nbsp; Dhaka, Bangladesh</small></footer>
         <div class="bottom-waves" aria-hidden="true"></div>
       </main>
       <script>
@@ -5040,10 +5166,27 @@ function App() {
               if (imgHeight <= pageHeight) {
                 pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight, undefined, "FAST");
               } else {
-                var scale = pageHeight / imgHeight;
-                var fittedWidth = imgWidth * scale;
-                var xOffset = (pageWidth - fittedWidth) / 2;
-                pdf.addImage(imgData, "PNG", xOffset, 0, fittedWidth, pageHeight, undefined, "FAST");
+                var pagePixelHeight = Math.floor(canvas.width * pageHeight / pageWidth);
+                var sourceY = 0;
+                var pageIndex = 0;
+
+                while (sourceY < canvas.height) {
+                  var sliceHeight = Math.min(pagePixelHeight, canvas.height - sourceY);
+                  var pageCanvas = document.createElement("canvas");
+                  pageCanvas.width = canvas.width;
+                  pageCanvas.height = sliceHeight;
+                  var pageContext = pageCanvas.getContext("2d");
+                  pageContext.fillStyle = "#ffffff";
+                  pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+                  pageContext.drawImage(canvas, 0, sourceY, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+
+                  if (pageIndex > 0) pdf.addPage("a4", "portrait");
+                  var sliceHeightMm = sliceHeight * pageWidth / canvas.width;
+                  pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", 0, 0, pageWidth, sliceHeightMm, undefined, "FAST");
+
+                  sourceY += sliceHeight;
+                  pageIndex += 1;
+                }
               }
 
               pdf.save("Monthly-Bill-" + safeMonth + "-" + safeMember + ".pdf");
@@ -5786,23 +5929,33 @@ function App() {
         ]
       : []),
   ];
+  const headerIconByPage = {
+    overview: LayoutDashboard,
+    bazar: ShoppingBasket,
+    monthly: Receipt,
+    contacts: Phone,
+    "pay-rent": CreditCard,
+    members: Users,
+    expenses: Zap,
+    "payment-options": Settings,
+    notices: Megaphone,
+  };
+  const ActiveHeaderIcon = headerIconByPage[page] || nav.find(([key]) => key === page)?.[2];
+  const hasSpecialHeaderIcon = ["inbox", "payments", "settlements"].includes(page);
+  const showStandardHeaderIcon = page !== "my-account" && !hasSpecialHeaderIcon && Boolean(ActiveHeaderIcon);
   return (
-    <div className={`app premium-theme${theme === "dark" ? " dark-theme" : ""}`}>
+    <div id="app-shell" className={`app premium-theme${theme === "dark" ? " dark-theme" : ""}`}>
       <aside className={menu ? "sidebar open" : "sidebar"}>
         <div className="brand sidebar-property-card">
           <div className="brand-mark sidebar-property-mark">
-            <Home size={20} />
+            <Home className="sidebar-residence-home-icon" size={36} aria-hidden="true" />
           </div>
           <div className="sidebar-property-copy">
-            <span className="sidebar-property-kicker">Residence</span>
             <b>MridhaBari 6B</b>
+            <span className="sidebar-property-address-line">Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</span>
           </div>
-          <small className="sidebar-property-address">
-            <MapPin size={14} aria-hidden="true" />
-            <span>Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</span>
-          </small>
           <button
-            className="icon-btn mobile-close bazar-action"
+            className="icon-btn mobile-close"
             type="button"
             aria-label="Close navigation menu"
             onClick={() => setMenu(false)}
@@ -5912,7 +6065,14 @@ function App() {
             <Menu size={22} strokeWidth={2.25} />
           </button>
           {page !== "my-account" && (
-            <div className={page === "overview" ? "overview-page-heading" : page === "settlements" ? "settlement-page-heading" : "app-page-heading"}>
+            <div className={`${page === "overview" ? "overview-page-heading" : page === "settlements" ? "settlement-page-heading" : "app-page-heading"}${showStandardHeaderIcon ? " page-heading-with-mark" : ""}`}>
+              {showStandardHeaderIcon && (
+                <span className={`page-heading-mark page-heading-mark-${page}`} aria-hidden="true">
+                  <span className="page-heading-mark-inner">
+                    <ActiveHeaderIcon size={21} />
+                  </span>
+                </span>
+              )}
               {page === "inbox" && <span className="inbox-page-mark"><MessageCircle size={23} /></span>}
               {page === "payments" && <span className="payments-page-mark" aria-hidden="true"><span className="payments-page-mark-inner"><Wallet size={20} /></span></span>}
               {page === "settlements" && (
@@ -6133,15 +6293,15 @@ function App() {
                 <span className="eyebrow">MONTHLY OVERVIEW</span>
               </div>
               <div className="welcome-actions">
-                <button className="secondary" onClick={exportCsv}>
+                <button className="secondary overview-export-btn overview-export-csv" onClick={exportCsv}>
                   <Download size={16} /> Export CSV
                 </button>
-                <button className="primary" onClick={exportPremiumPdf}>
+                <button className="primary overview-export-btn overview-export-pdf" onClick={exportPremiumPdf}>
                   <Download size={16} /> Export PDF
                 </button>
                 <button
                   type="button"
-                  className="danger reset-month-btn"
+                  className="danger reset-month-btn overview-export-btn overview-reset-btn"
                   onClick={resetMonth}
                 >
                   <RotateCcw size={16} /> Reset Hisab
@@ -6460,17 +6620,11 @@ function App() {
                 <p>Your room rent, utilities, and meal cost for {month}.</p>
               </div>
               <div className="account-welcome-actions">
-                <div className="account-today-card" title="Today's date and day">
-                  <div className="account-today-cal-badge" aria-hidden="true">
-                    <span className="account-today-cal-month">{todayShortMonth}</span>
-                    <span className="account-today-cal-day">{todayDayNum}</span>
-                  </div>
-                  <div className="account-today-details">
-                    <span className="account-today-day-label">{todayWeekday}</span>
-                    <span className="account-today-date-label">{todayFormattedDate}</span>
-                  </div>
-                </div>
-                <button className="btn secondary account-pdf-btn" type="button" onClick={() => exportMemberBill(user)}><Download size={16} /> Export PDF</button>
+                <AccountTodayCard />
+                <button className="btn secondary account-pdf-btn" type="button" onClick={() => exportMemberBill(user)}>
+                  <span className="account-pdf-icon" aria-hidden="true"><Download size={16} /></span>
+                  <span className="account-pdf-copy"><strong>Export PDF</strong><small>Monthly report</small></span>
+                </button>
               </div>
             </section>
             {activeBulletinNotices.length > 0 && (

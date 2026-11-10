@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1680 942" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4faf7"/>
+      <stop offset=".46" stop-color="#fffefd"/>
+      <stop offset="1" stop-color="#edf7f2"/>
+    </linearGradient>
+    <radialGradient id="pearl" cx="0" cy="0" r="1" gradientTransform="translate(1115 112) rotate(122) scale(690 480)">
+      <stop stop-color="#d9f3e8" stop-opacity=".88"/>
+      <stop offset=".58" stop-color="#eaf8f2" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#f7fbf8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sage" x1="0" y1="0" x2="1" y2=".3">
+      <stop stop-color="#d8f3e7" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#9edbc2" stop-opacity=".62"/>
+    </linearGradient>
+    <linearGradient id="emerald" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#08714f"/>
+      <stop offset="1" stop-color="#0d9568"/>
+    </linearGradient>
+    <linearGradient id="champagne" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#caa968" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#caa968" stop-opacity=".65"/>
+      <stop offset="1" stop-color="#caa968" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="microGrid" width="34" height="34" patternUnits="userSpaceOnUse">
+      <path d="M34 0H0v34" fill="none" stroke="#0a704f" stroke-opacity=".035" stroke-width="1"/>
+    </pattern>
+    <filter id="blur"><feGaussianBlur stdDeviation="34"/></filter>
+  </defs>
+
+  <rect width="1680" height="942" fill="url(#base)"/>
+  <rect width="1680" height="942" fill="url(#pearl)"/>
+  <rect x="252" width="1428" height="942" fill="url(#microGrid)" opacity=".72"/>
+
+  <ellipse cx="1265" cy="75" rx="430" ry="250" fill="#c9eadc" opacity=".27" filter="url(#blur)"/>
+  <ellipse cx="865" cy="1000" rx="660" ry="275" fill="#a9dec8" opacity=".22" filter="url(#blur)"/>
+
+  <path d="M252 0h989c-132 51-235 108-370 134-183 35-298-32-466 10-56 14-107 38-153 69Z" fill="url(#sage)" opacity=".56"/>
+  <path d="M252 0h714c-108 61-210 99-341 94-142-6-245-19-373 64Z" fill="#ffffff" opacity=".58"/>
+  <path d="M252 184c151-105 279-101 416-78 159 27 274 7 407-60" fill="none" stroke="#ffffff" stroke-opacity=".92" stroke-width="2"/>
+
+  <g opacity=".2" stroke="#176f54" fill="none">
+    <path d="M1242 78h112v184h-112zM1368 36h146v226h-146zM1527 104h91v158h-91z" stroke-width="2"/>
+    <path d="M1260 101h22v29h-22zm37 0h22v29h-22zm89-39h26v34h-26zm43 0h26v34h-26zm43 0h26v34h-26zm-86 55h26v34h-26zm43 0h26v34h-26zm43 0h26v34h-26zm73 12h20v28h-20zm34 0h20v28h-20z" stroke-width="1.4"/>
+    <path d="M1225 262h414" stroke-width="3"/>
+  </g>
+
+  <path d="M252 758c190-61 335 9 500 91 161 80 303 53 448-27 181-100 290-119 480-44v164H252Z" fill="#d9f2e7" opacity=".9"/>
+  <path d="M252 827c173-50 318 16 466 74 177 69 321 31 465-42 164-83 306-93 497-26v109H252Z" fill="url(#sage)"/>
+  <path d="M874 942c175-107 311-128 462-91 133 32 222 7 344-45v136Z" fill="url(#emerald)" opacity=".86"/>
+  <path d="M835 942c177-96 316-112 477-78 132 28 231 6 368-56" fill="none" stroke="#effbf5" stroke-opacity=".9" stroke-width="2.2"/>
+
+  <path d="M1050 18h526" stroke="url(#champagne)" stroke-width="2"/>
+  <g fill="#1b8c64" fill-opacity=".26">
+    <circle cx="1556" cy="351" r="3"/><circle cx="1576" cy="351" r="3"/><circle cx="1596" cy="351" r="3"/><circle cx="1616" cy="351" r="3"/>
+    <circle cx="1556" cy="371" r="3"/><circle cx="1576" cy="371" r="3"/><circle cx="1596" cy="371" r="3"/><circle cx="1616" cy="371" r="3"/>
+    <circle cx="1556" cy="391" r="3"/><circle cx="1576" cy="391" r="3"/><circle cx="1596" cy="391" r="3"/><circle cx="1616" cy="391" r="3"/>
+    <circle cx="1556" cy="411" r="3"/><circle cx="1576" cy="411" r="3"/><circle cx="1596" cy="411" r="3"/><circle cx="1616" cy="411" r="3"/>
+  </g>
+</svg>
