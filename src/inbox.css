@@ -10051,6 +10051,15 @@ html[data-theme="dark"] .login-wrap.dark-theme .login-card .brand-mark svg {
   box-shadow: 0 8px 22px rgba(28, 75, 58, 0.08);
   transform: translateY(-1px);
 }
+
+:root body .app.premium-theme .notice-popover .notice-mini.is-actionable {
+  cursor: pointer;
+}
+
+:root body .app.premium-theme .notice-popover .notice-mini.is-actionable:focus-visible {
+  outline: 2px solid var(--primary, #16835f);
+  outline-offset: -2px;
+}
 :root body .app.premium-theme .notice-popover .notice-mini-icon {
   display: grid;
   width: 36px !important;
@@ -16652,33 +16661,96 @@ html[data-theme="dark"] body {
 
 :root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-actionbar {
   margin-top: 10px !important;
-  padding: 11px 14px 14px !important;
-  border-top: 1px solid #edf2ef !important;
-  background: transparent !important;
+  padding: 12px 14px 14px !important;
+  border-top: 1px solid rgba(20, 104, 76, .1) !important;
+  background: linear-gradient(180deg, rgba(248, 252, 250, 0), rgba(244, 250, 247, .72)) !important;
 }
 :root body .app.premium-theme.dark-theme .settlement-page .settlement-plan-panel .settlement-plan-actionbar {
   border-top-color: rgba(126, 160, 148, .12) !important;
-  background: transparent !important;
+  background: linear-gradient(180deg, rgba(13, 21, 24, 0), rgba(9, 17, 19, .34)) !important;
 }
 :root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action {
-  min-height: 46px !important;
-  padding: 7px 13px !important;
-  border-color: #096747 !important;
-  border-radius: 12px !important;
-  background: #0a7653 !important;
-  box-shadow: 0 6px 14px rgba(10, 118, 83, .17) !important;
+  position: relative !important;
+  isolation: isolate !important;
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr) 30px !important;
+  min-height: 58px !important;
+  gap: 11px !important;
+  padding: 7px 10px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(4, 79, 55, .82) !important;
+  border-radius: 15px !important;
+  background:
+    radial-gradient(circle at 92% -35%, rgba(255, 255, 255, .16) 0 72px, transparent 73px),
+    linear-gradient(135deg, #0c7655 0%, #075f47 58%, #064b3a 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(5, 82, 58, .2), inset 0 1px 0 rgba(255, 255, 255, .17) !important;
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease !important;
 }
-:root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action:hover:not(:disabled) {
-  background: #086c4b !important;
-  box-shadow: 0 7px 17px rgba(10, 100, 72, .21) !important;
+:root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 1px;
+  border: 1px solid rgba(255, 255, 255, .07);
+  border-radius: 13px;
+  pointer-events: none;
+}
+:root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action > svg {
+  position: static !important;
+  top: auto !important;
+  box-sizing: border-box !important;
+  color: #ffffff !important;
   transform: none !important;
 }
+:root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action > svg:first-child {
+  left: auto !important;
+  width: 34px !important;
+  height: 34px !important;
+  padding: 8px !important;
+  border: 1px solid rgba(255, 255, 255, .15) !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, .1) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08) !important;
+}
+:root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action > svg:last-child {
+  right: auto !important;
+  width: 30px !important;
+  height: 30px !important;
+  padding: 8px !important;
+  border: 1px solid rgba(255, 255, 255, .14) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, .1) !important;
+}
+:root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action:hover:not(:disabled) {
+  background:
+    radial-gradient(circle at 92% -35%, rgba(255, 255, 255, .19) 0 72px, transparent 73px),
+    linear-gradient(135deg, #0e805c 0%, #08694d 58%, #07523e 100%) !important;
+  box-shadow: 0 13px 27px rgba(5, 82, 58, .25), inset 0 1px 0 rgba(255, 255, 255, .2) !important;
+  transform: translateY(-1px) !important;
+}
+:root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action:active:not(:disabled) {
+  box-shadow: 0 6px 15px rgba(5, 82, 58, .19), inset 0 1px 0 rgba(255, 255, 255, .14) !important;
+  transform: translateY(0) scale(.992) !important;
+}
+:root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action:focus-visible {
+  outline: 3px solid rgba(16, 185, 129, .24) !important;
+  outline-offset: 2px !important;
+}
+:root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action:disabled {
+  cursor: wait !important;
+  filter: saturate(.65) opacity(.72) !important;
+}
 :root body .app.premium-theme .settlement-page .settlement-plan-action-copy strong {
-  font-size: 12.5px !important;
-  font-weight: 800 !important;
+  font-size: 13.25px !important;
+  font-weight: 820 !important;
+  letter-spacing: -.01em !important;
 }
 :root body .app.premium-theme .settlement-page .settlement-plan-action-copy small {
-  font-size: 9.5px !important;
+  margin-top: 3px !important;
+  color: rgba(255, 255, 255, .72) !important;
+  font-size: 10px !important;
+  font-weight: 580 !important;
 }
 
 @media (max-width: 560px) {
@@ -17789,11 +17861,28 @@ html[data-theme="dark"] body {
   }
   :root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-actionbar {
     margin-top: 9px !important;
-    padding: 10px !important;
+    padding: 11px 12px 12px !important;
   }
   :root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action {
-    min-height: 44px !important;
+    grid-template-columns: 32px minmax(0, 1fr) 28px !important;
+    min-height: 56px !important;
+    gap: 9px !important;
+    padding: 7px 9px !important;
+    border-radius: 14px !important;
+  }
+  :root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action::before {
     border-radius: 12px !important;
+  }
+  :root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action > svg:first-child {
+    width: 32px !important;
+    height: 32px !important;
+    padding: 8px !important;
+    border-radius: 9px !important;
+  }
+  :root body .app.premium-theme .settlement-page .settlement-plan-panel .settlement-plan-action > svg:last-child {
+    width: 28px !important;
+    height: 28px !important;
+    padding: 7px !important;
   }
   :root body .app.premium-theme .settlement-page .settlement-plan-empty {
     min-height: 170px !important;
@@ -18073,56 +18162,74 @@ html[data-theme="dark"] body {
 /* Premium My Account date and PDF actions on phones. */
 @media (max-width: 700px) {
   :root body .app.premium-theme .main.my-account-page .account-welcome-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: minmax(0, 1.18fr) minmax(128px, .82fr) !important;
     align-items: stretch !important;
-    gap: 10px !important;
+    gap: 9px !important;
   }
   :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card,
   :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn {
     position: relative !important;
+    isolation: isolate !important;
     width: 100% !important;
     min-width: 0 !important;
-    height: 66px !important;
-    min-height: 66px !important;
+    height: 64px !important;
+    min-height: 64px !important;
     margin: 0 !important;
-    border-radius: 18px !important;
+    border-radius: 17px !important;
     overflow: hidden !important;
-    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease !important;
+    transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease, background .2s ease !important;
   }
   :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card {
     display: flex !important;
     align-items: center !important;
-    gap: 9px !important;
-    padding: 8px 9px !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    backdrop-filter: blur(12px) !important;
+    gap: 10px !important;
+    padding: 8px 10px !important;
+    -webkit-backdrop-filter: blur(16px) saturate(1.08) !important;
+    backdrop-filter: blur(16px) saturate(1.08) !important;
     transform: none !important;
   }
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card::after {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    top: -28px;
+    right: -24px;
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: rgba(35, 172, 122, .09);
+    filter: blur(1px);
+    pointer-events: none;
+  }
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card > * {
+    position: relative;
+    z-index: 1;
+  }
   :root body .app.premium-theme:not(.dark-theme) .main.my-account-page .account-welcome-actions .account-today-card {
-    border: 1px solid rgba(21, 128, 91, .16) !important;
-    background: linear-gradient(145deg, rgba(255, 255, 255, .98), rgba(244, 250, 247, .96)) !important;
-    box-shadow: 0 10px 28px rgba(28, 72, 56, .09), inset 0 1px 0 #ffffff !important;
+    border: 1px solid rgba(26, 112, 82, .17) !important;
+    background: linear-gradient(145deg, rgba(255, 255, 255, .98), rgba(246, 251, 249, .96)) !important;
+    box-shadow: 0 9px 24px rgba(25, 65, 51, .075), inset 0 1px 0 rgba(255, 255, 255, .95) !important;
   }
   :root body .app.premium-theme.dark-theme .main.my-account-page .account-welcome-actions .account-today-card {
-    border: 1px solid rgba(85, 164, 134, .2) !important;
-    background: linear-gradient(145deg, rgba(28, 34, 40, .98), rgba(18, 23, 28, .98)) !important;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, .25), inset 0 1px 0 rgba(255, 255, 255, .04) !important;
+    border: 1px solid rgba(94, 177, 145, .2) !important;
+    background: linear-gradient(145deg, rgba(27, 35, 37, .98), rgba(16, 23, 25, .98)) !important;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, .25), inset 0 1px 0 rgba(255, 255, 255, .045) !important;
   }
   :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card:hover {
     transform: none !important;
   }
   :root body .app.premium-theme .main.my-account-page .account-today-cal-badge {
-    width: 39px !important;
-    height: 46px !important;
-    min-width: 39px !important;
-    flex: 0 0 39px !important;
+    width: 40px !important;
+    height: 48px !important;
+    min-width: 40px !important;
+    flex: 0 0 40px !important;
     border-radius: 11px !important;
     overflow: hidden !important;
   }
   :root body .app.premium-theme:not(.dark-theme) .main.my-account-page .account-today-cal-badge {
     border: 1px solid rgba(9, 111, 76, .2) !important;
     background: #ffffff !important;
-    box-shadow: 0 5px 13px rgba(15, 94, 67, .13) !important;
+    box-shadow: 0 5px 14px rgba(15, 76, 56, .12) !important;
   }
   :root body .app.premium-theme.dark-theme .main.my-account-page .account-today-cal-badge {
     border: 1px solid rgba(78, 190, 147, .23) !important;
@@ -18130,17 +18237,17 @@ html[data-theme="dark"] body {
     box-shadow: 0 6px 14px rgba(0, 0, 0, .3) !important;
   }
   :root body .app.premium-theme .main.my-account-page .account-today-cal-month {
-    height: 15px !important;
-    min-height: 15px !important;
-    background: linear-gradient(135deg, #159b6c, #087653) !important;
-    font-size: 8.5px !important;
+    height: 16px !important;
+    min-height: 16px !important;
+    background: linear-gradient(135deg, #22ad79, #0b7655) !important;
+    font-size: 8px !important;
     font-weight: 850 !important;
-    letter-spacing: .07em !important;
+    letter-spacing: .09em !important;
   }
   :root body .app.premium-theme .main.my-account-page .account-today-cal-day {
-    height: 31px !important;
-    min-height: 31px !important;
-    font-size: 17px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    font-size: 17.5px !important;
     font-weight: 850 !important;
   }
   :root body .app.premium-theme:not(.dark-theme) .main.my-account-page .account-today-cal-day {
@@ -18154,7 +18261,7 @@ html[data-theme="dark"] body {
   :root body .app.premium-theme .main.my-account-page .account-today-details {
     min-width: 0 !important;
     flex: 1 1 auto !important;
-    gap: 3px !important;
+    gap: 4px !important;
   }
   :root body .app.premium-theme .main.my-account-page .account-today-day-label,
   :root body .app.premium-theme .main.my-account-page .account-today-date-label {
@@ -18165,10 +18272,10 @@ html[data-theme="dark"] body {
     white-space: nowrap !important;
   }
   :root body .app.premium-theme .main.my-account-page .account-today-day-label {
-    font-size: 13.5px !important;
-    font-weight: 800 !important;
+    font-size: 13.25px !important;
+    font-weight: 780 !important;
     line-height: 1.05 !important;
-    letter-spacing: -.015em !important;
+    letter-spacing: -.012em !important;
   }
   :root body .app.premium-theme:not(.dark-theme) .main.my-account-page .account-today-day-label {
     color: #18352a !important;
@@ -18177,8 +18284,8 @@ html[data-theme="dark"] body {
     color: #f0f7f4 !important;
   }
   :root body .app.premium-theme .main.my-account-page .account-today-date-label {
-    font-size: 10.5px !important;
-    font-weight: 650 !important;
+    font-size: 10.25px !important;
+    font-weight: 680 !important;
     line-height: 1.15 !important;
   }
   :root body .app.premium-theme:not(.dark-theme) .main.my-account-page .account-today-date-label {
@@ -18194,42 +18301,52 @@ html[data-theme="dark"] body {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 8px !important;
+    gap: 7px !important;
     padding: 0 10px !important;
-    border: 1px solid #086b4d !important;
+    border: 1px solid rgba(5, 87, 61, .9) !important;
     background:
-      radial-gradient(circle at 110% -25%, rgba(255, 255, 255, .11) 0 52px, transparent 53px),
-      linear-gradient(135deg, #0d825b 0%, #086b4d 58%, #075a42 100%) !important;
+      radial-gradient(circle at 106% -28%, rgba(255, 255, 255, .14) 0 50px, transparent 51px),
+      linear-gradient(138deg, #117a59 0%, #095c45 58%, #084b3a 100%) !important;
     color: #ffffff !important;
-    font-size: 13.5px !important;
-    font-weight: 800 !important;
+    font-size: 13px !important;
+    font-weight: 780 !important;
     line-height: 1 !important;
-    letter-spacing: -.01em !important;
+    letter-spacing: -.005em !important;
     white-space: nowrap !important;
-    box-shadow: 0 11px 24px rgba(7, 99, 70, .22), inset 0 1px 0 rgba(255, 255, 255, .18) !important;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, .16) !important;
+    box-shadow: 0 10px 22px rgba(6, 78, 56, .2), inset 0 1px 0 rgba(255, 255, 255, .18) !important;
     -webkit-tap-highlight-color: transparent !important;
+  }
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn::after {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    inset: 1px;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, .08);
+    pointer-events: none;
   }
   :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn > svg {
     position: relative !important;
     z-index: 1 !important;
-    width: 30px !important;
-    height: 30px !important;
-    min-width: 30px !important;
-    flex: 0 0 30px !important;
+    width: 29px !important;
+    height: 29px !important;
+    min-width: 29px !important;
+    flex: 0 0 29px !important;
     box-sizing: border-box !important;
     padding: 7px !important;
     border: 1px solid rgba(255, 255, 255, .16) !important;
-    border-radius: 10px !important;
-    background: rgba(255, 255, 255, .12) !important;
+    border-radius: 9px !important;
+    background: rgba(255, 255, 255, .105) !important;
     color: #ffffff !important;
   }
   :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn:hover:not(:disabled) {
-    border-color: #075e45 !important;
+    border-color: #07553f !important;
     background:
-      radial-gradient(circle at 110% -25%, rgba(255, 255, 255, .13) 0 52px, transparent 53px),
-      linear-gradient(135deg, #0e8b61, #087150 62%, #075e45) !important;
+      radial-gradient(circle at 106% -28%, rgba(255, 255, 255, .16) 0 50px, transparent 51px),
+      linear-gradient(138deg, #138360, #09664b 62%, #07533e) !important;
     color: #ffffff !important;
-    box-shadow: 0 13px 28px rgba(7, 99, 70, .27), inset 0 1px 0 rgba(255, 255, 255, .2) !important;
+    box-shadow: 0 13px 27px rgba(6, 78, 56, .25), inset 0 1px 0 rgba(255, 255, 255, .2) !important;
     transform: translateY(-1px) !important;
   }
   :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn:active:not(:disabled) {
@@ -18595,7 +18712,7 @@ html[data-theme="dark"] body {
   }
   :root body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-date-tile > span {
     margin-top: 3px !important;
-    font-size: 9.5px !important;
+    font-size: 10.5px !important;
   }
 
   :root body .app.premium-theme .main.bazar-page .bazar-history-panel table tbody tr:not(.bazar-row-combined) > td.bazar-amount-cell,
@@ -18613,7 +18730,7 @@ html[data-theme="dark"] body {
     display: block !important;
     margin-bottom: 1px !important;
     color: #829087 !important;
-    font-size: 8.5px !important;
+    font-size: 9.5px !important;
     font-weight: 800 !important;
     line-height: 1 !important;
     letter-spacing: .055em !important;
@@ -18642,21 +18759,21 @@ html[data-theme="dark"] body {
     -webkit-box-orient: vertical !important;
     -webkit-line-clamp: 2 !important;
     overflow: hidden !important;
-    font-size: 12.5px !important;
-    line-height: 1.3 !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
     text-overflow: ellipsis !important;
     white-space: normal !important;
   }
   :root body .app.premium-theme .main.bazar-page .bazar-history-panel table tbody tr:not(.bazar-row-combined) .bazar-paid-by {
     display: inline-flex !important;
     max-width: 100% !important;
-    min-height: 25px !important;
+    min-height: 27px !important;
     align-items: center !important;
     gap: 5px !important;
     padding: 2px 8px 2px 3px !important;
     overflow: hidden !important;
     border-radius: 999px !important;
-    font-size: 11.5px !important;
+    font-size: 13px !important;
     line-height: 1 !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
@@ -18676,7 +18793,7 @@ html[data-theme="dark"] body {
       "bazar-date bazar-amount bazar-actions"
       "bazar-date bazar-paid bazar-actions"
       "bazar-items bazar-items bazar-actions" !important;
-    min-height: 174px !important;
+    min-height: 182px !important;
     row-gap: 7px !important;
   }
   :root body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-row-combined > td.bazar-combined-amount-cell,
@@ -18706,16 +18823,16 @@ html[data-theme="dark"] body {
   }
   :root body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-row-combined .bazar-combined-amount-line > small {
     min-width: 0 !important;
-    font-size: 10px !important;
+    font-size: 11px !important;
   }
   :root body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-row-combined .bazar-combined-amount-line > strong {
-    font-size: 12.5px !important;
+    font-size: 14px !important;
   }
   :root body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-row-combined .bazar-combined-payer-copy > small {
-    font-size: 8px !important;
+    font-size: 9.5px !important;
   }
   :root body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-row-combined .bazar-combined-payer-copy > strong {
-    font-size: 11.5px !important;
+    font-size: 13px !important;
   }
   :root body .app.premium-theme .main.bazar-page .bazar-history-panel .bazar-row-combined > td.bazar-items-cell {
     padding-top: 7px !important;
@@ -18821,5 +18938,266 @@ html[data-theme="dark"] body {
     padding-right: 7px !important;
     padding-left: 7px !important;
     font-size: 16.5px !important;
+  }
+}
+
+/* Keep the Smart Matching CTA visible inside the fixed-height desktop card. */
+@media (min-width: 1081px) {
+  :root body .app.premium-theme .settlement-page .settlement-balance-row .settlement-plan-panel .settlement-plan-list {
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #c7d8cf transparent;
+  }
+
+  :root body .app.premium-theme .settlement-page .settlement-balance-row .settlement-plan-panel .settlement-plan-actionbar {
+    flex: 0 0 auto !important;
+  }
+}
+
+/* Polished My Account date and export row on phones. */
+@media (max-width: 700px) {
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.35fr) minmax(124px, .9fr) !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card,
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 60px !important;
+    min-height: 60px !important;
+    margin: 0 !important;
+    border-radius: 15px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card {
+    gap: 9px !important;
+    padding: 7px 9px !important;
+    border: 1px solid #b9dfd0 !important;
+    background: #ffffff !important;
+    box-shadow: 0 5px 15px rgba(21, 91, 66, .07) !important;
+  }
+
+  :root body .app.premium-theme.dark-theme .main.my-account-page .account-welcome-actions .account-today-card {
+    border-color: rgba(105, 190, 157, .25) !important;
+    background: #17201f !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .24) !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card::after {
+    display: none !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-cal-badge {
+    width: 38px !important;
+    height: 44px !important;
+    min-width: 38px !important;
+    flex: 0 0 38px !important;
+    border-radius: 9px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-cal-month {
+    height: 14px !important;
+    min-height: 14px !important;
+    font-size: 8px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-cal-day {
+    height: 30px !important;
+    min-height: 30px !important;
+    font-size: 17px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-details {
+    gap: 3px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-day-label {
+    font-size: 14px !important;
+    font-weight: 800 !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-date-label {
+    font-size: 11px !important;
+    font-weight: 650 !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn,
+  :root body .app.premium-theme:not(.dark-theme) .main.my-account-page .account-welcome-actions .account-pdf-btn,
+  :root body .app.premium-theme.dark-theme .main.my-account-page .account-welcome-actions .account-pdf-btn {
+    gap: 7px !important;
+    padding: 0 12px !important;
+    border: 1px solid #086348 !important;
+    background: linear-gradient(135deg, #10815d, #07543f) !important;
+    color: #ffffff !important;
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    text-shadow: none !important;
+    box-shadow: 0 7px 17px rgba(7, 91, 64, .19), inset 0 1px 0 rgba(255, 255, 255, .16) !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn::after {
+    border-radius: 13px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn > svg {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    flex: 0 0 18px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+}
+
+@media (max-width: 360px) {
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions {
+    grid-template-columns: minmax(0, 1.3fr) minmax(112px, .8fr) !important;
+    gap: 7px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card,
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn {
+    height: 58px !important;
+    min-height: 58px !important;
+    border-radius: 14px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card {
+    gap: 7px !important;
+    padding: 7px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-day-label {
+    font-size: 13px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-date-label {
+    font-size: 9.75px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn {
+    gap: 6px !important;
+    padding: 0 8px !important;
+    font-size: 12.5px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn > svg {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    flex-basis: 16px !important;
+  }
+}
+
+/* Match the My Account date card and Export PDF action on wider screens too. */
+@media (min-width: 701px) {
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions {
+    display: grid !important;
+    grid-template-columns: 190px 142px !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card,
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn {
+    height: 60px !important;
+    min-height: 60px !important;
+    margin: 0 !important;
+    border-radius: 15px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card {
+    width: 190px !important;
+    min-width: 190px !important;
+    gap: 9px !important;
+    padding: 7px 9px !important;
+    border: 1px solid #b9dfd0 !important;
+    background: #ffffff !important;
+    box-shadow: 0 5px 15px rgba(21, 91, 66, .07) !important;
+    transform: none !important;
+  }
+
+  :root body .app.premium-theme.dark-theme .main.my-account-page .account-welcome-actions .account-today-card {
+    border-color: rgba(105, 190, 157, .25) !important;
+    background: #17201f !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .24) !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-today-card::after {
+    display: none !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-cal-badge {
+    width: 38px !important;
+    height: 44px !important;
+    min-width: 38px !important;
+    flex: 0 0 38px !important;
+    border-radius: 9px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-cal-month {
+    height: 14px !important;
+    min-height: 14px !important;
+    font-size: 8px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-cal-day {
+    height: 30px !important;
+    min-height: 30px !important;
+    font-size: 17px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-details {
+    gap: 3px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-day-label {
+    font-size: 14px !important;
+    font-weight: 800 !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-today-date-label {
+    font-size: 11px !important;
+    font-weight: 650 !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn,
+  :root body .app.premium-theme:not(.dark-theme) .main.my-account-page .account-welcome-actions .account-pdf-btn,
+  :root body .app.premium-theme.dark-theme .main.my-account-page .account-welcome-actions .account-pdf-btn {
+    width: 142px !important;
+    min-width: 142px !important;
+    gap: 7px !important;
+    padding: 0 12px !important;
+    border: 1px solid #086348 !important;
+    background: linear-gradient(135deg, #10815d, #07543f) !important;
+    color: #ffffff !important;
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    text-shadow: none !important;
+    box-shadow: 0 7px 17px rgba(7, 91, 64, .19), inset 0 1px 0 rgba(255, 255, 255, .16) !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn::after {
+    border-radius: 13px !important;
+  }
+
+  :root body .app.premium-theme .main.my-account-page .account-welcome-actions .account-pdf-btn > svg {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    flex: 0 0 18px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
   }
 }

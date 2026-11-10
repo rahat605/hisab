@@ -67,6 +67,7 @@ import "@fontsource/baloo-da-2/bengali-500.css";
 import "@fontsource/baloo-da-2/bengali-600.css";
 import "./inbox.css";
 import { supabase, supabaseConfigured } from "./supabase";
+import { openOverviewReport } from "./overviewReport";
 
 if (typeof window !== "undefined") {
   window.__html2canvas = html2canvas;
@@ -331,6 +332,10 @@ const getNotificationBody = (notification, currentUser) => {
   }
   return notification.body || "নতুন হিসাবের activity যোগ হয়েছে।";
 };
+const isBazarNotification = (notification) =>
+  notification?.activity_type === "bazar_added" ||
+  notification?.title === "New Bazar Added";
+
 function NotificationGlyph({ notification }) {
   const type = notification?.activity_type;
   if (type === "bazar_added") return <ShoppingBasket size={17} />;
@@ -1260,6 +1265,13 @@ function App() {
     return matchesMember && matchesSearch;
   });
   const bazarTotal = monthBazar.reduce((s, b) => s + Number(b.amount || 0), 0);
+  const selectedBazarTotal = monthBazar
+    .filter((entry) => {
+      if (bazarFilter === "all") return true;
+      if (bazarFilter === "cash-in-hand") return entry.paidFromCash;
+      return !entry.paidFromCash && entry.paidBy === bazarFilter;
+    })
+    .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   // Utilities are admin-configured expenses; bazar is tracked separately as meal cost.
   const utilityCategories = db.categories.filter(
     (c) => c.name.toLowerCase() !== "bazar",
@@ -2236,7 +2248,9 @@ function App() {
   async function handleNotificationClick(n) {
     if (!n) return;
     void markNoticeRead(n, user?.id || session?.id);
-    if (n.activity_type === "bazar_added" || n.title === "New Bazar Added") {
+    if (isBazarNotification(n)) {
+      setNoticePanelOpen(false);
+      setPage("bazar");
       let targetBazar = (db.bazars || []).find((b) => String(b.id) === String(n.entity_id));
       if (!targetBazar && n.entity_id && supabase) {
         try {
@@ -2277,8 +2291,6 @@ function App() {
           items: n.metadata.items,
         };
       }
-      setNoticePanelOpen(false);
-      setPage("bazar");
       if (targetBazar) {
         setBazarDetailsEntry(targetBazar);
       }
@@ -5426,7 +5438,7 @@ function App() {
       alert(`Could not generate ${member.name}'s previous-month bill: ${error.message}`);
     }
   }
-  function exportPremiumPdf() {
+  function exportLegacyPremiumPdf() {
     const reportWindow = window.open("", "_blank");
     const popupBlocked = !reportWindow;
     const reportDocument = reportWindow
@@ -5547,6 +5559,114 @@ function App() {
       );
       window.location.assign(URL.createObjectURL(reportBlob));
     }
+  }
+  function exportPremiumPdf() {
+    const reportMembers = db.users
+      .filter((member) => member.active)
+      .map((member) => {
+        const charge = roundMoney(memberRentShare(member) + memberMealShare(member));
+        const covered = roundMoney(memberRentPaid(member.id) + memberMealPaid(member.id));
+        return {
+          name: member.name || "Member",
+          username: member.username || "House member",
+          charge,
+          covered,
+          balance: roundMoney(charge - covered),
+        };
+      });
+    const totalCharges = roundMoney(
+      reportMembers.reduce((sum, member) => sum + member.charge, 0),
+    );
+    const totalCovered = roundMoney(
+      reportMembers.reduce((sum, member) => sum + member.covered, 0),
+    );
+    const outstanding = roundMoney(
+      reportMembers.reduce(
+        (sum, member) => sum + Math.max(0, member.balance),
+        0,
+      ),
+    );
+    const pendingMemberCount = reportMembers.filter(
+      (member) => member.balance > 0.01,
+    ).length;
+    const collectionRate = totalCharges > 0
+      ? Math.min(100, (totalCovered / totalCharges) * 100)
+      : 0;
+
+    const costMix = [
+      { label: "Room rent", value: roundMoney(totalRent), color: "#0b7650" },
+      { label: "Meal bazar", value: roundMoney(bazarTotal), color: "#2faa7b" },
+      { label: "Utilities", value: roundMoney(utilitiesTotal), color: "#d99a45" },
+    ];
+
+    const dailyBazar = new Map();
+    monthBazar.forEach((entry) => {
+      const dateKey = String(entry.date || "No date");
+      dailyBazar.set(
+        dateKey,
+        roundMoney((dailyBazar.get(dateKey) || 0) + Number(entry.amount || 0)),
+      );
+    });
+    const reportDateLabel = (value) => {
+      const raw = String(value || "");
+      const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+        ? new Date(`${raw}T00:00:00`)
+        : new Date(raw);
+      if (Number.isNaN(parsed.getTime())) return raw.slice(0, 9) || "No date";
+      return parsed.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+      });
+    };
+    const bazarTrend = [...dailyBazar.entries()]
+      .sort(([dateA], [dateB]) => {
+        const timeA = Date.parse(dateA);
+        const timeB = Date.parse(dateB);
+        if (Number.isFinite(timeA) && Number.isFinite(timeB)) return timeA - timeB;
+        return dateA.localeCompare(dateB);
+      })
+      .slice(-8)
+      .map(([date, value]) => ({ label: reportDateLabel(date), value }));
+
+    const utilityColors = ["#d99a45", "#4e91a8", "#7d78c9", "#cf7182", "#6f9b61"];
+    const costDrivers = [
+      { label: "Room rent", value: roundMoney(totalRent), color: "#0b7650" },
+      { label: "Meal bazar", value: roundMoney(bazarTotal), color: "#2faa7b" },
+      ...regularUtilityCategories.map((category, index) => ({
+        label: category.name,
+        value: roundMoney(category.amount),
+        color: utilityColors[index % utilityColors.length],
+      })),
+    ]
+      .filter((item) => Number(item.value) > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+
+    openOverviewReport({
+      month,
+      generatedBy: user?.name || "Administrator",
+      metrics: {
+        totalCharges,
+        totalCovered,
+        outstanding,
+        collectionRate,
+        memberCount: reportMembers.length,
+        pendingMemberCount,
+        bazarTotal: roundMoney(bazarTotal),
+        bazarCount: groupedMonthBazar.length,
+        cashInHand: roundMoney(cashInHand),
+        recordedPayments: roundMoney(totalPaid),
+        averageBazar: groupedMonthBazar.length
+          ? roundMoney(bazarTotal / groupedMonthBazar.length)
+          : 0,
+        mealMemberCount: mealActiveIds.length,
+      },
+      costMix,
+      bazarTrend,
+      members: reportMembers,
+      costDrivers,
+      libraries: { html2canvas, jsPDF },
+    });
   }
   if (sessionBooting)
     return (
@@ -5891,9 +6011,20 @@ function App() {
                             `notice-mini notice-kind-${n.kind || "announcement"} ` +
                             (readNoticeIds.includes(n.id)
                               ? "is-read"
-                              : "is-unread")
+                              : "is-unread") +
+                            (isBazarNotification(n) ? " is-actionable" : "")
                           }
                           key={n.id}
+                          role={isBazarNotification(n) ? "button" : undefined}
+                          tabIndex={isBazarNotification(n) ? 0 : undefined}
+                          aria-label={isBazarNotification(n) ? `View bazar details: ${getNotificationBody(n, user)}` : undefined}
+                          onClick={isBazarNotification(n) ? () => void handleNotificationClick(n) : undefined}
+                          onKeyDown={isBazarNotification(n) ? (event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              void handleNotificationClick(n);
+                            }
+                          } : undefined}
                         >
                           <span className={`notice-mini-icon notice-mini-icon-${n.activity_type || "announcement"}`}>
                             <NotificationGlyph notification={n} />
@@ -6711,7 +6842,6 @@ function App() {
                                   <>
                                     <span>Will pay</span>
                                     <strong>{money(row.balance)}</strong>
-                                    <ChevronRight size={13} className="settlement-pill-chevron" aria-hidden="true" />
                                   </>
                                 ) : row.balance < -0.009 ? (
                                   <>
@@ -6752,7 +6882,7 @@ function App() {
                     <span className="settlement-panel-icon plan"><Zap size={20} /></span>
                     <div>
                       <h3>Smart Matching</h3>
-                      <p>Suggested auto plan</p>
+                      <p>Clear, recommended transfers</p>
                     </div>
                   </div>
                   <span className="settlement-count-chip">
@@ -6773,13 +6903,13 @@ function App() {
                         <Sparkles size={17} />
                       </span>
                       <span className="settlement-plan-overview-copy">
-                        <small>Optimized plan</small>
+                        <small>Recommended plan</small>
                         <strong>
-                          {settlementSuggestions.length} recommended transfer{settlementSuggestions.length === 1 ? "" : "s"}
+                          {settlementSuggestions.length} transfer{settlementSuggestions.length === 1 ? "" : "s"} to settle balances
                         </strong>
                       </span>
                       <span className="settlement-plan-overview-total">
-                        <small>Total movement</small>
+                        <small>Total amount</small>
                         <strong>
                           {money(settlementSuggestions.reduce(
                             (total, suggestion) => total + Number(suggestion.amount || 0),
@@ -6810,7 +6940,7 @@ function App() {
                                   {fromMember?.photo_url ? <img className="settlement-mini-avatar-img" src={fromMember.photo_url} alt="" /> : (fromMember?.name?.[0] || "M")}
                                 </span>
                                 <span className="settlement-suggestion-person-copy">
-                                  <small>From</small>
+                                  <small>Payer</small>
                                   <b>{fromMember?.name || "Member"}</b>
                                 </span>
                               </span>
@@ -6822,7 +6952,7 @@ function App() {
                                   {toMember?.photo_url ? <img className="settlement-mini-avatar-img" src={toMember.photo_url} alt="" /> : (toMember?.name?.[0] || "M")}
                                 </span>
                                 <span className="settlement-suggestion-person-copy">
-                                  <small>To</small>
+                                  <small>Receiver</small>
                                   <b>{toMember?.name || "Member"}</b>
                                 </span>
                               </span>
@@ -6843,7 +6973,6 @@ function App() {
                               </small>
                               <strong>{money(suggestion.amount)}</strong>
                             </span>
-                            {admin && <ChevronRight className="settlement-match-chevron" size={17} aria-hidden="true" />}
                           </button>
                         );
                       })}
@@ -6859,7 +6988,7 @@ function App() {
                           <Sparkles size={15} aria-hidden="true" />
                           <span className="settlement-plan-action-copy">
                             <strong>{settlementPlanBusy ? "Creating plan..." : "Create settlement plan"}</strong>
-                            <small>Save all recommended transfers</small>
+                            <small>Save all suggested transfers</small>
                           </span>
                           <ArrowRight size={15} aria-hidden="true" />
                         </button>
@@ -6880,7 +7009,9 @@ function App() {
             </div>
             <div className="settlement-history-section-row">
 
-              <section className="panel settlement-surface settlement-history-panel settlement-ledger-panel">
+              <section
+                className={`panel settlement-surface settlement-history-panel settlement-ledger-panel${monthSettlements.length === 0 ? " is-empty" : ""}`}
+              >
                 <div className="settlement-section-heading">
                   <div className="settlement-heading-main">
                     <span className="settlement-panel-icon history"><FileText size={20} /></span>
@@ -8210,7 +8341,7 @@ function App() {
                 </label>
                 <div className="total-row bazar-total-row">
                   <b>Total bazar purchased</b>
-                  <b><span>{money(bazarTotal)}</span></b>
+                  <b><span>{money(selectedBazarTotal)}</span></b>
                   <ShoppingBasket className="bazar-total-icon" size={64} aria-hidden="true" />
                 </div>
                 <div className="table-wrap">
