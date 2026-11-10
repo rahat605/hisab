@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   LayoutDashboard,
@@ -57,15 +57,21 @@ import {
   Wrench,
   Lightbulb,
   Megaphone,
-  ChevronLeft,
-  Pause,
-  Play,
+  Gauge,
+  MapPin,
 } from "lucide-react";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import "./style.css";
 import "@fontsource/baloo-da-2/bengali-500.css";
 import "@fontsource/baloo-da-2/bengali-600.css";
 import "./inbox.css";
 import { supabase, supabaseConfigured } from "./supabase";
+
+if (typeof window !== "undefined") {
+  window.__html2canvas = html2canvas;
+  window.__jsPDF = jsPDF;
+}
 
 const starter = {
   month: "October 2026",
@@ -124,6 +130,147 @@ const getBazarItemSummary = (raw) => {
     ? entries.map(getName).filter(Boolean).join(", ")
     : String(raw || "");
 };
+const getBazarCombineMeta = (b) => {
+  if (!b) return null;
+  const items = Array.isArray(b.items) ? b.items : [];
+  for (const it of items) {
+    if (it && typeof it === "object" && it.combine_id) {
+      return {
+        combineId: it.combine_id,
+        role: it.combine_role || (b.paidFromCash ? "cash" : "member"),
+        cashAmount: Number(it.combine_cash_amount) || (b.paidFromCash ? b.amount : 0),
+        memberAmount: Number(it.combine_member_amount) || (!b.paidFromCash ? b.amount : 0),
+        memberId: it.combine_member_id || (!b.paidFromCash ? b.paidBy : null),
+        fullItems: Array.isArray(it.combine_full_items) && it.combine_full_items.length ? it.combine_full_items : null,
+      };
+    }
+  }
+  return null;
+};
+
+const groupMonthBazar = (entries) => {
+  if (!entries || !entries.length) return [];
+  const result = [];
+  const handledIds = new Set();
+
+  for (let i = 0; i < entries.length; i++) {
+    const a = entries[i];
+    if (handledIds.has(a.id)) continue;
+
+    const aMeta = getBazarCombineMeta(a);
+    let partner = null;
+
+    if (aMeta?.combineId) {
+      for (let j = 0; j < entries.length; j++) {
+        if (i !== j && !handledIds.has(entries[j].id)) {
+          const b = entries[j];
+          const bMeta = getBazarCombineMeta(b);
+          if (bMeta?.combineId === aMeta.combineId) {
+            partner = b;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!partner) {
+      for (let j = 0; j < entries.length; j++) {
+        if (i !== j && !handledIds.has(entries[j].id)) {
+          const b = entries[j];
+          if (
+            a.date === b.date &&
+            Boolean(a.paidFromCash) !== Boolean(b.paidFromCash) &&
+            a.createdBy === b.createdBy
+          ) {
+            const aNames = (Array.isArray(a.items) ? a.items : []).map(it => typeof it === "string" ? it.trim() : it.item?.trim()).filter(Boolean).sort().join("|");
+            const bNames = (Array.isArray(b.items) ? b.items : []).map(it => typeof it === "string" ? it.trim() : it.item?.trim()).filter(Boolean).sort().join("|");
+            if (aNames && bNames && aNames === bNames) {
+              partner = b;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (partner) {
+      handledIds.add(a.id);
+      handledIds.add(partner.id);
+
+      const cashEntry = a.paidFromCash ? a : partner;
+      const memberEntry = a.paidFromCash ? partner : a;
+      const meta = getBazarCombineMeta(cashEntry) || getBazarCombineMeta(memberEntry);
+      const totalAmount = roundMoney(Number(cashEntry.amount || 0) + Number(memberEntry.amount || 0));
+
+      let combinedItems = [];
+      if (meta?.fullItems && Array.isArray(meta.fullItems) && meta.fullItems.length) {
+        combinedItems = meta.fullItems;
+      } else {
+        const itemMap = new Map();
+        const addItems = (items) => {
+          (Array.isArray(items) ? items : []).forEach((it) => {
+            const name = typeof it === "string" ? it.trim() : (it?.item || it?.name || "").trim();
+            if (!name) return;
+            const price = Number(it?.original_price ?? it?.price ?? 0) || 0;
+            if (!itemMap.has(name)) {
+              itemMap.set(name, { item: name, price });
+            } else {
+              const cur = itemMap.get(name);
+              if (price > 0) cur.price = roundMoney(cur.price + price);
+            }
+          });
+        };
+        addItems(cashEntry.items);
+        addItems(memberEntry.items);
+        combinedItems = Array.from(itemMap.values());
+      }
+
+      result.push({
+        id: `combine_${cashEntry.id}_${memberEntry.id}`,
+        isCombined: true,
+        combineId: meta?.combineId || `combine_${cashEntry.id}`,
+        date: cashEntry.date || memberEntry.date,
+        totalAmount,
+        amount: totalAmount,
+        cashAmount: Number(cashEntry.amount || 0),
+        memberAmount: Number(memberEntry.amount || 0),
+        memberId: memberEntry.paidBy,
+        cashEntry,
+        memberEntry,
+        entries: [cashEntry, memberEntry],
+        items: combinedItems,
+        createdBy: cashEntry.createdBy || memberEntry.createdBy,
+        month: cashEntry.month,
+      });
+    } else {
+      handledIds.add(a.id);
+      result.push(a);
+    }
+  }
+
+  return result;
+};
+
+const splitBazarItems = (items, targetAmount, totalAmount) => {
+  if (!items || !items.length) return [{ item: "Bazar item", price: targetAmount }];
+  if (items.length === 1) {
+    return [{ item: items[0].item, price: targetAmount }];
+  }
+  let running = 0;
+  const result = [];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (i === items.length - 1) {
+      const remaining = roundMoney(targetAmount - running);
+      result.push({ item: it.item, price: Math.max(0, remaining) });
+    } else {
+      const share = roundMoney((it.price / totalAmount) * targetAmount);
+      running = roundMoney(running + share);
+      result.push({ item: it.item, price: share });
+    }
+  }
+  return result;
+};
 const isMissingActivityNotificationSchemaError = (error) =>
   /kind|activity_type|entity_id|metadata/i.test(String(error?.message || "")) &&
   /column|schema cache|does not exist|not found/i.test(String(error?.message || ""));
@@ -159,7 +306,6 @@ const getNotificationBody = (notification, currentUser) => {
   const meta = notification.metadata && typeof notification.metadata === "object"
     ? notification.metadata
     : {};
-  const amount = money(meta.amount);
   const memberName = String(meta.member_name || "একজন সদস্য");
   const actorName = String(meta.actor_name || memberName);
   if (notification.activity_type === "bazar_added") {
@@ -170,18 +316,18 @@ const getNotificationBody = (notification, currentUser) => {
       .filter(Boolean)
       .slice(0, 3)
       .join(", ");
-    return `${payer} ${amount} টাকার নতুন বাজারের হিসাব যোগ করেছে${itemSummary ? ` (${itemSummary})` : ""}।`;
+    return `${payer} বাজার করেছে${itemSummary ? ` (${itemSummary})` : ""}।`;
   }
   if (notification.activity_type === "payment_confirmed") {
     const paymentLabel = meta.payment_type === "meal" ? "মিল" : "রেন্ট";
     return String(meta.member_id || "") === String(currentUser?.id || "")
-      ? `তোমার ${amount} ${paymentLabel} পেমেন্ট Confirm হয়েছে।`
-      : `${memberName}-এর ${amount} ${paymentLabel} পেমেন্ট Confirm হয়েছে।`;
+      ? `তোমার ${paymentLabel} পেমেন্ট Confirm হয়েছে।`
+      : `${memberName}-এর ${paymentLabel} পেমেন্ট Confirm হয়েছে।`;
   }
   if (notification.activity_type === "cash_contribution_added") {
     return String(meta.member_id || "") === String(currentUser?.id || "")
-      ? `তোমার ${amount} Cash in Hand contribution যোগ হয়েছে।`
-      : `${memberName} Cash in Hand-এ ${amount} contribute করেছে।`;
+      ? `তোমার Cash in Hand contribution যোগ হয়েছে।`
+      : `${memberName} Cash in Hand-এ contribution করেছে।`;
   }
   return notification.body || "নতুন হিসাবের activity যোগ হয়েছে।";
 };
@@ -263,6 +409,11 @@ const formatLastActive = (value) => {
   const days = Math.floor(hours / 24);
   return `${days} ${days === 1 ? "day" : "days"} ago`;
 };
+const BULLETIN_SPEED_OPTIONS = [
+  { value: 30, label: "Slow" },
+  { value: 46, label: "Normal" },
+  { value: 72, label: "Fast" },
+];
 function App() {
   const [db, setDb] = useState(starter);
   const [theme, setTheme] = useState(() => {
@@ -314,6 +465,15 @@ function App() {
   const monthPickerRef = useRef(null);
   const monthPickerTriggerRef = useRef(null);
   const monthChoices = (() => { const now = new Date(); return [-2,-1,0,1].map(offset => new Date(now.getFullYear(), now.getMonth()+offset, 1).toLocaleDateString("en-US", {month:"long",year:"numeric"})); })();
+  const todayDateObj = new Date();
+  const todayWeekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(todayDateObj);
+  const todayFormattedDate = new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(todayDateObj);
+  const todayShortMonth = new Intl.DateTimeFormat("en-US", { month: "short" }).format(todayDateObj).toUpperCase();
+  const todayDayNum = new Intl.DateTimeFormat("en-US", { day: "numeric" }).format(todayDateObj);
   useEffect(() => {
     if (!monthMenuOpen) return undefined;
     const closeOnOutsideClick = (event) => {
@@ -449,6 +609,9 @@ function App() {
     amount: "",
     paidBy: "",
     items: "",
+    combinedCashAmount: "",
+    combinedMemberAmount: "",
+    combinedMemberId: "",
   });
   const [bazarRows, setBazarRows] = useState([{ item: "", price: "" }, { item: "", price: "" }, { item: "", price: "" }]);
   const [bazarNeededItems, setBazarNeededItems] = useState([]);
@@ -470,7 +633,20 @@ function App() {
     const next = bazarRows.map((row, i) => i === index ? { ...row, [field]: value } : row);
     setBazarRows(next);
     const filled = next.filter((row) => row.item.trim() && Number(row.price) > 0);
-    setBazarForm((form) => ({ ...form, amount: String(filled.reduce((sum, row) => sum + Number(row.price), 0)), items: filled.map((row) => row.item.trim()).join(", ") }));
+    const nextTotal = filled.reduce((sum, row) => sum + Number(row.price), 0);
+    setBazarForm((form) => {
+      let combinedMemberAmount = form.combinedMemberAmount;
+      if (form.paidBy === "combine") {
+        const cashNum = parseFloat(form.combinedCashAmount) || 0;
+        combinedMemberAmount = String(Math.max(0, roundMoney(nextTotal - cashNum)));
+      }
+      return {
+        ...form,
+        amount: String(nextTotal),
+        items: filled.map((row) => row.item.trim()).join(", "),
+        combinedMemberAmount,
+      };
+    });
   };
   useEffect(() => {
     if (bazarActionMenuId == null) return undefined;
@@ -546,8 +722,12 @@ function App() {
     [bulletinInput, setBulletinInput] = useState(""),
     [editingBulletinId, setEditingBulletinId] = useState(""),
     [bulletinSaving, setBulletinSaving] = useState(false),
+    [bulletinSpeed, setBulletinSpeed] = useState(46),
+    [bulletinSpeedSaving, setBulletinSpeedSaving] = useState(false),
     [bulletinIndex, setBulletinIndex] = useState(0),
-    [bulletinPaused, setBulletinPaused] = useState(false),
+    [bulletinOverflowing, setBulletinOverflowing] = useState(false),
+    [bulletinMarqueeDuration, setBulletinMarqueeDuration] = useState(12),
+    [bulletinLayoutVersion, setBulletinLayoutVersion] = useState(0),
     [inboxMessages, setInboxMessages] = useState([]),
     [inboxUnreadCount, setInboxUnreadCount] = useState(0),
     [inboxOnlineIds, setInboxOnlineIds] = useState([]),
@@ -562,6 +742,13 @@ function App() {
     [inboxMediaFiles, setInboxMediaFiles] = useState([]),
     [inboxMediaBusy, setInboxMediaBusy] = useState(false),
     [inboxDeleteBusy, setInboxDeleteBusy] = useState(false);
+  const bulletinTextViewportRef = useRef(null);
+  const bulletinMarqueeTrackRef = useRef(null);
+  const bulletinTextInnerRef = useRef(null);
+  const setBulletinTextViewportRef = useCallback((node) => {
+    bulletinTextViewportRef.current = node;
+    if (node) setBulletinLayoutVersion((version) => version + 1);
+  }, []);
   const inboxAttachmentInputRef = useRef(null);
   const lastInboxActivityAtRef = useRef(0);
   const markingSeenRef = useRef(false);
@@ -664,6 +851,58 @@ function App() {
       ),
     [bulletinNotices],
   );
+  const currentBulletinText = activeBulletinNotices.length
+    ? String(activeBulletinNotices[bulletinIndex % activeBulletinNotices.length]?.text || "")
+    : "";
+  useEffect(() => {
+    const viewport = bulletinTextViewportRef.current;
+    const track = bulletinMarqueeTrackRef.current;
+    const text = bulletinTextInnerRef.current;
+    if (!viewport || !track || !text || !currentBulletinText) {
+      setBulletinOverflowing(false);
+      return undefined;
+    }
+
+    let animationFrame = 0;
+    let disposed = false;
+    const measureOverflow = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        if (disposed) return;
+        const viewportWidth = Math.floor(viewport.clientWidth || viewport.getBoundingClientRect().width);
+        const textWidth = Math.ceil(Math.max(text.scrollWidth, text.getBoundingClientRect().width));
+        if (!viewportWidth || !textWidth) return;
+        const overflowing = textWidth > viewportWidth + 2;
+        const gap = viewportWidth <= 480 ? 36 : 56;
+        const travelDistance = Math.ceil(textWidth + gap);
+        const pixelsPerSecond = Math.max(24, Math.min(90, Number(bulletinSpeed) || 46));
+        const duration = Math.max(4.5, Math.min(40, travelDistance / pixelsPerSecond));
+
+        track.style.setProperty("--bulletin-marquee-gap", `${gap}px`);
+        track.style.setProperty("--bulletin-marquee-shift", `${-travelDistance}px`);
+        track.style.setProperty("--bulletin-marquee-duration", `${duration}s`);
+        track.removeAttribute("data-marquee-driver");
+        setBulletinOverflowing(overflowing);
+        setBulletinMarqueeDuration(duration);
+      });
+    };
+
+    measureOverflow();
+    const resizeObserver = typeof ResizeObserver === "function"
+      ? new ResizeObserver(measureOverflow)
+      : null;
+    resizeObserver?.observe(viewport);
+    resizeObserver?.observe(text);
+    window.addEventListener("resize", measureOverflow);
+    document.fonts?.ready.then(measureOverflow).catch(() => {});
+
+    return () => {
+      disposed = true;
+      window.cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", measureOverflow);
+    };
+  }, [bulletinIndex, bulletinSpeed, currentBulletinText, page, bulletinLayoutVersion]);
   useEffect(() => {
     if (!activeBulletinNotices.length) {
       setBulletinIndex(0);
@@ -672,12 +911,12 @@ function App() {
     if (bulletinIndex >= activeBulletinNotices.length) {
       setBulletinIndex(0);
     }
-    if (bulletinPaused || activeBulletinNotices.length <= 1) return undefined;
+    if (activeBulletinNotices.length <= 1) return undefined;
     const timer = window.setInterval(() => {
       setBulletinIndex((prev) => (prev + 1) % activeBulletinNotices.length);
-    }, 5000);
+    }, bulletinOverflowing ? Math.ceil(bulletinMarqueeDuration * 1000) + 800 : 5000);
     return () => window.clearInterval(timer);
-  }, [activeBulletinNotices.length, bulletinIndex, bulletinPaused]);
+  }, [activeBulletinNotices.length, bulletinIndex, bulletinOverflowing, bulletinMarqueeDuration]);
   useEffect(() => {
     if (!session?.id || !supabaseConfigured || !supabase) {
       setNotices([]);
@@ -1007,9 +1246,16 @@ function App() {
         0,
       );
   const bazarSearchTerm = bazarSearch.trim().toLowerCase();
-  const filteredMonthBazar = monthBazar.filter((b) => {
-    const matchesMember = bazarFilter === "all" ||
-      (bazarFilter === "cash-in-hand" ? b.paidFromCash : !b.paidFromCash && b.paidBy === bazarFilter);
+  const groupedMonthBazar = groupMonthBazar(monthBazar);
+  const filteredMonthBazar = groupedMonthBazar.filter((b) => {
+    let matchesMember = false;
+    if (bazarFilter === "all") {
+      matchesMember = true;
+    } else if (bazarFilter === "cash-in-hand") {
+      matchesMember = b.isCombined ? b.cashAmount > 0 : b.paidFromCash;
+    } else {
+      matchesMember = b.isCombined ? b.memberId === bazarFilter : (!b.paidFromCash && b.paidBy === bazarFilter);
+    }
     const matchesSearch = !bazarSearchTerm || getBazarItemSummary(b.items).toLowerCase().includes(bazarSearchTerm);
     return matchesMember && matchesSearch;
   });
@@ -1211,12 +1457,13 @@ function App() {
   const memberDue = (u) =>
     memberRentShare(u) + memberMealShare(u) - memberRentPaid(u.id) - memberMealPaid(u.id);
   const memberMealBalance = (member, includePending = false) => {
-    const completedBalance = memberMealShare(member) - memberMealPaid(member.id);
+    const prevDue = Number(previousDueByUser[member?.id] ?? (member?.id === user?.id ? previousDue : 0));
+    const completedBalance = memberMealShare(member) - memberMealPaid(member?.id) + prevDue;
     if (!includePending) return roundMoney(completedBalance);
     const pendingDirectPaid =
-      directSettlementPaidBy(member.id, true) - directSettlementPaidBy(member.id);
+      directSettlementPaidBy(member?.id, true) - directSettlementPaidBy(member?.id);
     const pendingReceived =
-      settlementReceivedBy(member.id, true) - settlementReceivedBy(member.id);
+      settlementReceivedBy(member?.id, true) - settlementReceivedBy(member?.id);
     return roundMoney(completedBalance - pendingDirectPaid + pendingReceived);
   };
   const memberCashContribution = (uid) =>
@@ -1246,13 +1493,17 @@ function App() {
       0,
       roundMoney(memberCashContribution(uid) - cashSettlementAllocatedBy(uid)),
     );
-  const settlementBalanceRows = allActiveUsers.map((member) => ({
-    member,
-    mealCost: memberMealShare(member),
-    mealPaid: memberMealPaid(member.id),
-    balance: memberMealBalance(member),
-    projectedBalance: memberMealBalance(member, true),
-  }));
+  const settlementBalanceRows = allActiveUsers.map((member) => {
+    const prevDue = Number(previousDueByUser[member?.id] ?? (member?.id === user?.id ? previousDue : 0));
+    return {
+      member,
+      mealCost: memberMealShare(member),
+      mealPaid: memberMealPaid(member.id),
+      previousDue: prevDue,
+      balance: memberMealBalance(member),
+      projectedBalance: memberMealBalance(member, true),
+    };
+  });
   const buildAutoSettlementSuggestions = () => {
     const balances = new Map(
       settlementBalanceRows.map((row) => [row.member.id, row.projectedBalance]),
@@ -1430,7 +1681,7 @@ function App() {
       noticeResult = { data: [] };
     }
 
-    let [profilesResult, bazarResult, paymentResult, cashResult, bulletinSettingResult] = await Promise.all([
+    let [profilesResult, bazarResult, paymentResult, cashResult, bulletinSettingResult, bulletinSpeedSettingResult] = await Promise.all([
       supabase.from("profiles").select("id,full_name,role,active"),
       supabase
         .from("bazar_entries")
@@ -1451,6 +1702,11 @@ function App() {
         .from("app_settings")
         .select("value")
         .eq("key", "bulletin_notices")
+        .maybeSingle(),
+      supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "bulletin_marquee_speed")
         .maybeSingle(),
     ]);
     if (!bulletinSettingResult?.error) {
@@ -1481,6 +1737,12 @@ function App() {
         } catch (err) {
           console.warn("Could not parse bulletin notices:", err?.message);
         }
+      }
+    }
+    if (!bulletinSpeedSettingResult?.error) {
+      const savedSpeed = Number(bulletinSpeedSettingResult?.data?.value);
+      if (Number.isFinite(savedSpeed)) {
+        setBulletinSpeed(Math.max(24, Math.min(90, savedSpeed)));
       }
     }
     if (
@@ -1948,6 +2210,86 @@ function App() {
       setNoticeReadBusy(false);
     }
   }
+
+  async function markNoticeRead(notice, profileId = session?.id) {
+    if (!profileId || !notice) return;
+    const noticeIdStr = String(notice.id);
+    if (readNoticeIds.includes(noticeIdStr)) return;
+    const nextReadIds = Array.from(new Set([...readNoticeIds, noticeIdStr]));
+    writeStoredNotificationIds(
+      NOTIFICATION_READ_STORAGE,
+      profileId,
+      nextReadIds,
+    );
+    if (notice.source === "notice" && supabase) {
+      try {
+        await supabase
+          .from("notice_reads")
+          .upsert([{ user_id: profileId, notice_id: notice.id, read_at: new Date().toISOString() }], { onConflict: "user_id,notice_id" });
+      } catch (err) {
+        console.warn("Could not sync single notice read:", err?.message);
+      }
+    }
+    setReadNoticeIds(nextReadIds);
+  }
+
+  async function handleNotificationClick(n) {
+    if (!n) return;
+    void markNoticeRead(n, user?.id || session?.id);
+    if (n.activity_type === "bazar_added" || n.title === "New Bazar Added") {
+      let targetBazar = (db.bazars || []).find((b) => String(b.id) === String(n.entity_id));
+      if (!targetBazar && n.entity_id && supabase) {
+        try {
+          const { data: bData } = await supabase
+            .from("bazar_entries")
+            .select("id,entry_date,amount,paid_by,paid_from_cash,items,created_by")
+            .eq("id", n.entity_id)
+            .maybeSingle();
+          if (bData) {
+            targetBazar = {
+              id: bData.id,
+              date: bData.entry_date,
+              amount: Number(bData.amount),
+              paidBy: bData.paid_by,
+              paidFromCash: Boolean(bData.paid_from_cash),
+              createdBy: bData.created_by,
+              items: (() => {
+                const raw = bData.items;
+                if (Array.isArray(raw)) return raw;
+                const text = String(raw || "");
+                try { const parsed = JSON.parse(text); if (Array.isArray(parsed)) return parsed; } catch {}
+                return text.split(/[,\n]/).map((v) => v.trim()).filter(Boolean);
+              })(),
+            };
+          }
+        } catch (err) {
+          console.warn("Could not fetch clicked bazar:", err);
+        }
+      }
+      if (!targetBazar && n.metadata) {
+        targetBazar = {
+          id: n.entity_id || n.id,
+          date: n.created_at ? n.created_at.slice(0, 10) : todayForDateInput(),
+          amount: Number(n.metadata.amount || 0),
+          paidBy: n.metadata.member_id,
+          paidFromCash: Boolean(n.metadata.paid_from_cash),
+          createdBy: n.metadata.actor_id,
+          items: n.metadata.items,
+        };
+      }
+      setNoticePanelOpen(false);
+      setPage("bazar");
+      if (targetBazar) {
+        setBazarDetailsEntry(targetBazar);
+      }
+    } else if (n.activity_type === "payment_confirmed") {
+      setNoticePanelOpen(false);
+      setPage("account");
+    } else if (n.activity_type === "cash_contribution_added") {
+      setNoticePanelOpen(false);
+      setPage("account");
+    }
+  }
   async function clearAllNotifications(profileId = session?.id) {
     if (!profileId || noticeReadBusy || !publishedNotifications.length) return;
     setNoticeReadBusy(true);
@@ -1999,6 +2341,30 @@ function App() {
       );
     }
   }
+
+  const noticeBellWrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!noticePanelOpen) return;
+    function handleOutsideClick(event) {
+      if (noticeBellWrapRef.current && !noticeBellWrapRef.current.contains(event.target)) {
+        setNoticePanelOpen(false);
+      }
+    }
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setNoticePanelOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [noticePanelOpen]);
   function exportLegacyMyAccountPdf(reportUser = user) {
     if (previousDueLoading) { alert("Previous months due is still loading. Please try again in a moment."); return; }
     if (!reportUser) return;
@@ -2842,6 +3208,97 @@ function App() {
     const itemTotal = validItems.reduce((sum, row) => sum + row.price, 0);
     if (itemTotal <= 0 || !validItems.length) return;
     try {
+      if (bazarForm.paidBy === "combine") {
+        const cashAmount = roundMoney(Number(bazarForm.combinedCashAmount) || 0);
+        const memberAmount = roundMoney(Number(bazarForm.combinedMemberAmount) || 0);
+        const memberId = admin ? (bazarForm.combinedMemberId || user.id) : user.id;
+
+        if (cashAmount <= 0) throw new Error("Cash in Hand amount must be greater than 0.");
+        if (memberAmount <= 0) throw new Error("Member amount must be greater than 0.");
+        if (Math.abs(roundMoney(cashAmount + memberAmount) - roundMoney(itemTotal)) > 0.05) {
+          throw new Error(`Cash amount (${money(cashAmount)}) + Member amount (${money(memberAmount)}) must equal total bazar (${money(itemTotal)}).`);
+        }
+        const cashBalance = roundMoney(cashInHand - pendingCashSettlementTotal);
+        if (cashAmount > cashBalance) {
+          throw new Error(`Not enough cash in hand. Available balance: ${money(Math.max(0, cashBalance))}.`);
+        }
+        if (!memberId || !allActiveUsers.some((u) => u.id === memberId && u.active)) {
+          throw new Error("Please select an active member in Member paying the balance.");
+        }
+
+        const mid = await monthIdFor();
+        const combineId = `combine_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const cashItems = splitBazarItems(validItems, cashAmount, itemTotal).map((it) => ({
+          ...it,
+          combine_id: combineId,
+          combine_role: "cash",
+          combine_cash_amount: cashAmount,
+          combine_member_amount: memberAmount,
+          combine_member_id: memberId,
+          combine_full_items: validItems,
+        }));
+        const memberItems = splitBazarItems(validItems, memberAmount, itemTotal).map((it) => ({
+          ...it,
+          combine_id: combineId,
+          combine_role: "member",
+          combine_cash_amount: cashAmount,
+          combine_member_amount: memberAmount,
+          combine_member_id: memberId,
+          combine_full_items: validItems,
+        }));
+
+        const { data: insertedCash, error: errorCash } = await supabase
+          .from("bazar_entries")
+          .insert({
+            month_id: mid,
+            entry_date: bazarForm.date,
+            amount: cashAmount,
+            paid_by: user.id,
+            paid_from_cash: true,
+            items: JSON.stringify(cashItems),
+            created_by: user.id,
+          })
+          .select("id,month_id,entry_date,amount,paid_by,paid_from_cash,items,created_by")
+          .single();
+        if (errorCash) throw errorCash;
+
+        const { data: insertedMember, error: errorMember } = await supabase
+          .from("bazar_entries")
+          .insert({
+            month_id: mid,
+            entry_date: bazarForm.date,
+            amount: memberAmount,
+            paid_by: memberId,
+            paid_from_cash: false,
+            items: JSON.stringify(memberItems),
+            created_by: user.id,
+          })
+          .select("id,month_id,entry_date,amount,paid_by,paid_from_cash,items,created_by")
+          .single();
+        if (errorMember) throw errorMember;
+
+        void loadNotices(false, user.id).catch((notificationError) =>
+          console.warn("Could not refresh bazar notifications:", notificationError?.message),
+        );
+        await loadCloudData(user.id, month);
+        setBazarRows([{ item: "", price: "" }, { item: "", price: "" }, { item: "", price: "" }]);
+        setBazarForm((f) => ({
+          ...f,
+          amount: "",
+          items: "",
+          date: todayForDateInput(),
+          paidBy: user.id,
+          combinedCashAmount: "",
+          combinedMemberAmount: "",
+          combinedMemberId: user.id,
+        }));
+        setShowAddBazar(false);
+        const memName = db.users.find((u) => u.id === memberId)?.name || "Member";
+        setBazarSuccessToast(`Combined bazar saved (${money(cashAmount)} Cash + ${money(memberAmount)} ${memName})`);
+        window.setTimeout(() => setBazarSuccessToast(""), 2800);
+        return;
+      }
+
       const paidFromCash = admin && bazarForm.paidBy === "cash-in-hand";
       const paidBy = paidFromCash ? user.id : admin ? bazarForm.paidBy : user.id;
       if (!paidBy || !allActiveUsers.some((u) => u.id === paidBy && u.active)) {
@@ -2883,6 +3340,9 @@ function App() {
         items: "",
         date: todayForDateInput(),
         paidBy: f.paidBy || user.id,
+        combinedCashAmount: "",
+        combinedMemberAmount: "",
+        combinedMemberId: user.id,
       }));
       setShowAddBazar(false);
       setBazarSuccessToast("Bazar saved successfully");
@@ -2901,7 +3361,36 @@ function App() {
       : String(raw || "").split(",").map((item) => ({ item: item.trim(), price: "" })).filter((row) => row.item);
     items = items.filter((row) => row.item || row.price);
     if (!items.length) items = [{ item: "", price: "" }];
-    setBazarEditEntry({ ...b, editDate: String(b.date || ""), editItems: items, editPaidBy: String(b.paidBy || b.paid_by || "") });
+
+    if (b.isCombined) {
+      setBazarEditEntry({
+        ...b,
+        id: b.cashEntry?.id || b.id,
+        partnerId: b.memberEntry?.id,
+        editDate: String(b.date || ""),
+        editItems: items,
+        editPaidBy: "combine",
+        combinedCashAmount: String(b.cashAmount || ""),
+        combinedMemberAmount: String(b.memberAmount || ""),
+        combinedMemberId: b.memberId || user?.id,
+      });
+      return;
+    }
+    const editPaidBy = b.paidFromCash ? "cash-in-hand" : String(b.paidBy || b.paid_by || user?.id || "");
+    const totalAmount = items.reduce((sum, row) => sum + (Number(row.price) || 0), 0);
+    const oldCash = b.paidFromCash ? Number(b.amount || 0) : 0;
+    const availCash = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + oldCash));
+    const defaultCash = b.paidFromCash ? Number(b.amount || 0) : Math.min(totalAmount, availCash);
+    const defaultMember = Math.max(0, roundMoney(totalAmount - defaultCash));
+    setBazarEditEntry({
+      ...b,
+      editDate: String(b.date || ""),
+      editItems: items,
+      editPaidBy,
+      combinedCashAmount: String(defaultCash > 0 ? defaultCash : ""),
+      combinedMemberAmount: String(defaultMember > 0 ? defaultMember : ""),
+      combinedMemberId: b.paidFromCash ? (b.createdBy || user?.id) : (b.paidBy || user?.id),
+    });
   }
 
   async function saveBazarEdit() {
@@ -2910,8 +3399,136 @@ function App() {
     const amount = rows.reduce((sum, row) => sum + row.price, 0);
     if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(bazarEditEntry.editDate || "")) || !rows.length) { alert("Enter a valid date and at least one item with a price."); return; }
     try {
+      if (bazarEditEntry.editPaidBy === "combine") {
+        const cashAmount = roundMoney(Number(bazarEditEntry.combinedCashAmount) || 0);
+        const memberAmount = roundMoney(Number(bazarEditEntry.combinedMemberAmount) || 0);
+        const memberId = admin ? (bazarEditEntry.combinedMemberId || user?.id) : user?.id;
+
+        if (cashAmount <= 0) throw new Error("Cash in Hand amount must be greater than 0.");
+        if (memberAmount <= 0) throw new Error("Member amount must be greater than 0.");
+        if (Math.abs(roundMoney(cashAmount + memberAmount) - roundMoney(amount)) > 0.05) {
+          throw new Error(`Cash amount (${money(cashAmount)}) + Member amount (${money(memberAmount)}) must equal total bazar (${money(amount)}).`);
+        }
+        const oldCash = bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0;
+        const availableCash = roundMoney(cashInHand - pendingCashSettlementTotal + oldCash);
+        if (cashAmount > availableCash) {
+          throw new Error(`Not enough cash in hand. Available balance: ${money(Math.max(0, availableCash))}.`);
+        }
+        if (!memberId || !allActiveUsers.some((u) => u.id === memberId && u.active)) {
+          throw new Error("Please select an active member in Member paying balance.");
+        }
+
+        const combineId = bazarEditEntry.combineId || `combine_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const cashItems = splitBazarItems(rows, cashAmount, amount).map((it) => ({
+          ...it,
+          combine_id: combineId,
+          combine_role: "cash",
+          combine_cash_amount: cashAmount,
+          combine_member_amount: memberAmount,
+          combine_member_id: memberId,
+          combine_full_items: rows,
+        }));
+        const memberItems = splitBazarItems(rows, memberAmount, amount).map((it) => ({
+          ...it,
+          combine_id: combineId,
+          combine_role: "member",
+          combine_cash_amount: cashAmount,
+          combine_member_amount: memberAmount,
+          combine_member_id: memberId,
+          combine_full_items: rows,
+        }));
+
+        const cashEntryId = bazarEditEntry.isCombined ? bazarEditEntry.cashEntry?.id : (bazarEditEntry.paidFromCash ? bazarEditEntry.id : null);
+        const memberEntryId = bazarEditEntry.isCombined ? bazarEditEntry.memberEntry?.id : (bazarEditEntry.partnerId || (!bazarEditEntry.paidFromCash ? bazarEditEntry.id : null));
+
+        if (cashEntryId && memberEntryId) {
+          const { error: err1 } = await supabase.from("bazar_entries").update({
+            entry_date: bazarEditEntry.editDate,
+            amount: cashAmount,
+            paid_by: user.id,
+            paid_from_cash: true,
+            items: JSON.stringify(cashItems),
+            updated_at: new Date().toISOString(),
+          }).eq("id", cashEntryId);
+          if (err1) throw err1;
+
+          const { error: err2 } = await supabase.from("bazar_entries").update({
+            entry_date: bazarEditEntry.editDate,
+            amount: memberAmount,
+            paid_by: memberId,
+            paid_from_cash: false,
+            items: JSON.stringify(memberItems),
+            updated_at: new Date().toISOString(),
+          }).eq("id", memberEntryId);
+          if (err2) throw err2;
+        } else if (cashEntryId) {
+          const { error: err1 } = await supabase.from("bazar_entries").update({
+            entry_date: bazarEditEntry.editDate,
+            amount: cashAmount,
+            items: JSON.stringify(cashItems),
+            updated_at: new Date().toISOString(),
+          }).eq("id", cashEntryId);
+          if (err1) throw err1;
+
+          const mid = await monthIdFor();
+          const { error: err2 } = await supabase.from("bazar_entries").insert({
+            month_id: mid,
+            entry_date: bazarEditEntry.editDate,
+            amount: memberAmount,
+            paid_by: memberId,
+            paid_from_cash: false,
+            items: JSON.stringify(memberItems),
+            created_by: bazarEditEntry.createdBy || user.id,
+          });
+          if (err2) throw err2;
+        } else {
+          const { error: err1 } = await supabase.from("bazar_entries").update({
+            entry_date: bazarEditEntry.editDate,
+            amount: memberAmount,
+            paid_by: memberId,
+            items: JSON.stringify(memberItems),
+            updated_at: new Date().toISOString(),
+          }).eq("id", memberEntryId);
+          if (err1) throw err1;
+
+          const mid = await monthIdFor();
+          const { error: err2 } = await supabase.from("bazar_entries").insert({
+            month_id: mid,
+            entry_date: bazarEditEntry.editDate,
+            amount: cashAmount,
+            paid_by: user.id,
+            paid_from_cash: true,
+            items: JSON.stringify(cashItems),
+            created_by: bazarEditEntry.createdBy || user.id,
+          });
+          if (err2) throw err2;
+        }
+
+        setBazarEditEntry(null);
+        await loadCloudData(user.id, month);
+        const memName = db.users.find((u) => u.id === memberId)?.name || "Member";
+        setBazarSuccessToast(`Combined bazar updated (${money(cashAmount)} Cash + ${money(memberAmount)} ${memName})`);
+        window.setTimeout(() => setBazarSuccessToast(""), 2800);
+        return;
+      }
+
       const update = { entry_date: bazarEditEntry.editDate, amount, items: JSON.stringify(rows), updated_at: new Date().toISOString() };
-      if (admin) update.paid_by = bazarEditEntry.editPaidBy.trim();
+      if (admin) {
+        const isCash = bazarEditEntry.editPaidBy === "cash-in-hand" || bazarEditEntry.editPaidBy === "Cash in Hand";
+        const paidBy = isCash ? (bazarEditEntry.createdBy || user?.id) : bazarEditEntry.editPaidBy.trim();
+        if (!isCash && (!paidBy || !(db.users || []).some((u) => u.id === paidBy))) {
+          throw new Error("Please select who paid for this bazar.");
+        }
+        if (isCash) {
+          const oldCash = bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0;
+          const availableCash = roundMoney(cashInHand - pendingCashSettlementTotal + oldCash);
+          if (amount > availableCash) {
+            throw new Error(`Not enough cash in hand. Available balance: ${money(Math.max(0, availableCash))}.`);
+          }
+        }
+        update.paid_from_cash = isCash;
+        update.paid_by = paidBy;
+      }
       const { error } = await supabase.from("bazar_entries").update(update).eq("id", bazarEditEntry.id);
       if (error) throw error;
       setBazarEditEntry(null);
@@ -3478,6 +4095,32 @@ function App() {
       setBulletinSaving(false);
     }
   }
+  async function saveBulletinSpeed(nextSpeed) {
+    if (!admin || bulletinSpeedSaving) return;
+    const normalizedSpeed = Math.max(24, Math.min(90, Number(nextSpeed) || 46));
+    const previousSpeed = bulletinSpeed;
+    setBulletinSpeed(normalizedSpeed);
+    if (!supabaseConfigured || !supabase) return;
+    setBulletinSpeedSaving(true);
+    try {
+      const { error } = await supabase.from("app_settings").upsert(
+        {
+          key: "bulletin_marquee_speed",
+          value: String(normalizedSpeed),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      );
+      if (error) throw error;
+      setBazarSuccessToast("Bulletin speed updated");
+      window.setTimeout(() => setBazarSuccessToast(""), 2200);
+    } catch (err) {
+      setBulletinSpeed(previousSpeed);
+      alert("Could not save bulletin speed: " + (err?.message || "Unknown error"));
+    } finally {
+      setBulletinSpeedSaving(false);
+    }
+  }
   async function saveBulletinNotice(e) {
     e?.preventDefault();
     const trimmed = String(bulletinInput || "").trim();
@@ -3829,6 +4472,14 @@ function App() {
     }
 
     const reportWindow = window.open("", "_blank", "width=900,height=900");
+    if (reportWindow) {
+      try {
+        reportWindow.__html2canvas = html2canvas;
+        reportWindow.__jsPDF = jsPDF;
+      } catch (e) {
+        // popup isolation fallback
+      }
+    }
     const popupBlocked = !reportWindow;
     const reportDocument = reportWindow
       ? reportWindow.document
@@ -4001,6 +4652,9 @@ function App() {
     reportDocument.write(`<!doctype html><html><head><meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       <title>Monthly Bill · ${escapeHtml(month)} · ${escapeHtml(member.name)}</title>
+      <base href="${escapeHtml(window.location.origin)}/">
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
         *{box-sizing:border-box}
@@ -4141,10 +4795,17 @@ function App() {
         .brand-title{overflow:hidden;color:#fff;font-size:clamp(22px,4vw,36px);line-height:1.08;letter-spacing:-.04em;text-overflow:ellipsis;white-space:nowrap}
         .brand-subtitle{overflow:hidden;margin-top:clamp(4px,.7vw,8px);color:rgba(255,255,255,.94);font-size:clamp(12px,2vw,20px);line-height:1.2;text-overflow:ellipsis;white-space:nowrap}
         .toolbar{display:grid;gap:10px;width:100%;margin:0}
-        .toolbar button{display:flex;align-items:center;justify-content:center;gap:9px;min-width:0;height:clamp(38px,5.7vw,52px);padding:0 12px;border:1px solid #1deb80;border-radius:999px;background:rgba(0,91,57,.42);box-shadow:0 8px 18px rgba(0,0,0,.18);color:#fff;font:700 clamp(12px,1.8vw,17px)/1 "Hind Siliguri",sans-serif;white-space:nowrap}
-        .toolbar button:last-child{border-color:rgba(255,255,255,.9);background:#fff;color:#072035}
+        .toolbar button{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0;height:clamp(38px,5.7vw,52px);padding:0 12px;border:1px solid #1deb80;border-radius:999px;background:rgba(0,91,57,.45);box-shadow:0 8px 18px rgba(0,0,0,.18);color:#fff;font:700 clamp(12px,1.8vw,16px)/1 "Hind Siliguri",sans-serif;white-space:nowrap;cursor:pointer;transition:transform .15s,background .15s,opacity .15s}
+        .toolbar button:hover{transform:translateY(-1px);background:rgba(0,118,74,.68)}
+        .toolbar button:active{transform:translateY(0)}
+        .toolbar button:disabled{opacity:.65;cursor:wait;transform:none}
+        .toolbar button.btn-save-image{border-color:rgba(255,255,255,.9);background:#fff;color:#072035}
+        .toolbar button.btn-save-image:hover{background:#f0faf4}
         .toolbar button svg{width:clamp(17px,2.4vw,22px);height:clamp(17px,2.4vw,22px);flex:none;color:#fff}
-        .toolbar button:last-child svg{color:#008550}
+        .toolbar button.btn-save-image svg{color:#008550}
+        .toolbar-spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:tb-spin .7s linear infinite;flex:none}
+        .toolbar button.btn-save-image .toolbar-spinner{border-color:rgba(0,133,80,.25);border-top-color:#008550}
+        @keyframes tb-spin{to{transform:rotate(360deg)}}
         .headline{position:relative;z-index:4;display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,32%);align-items:center;gap:16px;min-height:92px;margin:-28px var(--page-pad) 17px;padding:12px 15px;border:1px solid #bce6d5;border-radius:24px;background:linear-gradient(110deg,rgba(255,255,255,.96),rgba(231,249,239,.94));box-shadow:0 11px 28px rgba(0,67,45,.08)}
         .title-block{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:15px;min-width:0;padding:0;border:0}
         .title-icon{display:grid;place-items:center;width:48px;height:48px;flex:none;border-radius:15px;background:#e0f9e9;color:#008854}
@@ -4212,7 +4873,7 @@ function App() {
           .topbar{grid-template-columns:minmax(0,1fr) clamp(102px,28vw,126px);gap:8px}
           .brand{gap:8px}.brand-mark{width:clamp(42px,12vw,53px);height:clamp(42px,12vw,53px);border-radius:13px}.brand>div:last-child{padding-left:8px}
           .brand-title{font-size:clamp(17px,5.3vw,23px)}.brand-subtitle{font-size:clamp(8px,2.55vw,11px)}
-          .toolbar{gap:6px}.toolbar button{height:clamp(28px,8.2vw,35px);gap:5px;padding:0 7px;font-size:clamp(8px,2.65vw,11px)}.toolbar button svg{width:clamp(13px,3.8vw,16px);height:clamp(13px,3.8vw,16px)}
+          .toolbar{gap:6px}.toolbar button{height:clamp(28px,8.2vw,35px);gap:5px;padding:0 7px;font-size:clamp(8px,2.65vw,11px)}.toolbar button svg{width:clamp(13px,3.8vw,16px);height:clamp(13px,3.8vw,16px)}.toolbar-spinner{width:12px;height:12px;border-width:1.5px}
           .headline{grid-template-columns:minmax(0,1fr) minmax(121px,36%);gap:7px;min-height:clamp(57px,17vw,72px);margin:clamp(-21px,-5.3vw,-16px) var(--page-pad) 8px;padding:7px;border-radius:clamp(13px,4vw,18px)}
           .title-block{gap:7px}.title-icon{width:clamp(31px,9vw,39px);height:clamp(31px,9vw,39px);border-radius:10px}.title-icon svg{width:61%;height:61%}
           h1{font-size:clamp(15px,4.6vw,20px)}.month{margin-top:3px;font-size:clamp(9px,2.9vw,12px)}
@@ -4232,10 +4893,10 @@ function App() {
         }
         @page{size:A4 portrait;margin:0}
         @media print{
-          html,body{width:210mm;height:297mm;background:#fff}
-          body{display:block;min-height:297mm;padding:0;overflow:hidden}
-          .sheet{--page-pad:9mm;width:210mm;height:297mm;min-height:297mm;max-height:297mm;margin:0;padding-bottom:18mm;overflow:hidden;border:0;border-radius:0;box-shadow:none}
-          .hero{min-height:57mm;padding:9mm var(--page-pad) 17mm}.topbar{grid-template-columns:1fr}.toolbar{display:none}.brand-mark{width:18mm;height:18mm}.brand-title{font-size:9mm}.brand-subtitle{font-size:4.8mm}
+          html,body{width:210mm;height:100%;margin:0!important;padding:0!important;background:#fff}
+          body{display:block;min-height:297mm;overflow:visible}
+          .sheet{--page-pad:9mm;width:210mm;height:auto;min-height:296mm;max-height:297mm;margin:0;padding-bottom:14mm;overflow:hidden;border:0;border-radius:0;box-shadow:none;page-break-after:avoid;break-after:avoid;page-break-inside:avoid;break-inside:avoid}
+          .hero{min-height:57mm;padding:9mm var(--page-pad) 17mm}.topbar{grid-template-columns:1fr}.toolbar{display:none!important}.brand-mark{width:18mm;height:18mm}.brand-title{font-size:9mm}.brand-subtitle{font-size:4.8mm}
           .headline{min-height:24mm;margin:-8mm var(--page-pad) 4.5mm;padding:3mm 4mm}.title-icon{width:13mm;height:13mm}h1{font-size:8mm}.month{font-size:4.8mm}.member-card{min-height:17mm}.member-name{font-size:5.5mm}
           .two-columns,.lower-grid{gap:3.5mm}.two-columns{margin-bottom:3.5mm}.panel{padding:3.3mm 3.6mm}.panel-title{font-size:4.8mm}.line{min-height:10mm;font-size:3.7mm}.line>strong{font-size:4.2mm}.line.due{min-height:11mm}.summary-panel,.payment-panel{min-height:77mm}.payment-panel .panel-title{font-size:5.1mm}.payment-panel .line{font-size:4mm}.payment-panel .line>strong{font-size:4.5mm}.payment-option-line{min-height:9.4mm}.payment-option-line strong{font-size:3.6mm}.payment-option-line small{font-size:3.2mm}
           .amount-due{min-height:22mm;margin-top:5mm}.amount-title{font-size:7mm}.amount-note{font-size:4mm}footer{margin-top:6mm;font-size:3.4mm}.bottom-waves{height:16mm}
@@ -4244,9 +4905,9 @@ function App() {
         <header class="hero">
           <div class="topbar">
             <div class="brand"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg></div><div><div class="brand-title">MridhaBari 6B</div><div class="brand-subtitle">Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</div></div></div>
-            <div class="toolbar">
-              <button type="button" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 17v3h14v-3"/></svg>Save as PDF</button>
-              <button type="button" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="9" rx="2"/><path d="M7 15h10v6H7zM17 12h.01"/></svg>Print</button>
+            <div class="toolbar" data-html2canvas-ignore="true">
+              <button type="button" class="btn-save-pdf" onclick="window.saveBillAsPdf(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6m-3 3 3 3 3-3"/></svg><span>Save as PDF</span></button>
+              <button type="button" class="btn-save-image" onclick="window.saveBillAsImage(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>Save as image</span></button>
             </div>
           </div>
         </header>
@@ -4285,7 +4946,172 @@ function App() {
         <div class="amount-due"><span class="amount-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg></span><div><div class="amount-title">Amount Due: ${signedMoney(finalBalance)}</div><div class="amount-note">${finalBalance > 0 ? "Please clear the due amount at your earliest convenience." : "Your account has a credit balance."}</div></div><svg class="house-art" viewBox="0 0 160 100" fill="none" aria-hidden="true"><path d="M5 88c22-7 36-4 53 0 20 5 41 5 58-1 16-5 27-4 39 1v12H5V88Z" fill="#B9E8A6"/><path d="m31 62 34-31 34 31v31H31V62Z" fill="#FFF9E8" stroke="#14864D" stroke-width="5" stroke-linejoin="round"/><path d="m21 62 44-40 44 40-7 7-37-33-37 33-7-7Z" fill="#078C4A"/><path d="M84 34V18h13v28" fill="#168E4A" stroke="#087342" stroke-width="4"/><path d="M53 67h23v26H53z" fill="#FFF1C9" stroke="#16884B" stroke-width="3"/><path d="M64.5 68v24M54 80h21" stroke="#E8A72E" stroke-width="2"/><path d="M16 87c-8-10-4-20 2-23 7 5 9 14 4 22m-8 0c-2-12 2-19 9-21m-4 21h14" stroke="#36A84C" stroke-width="4" stroke-linecap="round"/><path d="M125 88c-5-9-2-17 4-20 7 5 8 13 3 20m-7 0c-2-10 2-16 8-18m-6 18h16" stroke="#36A84C" stroke-width="4" stroke-linecap="round"/><circle cx="21" cy="80" r="7" fill="#84D66F"/><circle cx="133" cy="78" r="8" fill="#78CE64"/></svg></div>
         <footer>Generated by <strong>Rahat</strong> &middot; ${escapeHtml(generatedDate)}</footer>
         <div class="bottom-waves" aria-hidden="true"></div>
-      </main></body></html>`);
+      </main>
+      <script>
+        (function() {
+          var billMonth = ${JSON.stringify(month || "Monthly")};
+          var billMember = ${JSON.stringify(member?.name || "Member")};
+          var safeMonth = String(billMonth).trim().replace(/[^a-zA-Z0-9_-]/g, "-").replace(/-+/g, "-");
+          var safeMember = String(billMember).trim().replace(/[^a-zA-Z0-9_-]/g, "-").replace(/-+/g, "-");
+
+          function resolveHtml2Canvas() {
+            return window.__html2canvas || (window.opener && window.opener.__html2canvas) || window.html2canvas;
+          }
+
+          function resolveJsPDF() {
+            return window.__jsPDF || (window.opener && window.opener.__jsPDF) || (window.jspdf && window.jspdf.jsPDF);
+          }
+
+          async function ensureHtml2Canvas() {
+            var lib = resolveHtml2Canvas();
+            if (lib) return lib;
+            for (var i = 0; i < 25; i++) {
+              await new Promise(function(r) { setTimeout(r, 120); });
+              lib = resolveHtml2Canvas();
+              if (lib) return lib;
+            }
+            throw new Error("html2canvas library unavailable");
+          }
+
+          async function ensureJsPDF() {
+            var lib = resolveJsPDF();
+            if (lib) return lib;
+            for (var i = 0; i < 25; i++) {
+              await new Promise(function(r) { setTimeout(r, 120); });
+              lib = resolveJsPDF();
+              if (lib) return lib;
+            }
+            throw new Error("jsPDF library unavailable");
+          }
+
+          window.saveBillAsPdf = async function(btn) {
+            if (btn && btn.disabled) return;
+            var origHtml = btn ? btn.innerHTML : "";
+            try {
+              if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="toolbar-spinner"></span><span>Saving PDF...</span>';
+              }
+              if (document.fonts && document.fonts.ready) {
+                try { await document.fonts.ready; } catch(e) {}
+              }
+              window.scrollTo(0, 0);
+
+              var sheet = document.querySelector(".sheet");
+              var h2c = await ensureHtml2Canvas();
+              var JsPDF = await ensureJsPDF();
+
+              var canvas = await h2c(sheet, {
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+                logging: false,
+                backgroundColor: "#ffffff",
+                ignoreElements: function(el) {
+                  return Boolean(el && el.classList && el.classList.contains("toolbar"));
+                }
+              });
+
+              var imgData = canvas.toDataURL("image/png");
+              var pdf = new JsPDF({
+                orientation: "portrait",
+                unit: "mm",
+                format: "a4",
+                compress: true
+              });
+
+              var pageWidth = 210;
+              var pageHeight = 297;
+              var imgWidth = pageWidth;
+              var imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+              if (imgHeight <= pageHeight) {
+                pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight, undefined, "FAST");
+              } else {
+                var scale = pageHeight / imgHeight;
+                var fittedWidth = imgWidth * scale;
+                var xOffset = (pageWidth - fittedWidth) / 2;
+                pdf.addImage(imgData, "PNG", xOffset, 0, fittedWidth, pageHeight, undefined, "FAST");
+              }
+
+              pdf.save("Monthly-Bill-" + safeMonth + "-" + safeMember + ".pdf");
+            } catch (err) {
+              console.error("Save as PDF error:", err);
+              window.print();
+            } finally {
+              if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+              }
+            }
+          };
+
+          window.saveBillAsImage = async function(btn) {
+            if (btn && btn.disabled) return;
+            var origHtml = btn ? btn.innerHTML : "";
+            try {
+              if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="toolbar-spinner"></span><span>Saving image...</span>';
+              }
+              if (document.fonts && document.fonts.ready) {
+                try { await document.fonts.ready; } catch(e) {}
+              }
+              window.scrollTo(0, 0);
+
+              var sheet = document.querySelector(".sheet");
+              var h2c = await ensureHtml2Canvas();
+
+              var canvas = await h2c(sheet, {
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+                logging: false,
+                backgroundColor: "#ffffff",
+                ignoreElements: function(el) {
+                  return Boolean(el && el.classList && el.classList.contains("toolbar"));
+                }
+              });
+
+              var fileName = "Monthly-Bill-" + safeMonth + "-" + safeMember + ".png";
+
+              if (canvas.toBlob) {
+                canvas.toBlob(function(blob) {
+                  if (!blob) {
+                    var dataUrl = canvas.toDataURL("image/png");
+                    var a = document.createElement("a");
+                    a.download = fileName;
+                    a.href = dataUrl;
+                    a.click();
+                    return;
+                  }
+                  var url = URL.createObjectURL(blob);
+                  var a = document.createElement("a");
+                  a.download = fileName;
+                  a.href = url;
+                  a.click();
+                  setTimeout(function() { URL.revokeObjectURL(url); }, 15000);
+                }, "image/png");
+              } else {
+                var dataUrl = canvas.toDataURL("image/png");
+                var a = document.createElement("a");
+                a.download = fileName;
+                a.href = dataUrl;
+                a.click();
+              }
+            } catch (err) {
+              console.error("Save as image error:", err);
+              alert("Could not generate image: " + (err.message || err));
+            } finally {
+              if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+              }
+            }
+          };
+        })();
+      </script>
+    </body></html>`);
     reportDocument.close();
     if (popupBlocked) {
       const reportBlob = new Blob(
@@ -4843,14 +5669,18 @@ function App() {
   return (
     <div className={`app premium-theme${theme === "dark" ? " dark-theme" : ""}`}>
       <aside className={menu ? "sidebar open" : "sidebar"}>
-        <div className="brand">
-          <div className="brand-mark">
+        <div className="brand sidebar-property-card">
+          <div className="brand-mark sidebar-property-mark">
             <Home size={20} />
           </div>
-          <div>
+          <div className="sidebar-property-copy">
+            <span className="sidebar-property-kicker">Residence</span>
             <b>MridhaBari 6B</b>
-            <small>Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</small>
           </div>
+          <small className="sidebar-property-address">
+            <MapPin size={14} aria-hidden="true" />
+            <span>Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</span>
+          </small>
           <button
             className="icon-btn mobile-close bazar-action"
             type="button"
@@ -4990,7 +5820,7 @@ function App() {
             >
               {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <div className="notice-bell-wrap">
+            <div className="notice-bell-wrap" ref={noticeBellWrapRef}>
               <button
                 className="icon-btn notice-bell"
                 onClick={toggleNoticePanel}
@@ -5035,16 +5865,22 @@ function App() {
                       onClick={() => markAllNoticesRead(user.id)}
                       disabled={noticeReadBusy || !unreadNotifications.length}
                     >
-                      <Check size={14} aria-hidden="true" />
-                      <span>{noticeReadBusy ? "Saving…" : "Mark all read"}</span>
+                      <span className="notice-action-icon" aria-hidden="true">
+                        <Check size={15} strokeWidth={2.4} />
+                      </span>
+                      <span className="notice-action-label">
+                        {noticeReadBusy ? "Saving…" : "Mark all read"}
+                      </span>
                     </button>
                     <button
                       className="clear-all-btn"
                       onClick={() => clearAllNotifications(user.id)}
                       disabled={noticeReadBusy || !publishedNotifications.length}
                     >
-                      <PremiumDeleteIcon size={14} />
-                      <span>Clear all</span>
+                      <span className="notice-action-icon" aria-hidden="true">
+                        <PremiumDeleteIcon size={15} />
+                      </span>
+                      <span className="notice-action-label">Clear all</span>
                     </button>
                   </div>
                   <div className="notice-popover-list">
@@ -5492,7 +6328,19 @@ function App() {
                 <h1>Hello, {user.name}{<span className="account-wave" aria-hidden="true"> 👋</span>}</h1>
                 <p>Your room rent, utilities, and meal cost for {month}.</p>
               </div>
-              <button className="btn secondary account-pdf-btn" type="button" onClick={() => exportMemberBill(user)}><Download size={16} /> Export PDF</button>
+              <div className="account-welcome-actions">
+                <div className="account-today-card" title="Today's date and day">
+                  <div className="account-today-cal-badge" aria-hidden="true">
+                    <span className="account-today-cal-month">{todayShortMonth}</span>
+                    <span className="account-today-cal-day">{todayDayNum}</span>
+                  </div>
+                  <div className="account-today-details">
+                    <span className="account-today-day-label">{todayWeekday}</span>
+                    <span className="account-today-date-label">{todayFormattedDate}</span>
+                  </div>
+                </div>
+                <button className="btn secondary account-pdf-btn" type="button" onClick={() => exportMemberBill(user)}><Download size={16} /> Export PDF</button>
+              </div>
             </section>
             {activeBulletinNotices.length > 0 && (
               <div className="bulletin-notice-bar" role="region" aria-label="Bulletin notice">
@@ -5503,44 +6351,21 @@ function App() {
                 <span className="bulletin-notice-divider" aria-hidden="true" />
                 <div className="bulletin-notice-content">
                   <span className="bulletin-notice-megaphone" aria-hidden="true">📢</span>
-                  <p className="bulletin-notice-text">
-                    {activeBulletinNotices[bulletinIndex % activeBulletinNotices.length]?.text}
-                  </p>
-                </div>
-                <div className="bulletin-notice-controls">
-                  <button
-                    type="button"
-                    className="bulletin-ctrl-btn"
-                    aria-label="Previous bulletin notice"
-                    title="Previous notice"
-                    onClick={() =>
-                      setBulletinIndex((prev) =>
-                        (prev - 1 + activeBulletinNotices.length) % activeBulletinNotices.length,
-                      )
-                    }
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className={`bulletin-ctrl-btn is-play-pause${bulletinPaused ? " is-paused" : ""}`}
-                    aria-label={bulletinPaused ? "Resume bulletin rotation" : "Pause bulletin rotation"}
-                    title={bulletinPaused ? "Play" : "Pause"}
-                    onClick={() => setBulletinPaused((prev) => !prev)}
-                  >
-                    {bulletinPaused ? <Play size={11} /> : <Pause size={11} />}
-                  </button>
-                  <button
-                    type="button"
-                    className="bulletin-ctrl-btn"
-                    aria-label="Next bulletin notice"
-                    title="Next notice"
-                    onClick={() =>
-                      setBulletinIndex((prev) => (prev + 1) % activeBulletinNotices.length)
-                    }
-                  >
-                    <ChevronRight size={14} />
-                  </button>
+                  <div className="bulletin-notice-text-viewport" ref={setBulletinTextViewportRef}>
+                    <p
+                      key={`${bulletinIndex}-${currentBulletinText}`}
+                      className="bulletin-notice-text"
+                    >
+                      <span className="bulletin-notice-marquee-track" ref={bulletinMarqueeTrackRef}>
+                        <span className="bulletin-notice-text-inner" ref={bulletinTextInnerRef}>
+                          {currentBulletinText}
+                        </span>
+                        <span className="bulletin-notice-text-clone" aria-hidden="true">
+                          {currentBulletinText}
+                        </span>
+                      </span>
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -5817,6 +6642,7 @@ function App() {
                         <th>Meal cost</th>
                         <th>Meal paid</th>
                         <th>Balance</th>
+                        <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -5846,21 +6672,60 @@ function App() {
                           <td>{money(row.mealCost)}</td>
                           <td>{money(row.mealPaid)}</td>
                           <td>
-                            <span
-                              className={`settlement-balance-pill ${
-                                row.balance > 0.009
-                                  ? "will-pay"
-                                  : row.balance < -0.009
-                                    ? "will-receive"
-                                    : "is-settled"
-                              }`}
-                            >
-                              {row.balance > 0.009
-                                ? <><span>Will pay</span><strong>{money(row.balance)}</strong><ChevronRight size={13} className="settlement-pill-chevron" aria-hidden="true" /></>
-                                : row.balance < -0.009
-                                  ? <><span>Will receive</span><strong>{money(Math.abs(row.balance))}</strong><ChevronRight size={13} className="settlement-pill-chevron" aria-hidden="true" /></>
-                                  : "Settled"}
-                            </span>
+                            <div className="settlement-balance-col">
+                              <span
+                                className={`settlement-balance-amount ${
+                                  row.balance > 0.009
+                                    ? "is-pay"
+                                    : row.balance < -0.009
+                                      ? "is-receive"
+                                      : "is-settled"
+                                }`}
+                              >
+                                {money(Math.abs(row.balance))}
+                              </span>
+                              {row.previousDue !== 0 && (
+                                <small
+                                  className="settlement-balance-prev-due"
+                                  title={`Previous balance adjustment: ${money(row.previousDue)}`}
+                                >
+                                  {row.previousDue > 0
+                                    ? `+${money(row.previousDue)} due`
+                                    : `-${money(Math.abs(row.previousDue))} credit`}
+                                </small>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="settlement-status-col">
+                              <span
+                                className={`settlement-balance-pill ${
+                                  row.balance > 0.009
+                                    ? "will-pay"
+                                    : row.balance < -0.009
+                                      ? "will-receive"
+                                      : "is-settled"
+                                }`}
+                              >
+                                {row.balance > 0.009 ? (
+                                  <>
+                                    <span>Will pay</span>
+                                    <strong>{money(row.balance)}</strong>
+                                    <ChevronRight size={13} className="settlement-pill-chevron" aria-hidden="true" />
+                                  </>
+                                ) : row.balance < -0.009 ? (
+                                  <>
+                                    <span>Will receive</span>
+                                    <strong>{money(Math.abs(row.balance))}</strong>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check size={13} className="settlement-pill-chevron" aria-hidden="true" />
+                                    <span>Settled</span>
+                                  </>
+                                )}
+                              </span>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -5903,6 +6768,26 @@ function App() {
                   </div>
                 ) : settlementSuggestions.length > 0 ? (
                   <>
+                    <div className="settlement-plan-overview" aria-label="Suggested settlement plan summary">
+                      <span className="settlement-plan-overview-icon" aria-hidden="true">
+                        <Sparkles size={17} />
+                      </span>
+                      <span className="settlement-plan-overview-copy">
+                        <small>Optimized plan</small>
+                        <strong>
+                          {settlementSuggestions.length} recommended transfer{settlementSuggestions.length === 1 ? "" : "s"}
+                        </strong>
+                      </span>
+                      <span className="settlement-plan-overview-total">
+                        <small>Total movement</small>
+                        <strong>
+                          {money(settlementSuggestions.reduce(
+                            (total, suggestion) => total + Number(suggestion.amount || 0),
+                            0,
+                          ))}
+                        </strong>
+                      </span>
+                    </div>
                     <div className="settlement-suggestion-list settlement-plan-list">
                       {settlementSuggestions.map((suggestion, index) => {
                         const fromMember = db.users.find((member) => member.id === suggestion.fromUserId);
@@ -5916,12 +6801,18 @@ function App() {
                             disabled={!admin}
                             title={admin ? "Open settlement" : "Only an admin can change settlement plans"}
                           >
+                            <span className="settlement-match-number" aria-hidden="true">
+                              {String(index + 1).padStart(2, "0")}
+                            </span>
                             <span className="settlement-suggestion-route">
                               <span className="settlement-suggestion-person payer">
                                 <span className="settlement-mini-avatar payer">
                                   {fromMember?.photo_url ? <img className="settlement-mini-avatar-img" src={fromMember.photo_url} alt="" /> : (fromMember?.name?.[0] || "M")}
                                 </span>
-                                <b>{fromMember?.name || "Member"}</b>
+                                <span className="settlement-suggestion-person-copy">
+                                  <small>From</small>
+                                  <b>{fromMember?.name || "Member"}</b>
+                                </span>
                               </span>
                               <span className="settlement-suggestion-arrow" aria-hidden="true">
                                 <ArrowRight size={15} />
@@ -5930,7 +6821,10 @@ function App() {
                                 <span className="settlement-mini-avatar receiver">
                                   {toMember?.photo_url ? <img className="settlement-mini-avatar-img" src={toMember.photo_url} alt="" /> : (toMember?.name?.[0] || "M")}
                                 </span>
-                                <b>{toMember?.name || "Member"}</b>
+                                <span className="settlement-suggestion-person-copy">
+                                  <small>To</small>
+                                  <b>{toMember?.name || "Member"}</b>
+                                </span>
                               </span>
                             </span>
                             <span className="settlement-suggestion-value">
@@ -5949,6 +6843,7 @@ function App() {
                               </small>
                               <strong>{money(suggestion.amount)}</strong>
                             </span>
+                            {admin && <ChevronRight className="settlement-match-chevron" size={17} aria-hidden="true" />}
                           </button>
                         );
                       })}
@@ -5962,7 +6857,10 @@ function App() {
                           disabled={settlementPlanBusy}
                         >
                           <Sparkles size={15} aria-hidden="true" />
-                          <span>{settlementPlanBusy ? "Creating plan..." : "Create plan"}</span>
+                          <span className="settlement-plan-action-copy">
+                            <strong>{settlementPlanBusy ? "Creating plan..." : "Create settlement plan"}</strong>
+                            <small>Save all recommended transfers</small>
+                          </span>
                           <ArrowRight size={15} aria-hidden="true" />
                         </button>
                       </div>
@@ -7328,6 +8226,145 @@ function App() {
                     </thead>
                     <tbody>
                       {filteredMonthBazar.length ? filteredMonthBazar.map((b) => (
+                          b.isCombined ? (
+                            <tr key={b.id} className="bazar-row-combined">
+                              <td className="bazar-date-cell">
+                                <span className="bazar-date-label"><CalendarDays size={13} aria-hidden="true" />{b.date}</span>
+                                <time className="bazar-date-tile" dateTime={b.date || undefined}>
+                                  <strong>
+                                    {Number.isNaN(new Date(`${b.date}T00:00:00`).getTime())
+                                      ? "--"
+                                      : new Date(`${b.date}T00:00:00`).toLocaleDateString("en-US", { day: "2-digit" })}
+                                  </strong>
+                                  <span>
+                                    {Number.isNaN(new Date(`${b.date}T00:00:00`).getTime())
+                                      ? "Date"
+                                      : new Date(`${b.date}T00:00:00`).toLocaleDateString("en-US", { month: "short" })}
+                                  </span>
+                                </time>
+                              </td>
+                              <td className="bazar-history-amount bazar-amount-cell bazar-combined-amount-cell">
+                                <div
+                                  className="bazar-combined-amount-box"
+                                  title={`Combined total: ${money(b.totalAmount)}`}
+                                >
+                                  <span className="bazar-combined-amount-line cash">
+                                    <small>Cash in Hand</small>
+                                    <strong>{money(b.cashAmount)}</strong>
+                                  </span>
+                                  <span className="bazar-combined-amount-line member">
+                                    <small>{db.users.find((u) => u.id === b.memberId)?.name || "Member"}</small>
+                                    <strong>{money(b.memberAmount)}</strong>
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="bazar-items-cell">
+                                <span className="bazar-item-summary">
+                                  {getBazarItemSummary(b.items)}
+                                </span>
+                              </td>
+                              <td className="bazar-paid-cell bazar-combined-paid-cell">
+                                <div className="bazar-combined-payers-box">
+                                  <span
+                                    className="bazar-paid-by bazar-combined-payer"
+                                    style={{ "--bazar-payer-hue": getBazarPayerHue("cash-in-hand") }}
+                                  >
+                                    <span className="bazar-paid-avatar"><Wallet size={12} aria-hidden="true" /></span>
+                                    <span className="bazar-combined-payer-copy">
+                                      <small>Paid by</small>
+                                      <strong>Cash in Hand</strong>
+                                    </span>
+                                  </span>
+                                  {(() => {
+                                    const mem = db.users.find((u) => u.id === b.memberId);
+                                    const memName = mem?.name || "Member";
+                                    return (
+                                      <span
+                                        className="bazar-paid-by bazar-combined-payer"
+                                        style={{ "--bazar-payer-hue": getBazarPayerHue(b.memberId) }}
+                                      >
+                                        <span className="bazar-paid-avatar">
+                                          {mem?.photo_url ? (
+                                            <img className="bazar-paid-avatar-image" src={mem.photo_url} alt="" />
+                                          ) : (
+                                            memName.slice(0, 1).toUpperCase()
+                                          )}
+                                        </span>
+                                        <span className="bazar-combined-payer-copy">
+                                          <small>Paid by</small>
+                                          <strong>{memName}</strong>
+                                        </span>
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
+                              </td>
+                              <td className="row-actions">
+                                <div className="bazar-actions-group">
+                                  <button
+                                    type="button"
+                                    className="icon-btn bazar-combined-view-action"
+                                    title="View combined bazar details"
+                                    aria-label={`View combined bazar details for ${b.date}`}
+                                    onClick={() => setBazarDetailsEntry(b)}
+                                  >
+                                    <Eye size={15} />
+                                  </button>
+                                  <div
+                                    className={`bazar-row-menu${admin || b.createdBy === user?.id ? "" : " is-view-only"}`}
+                                    ref={bazarActionMenuId === b.id ? bazarActionMenuRef : null}
+                                    onBlur={(event) => {
+                                      if (!event.currentTarget.contains(event.relatedTarget)) setBazarActionMenuId(null);
+                                    }}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Escape") setBazarActionMenuId(null);
+                                    }}
+                                  >
+                                    <button
+                                      type="button"
+                                      className="icon-btn bazar-row-menu-trigger"
+                                      title="More actions"
+                                      aria-label={`More actions for bazar entry on ${b.date}`}
+                                      aria-haspopup="menu"
+                                      aria-expanded={bazarActionMenuId === b.id}
+                                      onClick={() => setBazarActionMenuId((openId) => openId === b.id ? null : b.id)}
+                                    >
+                                      <MoreVertical size={18} />
+                                    </button>
+                                    {bazarActionMenuId === b.id && (
+                                      <div className="bazar-row-menu-popover" role="menu">
+                                        {(admin || b.createdBy === user?.id) && (
+                                          <>
+                                            <button
+                                              type="button"
+                                              role="menuitem"
+                                              onClick={() => {
+                                                setBazarActionMenuId(null);
+                                                editBazar(b);
+                                              }}
+                                            >
+                                              <Edit size={16} /> Edit entry
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="bazar-row-menu-delete premium-delete-menu-action"
+                                              role="menuitem"
+                                              onClick={() => {
+                                                setBazarActionMenuId(null);
+                                                void deleteBazar(b);
+                                              }}
+                                            >
+                                              <PremiumDeleteIcon size={16} /> Delete entry
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
                           <tr key={b.id}>
                             <td className="bazar-date-cell">
                               <span className="bazar-date-label"><CalendarDays size={13} aria-hidden="true" />{b.date}</span>
@@ -7447,6 +8484,7 @@ function App() {
                               </div>
                             </td>
                           </tr>
+                          )
                         )) : (
                           <tr className="bazar-history-empty-row">
                             <td colSpan="5">
@@ -7534,21 +8572,203 @@ function App() {
                       <select
                         name="paidBy"
                         value={bazarForm.paidBy || user.id}
-                        onChange={(e) => setBazarForm({ ...bazarForm, paidBy: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const total = bazarRows.reduce((sum, row) => sum + Number(row.price || 0), 0);
+                          const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal));
+                          if (val === "combine") {
+                            const defaultCash = Math.min(total, avail);
+                            const defaultMember = Math.max(0, roundMoney(total - defaultCash));
+                            setBazarForm((prev) => ({
+                              ...prev,
+                              paidBy: "combine",
+                              combinedCashAmount: defaultCash > 0 ? String(defaultCash) : "",
+                              combinedMemberAmount: defaultMember > 0 ? String(defaultMember) : "",
+                              combinedMemberId: prev.combinedMemberId || user.id,
+                            }));
+                          } else {
+                            setBazarForm((prev) => ({ ...prev, paidBy: val }));
+                          }
+                        }}
                       >
                         {allActiveUsers.map((u) => <option key={u.id} value={u.id}>{u.name}{u.role === "admin" ? " (Admin)" : ""}</option>)}
                         <option value="cash-in-hand">Cash in Hand</option>
+                        <option value="combine">⚡ Combine (Cash in Hand + Member)</option>
                       </select>
                     ) : (
                       <input value={user.name} readOnly aria-readonly="true" />
                     )}
                   </label>
+
+                  {!admin && roundMoney(cashInHand - pendingCashSettlementTotal) > 0 && (
+                    <label className="bazar-combine-toggle">
+                      <input
+                        type="checkbox"
+                        checked={bazarForm.paidBy === "combine"}
+                        onChange={(e) => {
+                          const total = bazarRows.reduce((sum, row) => sum + Number(row.price || 0), 0);
+                          const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal));
+                          if (e.target.checked) {
+                            const defaultCash = Math.min(total, avail);
+                            const defaultMember = Math.max(0, roundMoney(total - defaultCash));
+                            setBazarForm((prev) => ({
+                              ...prev,
+                              paidBy: "combine",
+                              combinedCashAmount: defaultCash > 0 ? String(defaultCash) : "",
+                              combinedMemberAmount: defaultMember > 0 ? String(defaultMember) : "",
+                              combinedMemberId: user.id,
+                            }));
+                          } else {
+                            setBazarForm((prev) => ({ ...prev, paidBy: user.id }));
+                          }
+                        }}
+                      />
+                      <span>Combine with Cash in Hand (Mess cash + your pocket)</span>
+                    </label>
+                  )}
+
+                  {bazarForm.paidBy === "combine" && (
+                    <div className="bazar-combine-card">
+                      <div className="bazar-combine-header">
+                        <div className="bazar-combine-title">
+                          <Wallet size={16} />
+                          <strong>Combine payment breakdown</strong>
+                        </div>
+                        <span className="bazar-combine-avail">
+                          Available Cash: <strong>{money(Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal)))}</strong>
+                        </span>
+                      </div>
+
+                      {admin && (
+                        <label className="bazar-combine-member-select">
+                          Member paying balance
+                          <select
+                            value={bazarForm.combinedMemberId || user.id}
+                            onChange={(e) => setBazarForm((f) => ({ ...f, combinedMemberId: e.target.value }))}
+                          >
+                            {allActiveUsers.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name}{u.role === "admin" ? " (Admin)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+
+                      <div className="bazar-combine-inputs">
+                        <label>
+                          From Cash in Hand (৳)
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={bazarForm.combinedCashAmount}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const cashNum = parseFloat(val) || 0;
+                              const total = bazarRows.reduce((sum, row) => sum + Number(row.price || 0), 0);
+                              const remaining = Math.max(0, roundMoney(total - cashNum));
+                              setBazarForm((f) => ({
+                                ...f,
+                                combinedCashAmount: val,
+                                combinedMemberAmount: val === "" ? "" : String(remaining),
+                              }));
+                            }}
+                          />
+                        </label>
+
+                        <label>
+                          From {db.users.find((u) => u.id === (bazarForm.combinedMemberId || user.id))?.name || "Member"} (৳)
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={bazarForm.combinedMemberAmount}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const memNum = parseFloat(val) || 0;
+                              const total = bazarRows.reduce((sum, row) => sum + Number(row.price || 0), 0);
+                              const remaining = Math.max(0, roundMoney(total - memNum));
+                              setBazarForm((f) => ({
+                                ...f,
+                                combinedMemberAmount: val,
+                                combinedCashAmount: val === "" ? "" : String(remaining),
+                              }));
+                            }}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="bazar-combine-quick-btns">
+                        <button
+                          type="button"
+                          className="bazar-combine-quick-btn"
+                          onClick={() => {
+                            const total = bazarRows.reduce((sum, row) => sum + Number(row.price || 0), 0);
+                            const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal));
+                            const maxCash = Math.min(total, avail);
+                            const rem = Math.max(0, roundMoney(total - maxCash));
+                            setBazarForm((f) => ({
+                              ...f,
+                              combinedCashAmount: String(maxCash),
+                              combinedMemberAmount: String(rem),
+                            }));
+                          }}
+                        >
+                          Use Max Cash ({money(Math.min(bazarRows.reduce((s, r) => s + Number(r.price || 0), 0), Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal))))})
+                        </button>
+                        <button
+                          type="button"
+                          className="bazar-combine-quick-btn"
+                          onClick={() => {
+                            const total = bazarRows.reduce((sum, row) => sum + Number(row.price || 0), 0);
+                            const half = roundMoney(total / 2);
+                            const other = roundMoney(total - half);
+                            setBazarForm((f) => ({
+                              ...f,
+                              combinedCashAmount: String(half),
+                              combinedMemberAmount: String(other),
+                            }));
+                          }}
+                        >
+                          Split 50 / 50
+                        </button>
+                      </div>
+
+                      <div className="bazar-combine-status">
+                        {(() => {
+                          const cash = Number(bazarForm.combinedCashAmount) || 0;
+                          const mem = Number(bazarForm.combinedMemberAmount) || 0;
+                          const total = bazarRows.reduce((sum, row) => sum + Number(row.price || 0), 0);
+                          const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal));
+                          const memName = db.users.find((u) => u.id === (bazarForm.combinedMemberId || user.id))?.name || "Member";
+
+                          if (cash > avail) {
+                            return <span className="combine-error">⚠️ Cash exceeds available Cash in Hand ({money(avail)})</span>;
+                          }
+                          if (Math.abs(cash + mem - total) > 0.05) {
+                            const diff = roundMoney(total - (cash + mem));
+                            return <span className="combine-warning">Difference: {diff > 0 ? `৳${diff} remaining to assign` : `৳${Math.abs(diff)} extra`}</span>;
+                          }
+                          return (
+                            <span className="combine-match">
+                              ✓ <strong>{money(cash)}</strong> from Cash + <strong>{money(mem)}</strong> credited to {memName}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
                   <p className="hint">
-                    The person who paid gets this amount credited against their
-                    shared expense.
+                    {bazarForm.paidBy === "combine"
+                      ? "The cash portion will be deducted from Cash in Hand, and the remaining portion will be credited to the member's meal payment balance."
+                      : "The person who paid gets this amount credited against their shared expense."}
                   </p>
                   <button className="primary full">
-                    <Plus size={16} /> Save bazar
+                    <Plus size={16} /> {bazarForm.paidBy === "combine" ? "Save combined bazar" : "Save bazar"}
                   </button>
                 </form>
 
@@ -7563,17 +8783,239 @@ function App() {
                     {bazarEditEntry.editItems.map((row, index) => (
                       <div className="bazar-edit-item-row" key={index}>
                         <label>Item {index + 1}<input value={row.item} placeholder={`Item ${index + 1}`} onChange={(e) => setBazarEditEntry((old) => ({...old, editItems:old.editItems.map((it,i)=>i===index?{...it,item:e.target.value}:it)}))}/></label>
-                        <label>Price (৳)<input type="number" min="0" step="0.01" value={row.price} placeholder="0.00" onChange={(e) => setBazarEditEntry((old) => ({...old, editItems:old.editItems.map((it,i)=>i===index?{...it,price:e.target.value}:it)}))}/></label>
-                        <button type="button" className="danger-text icon-btn premium-delete-action bazar-action" aria-label={`Remove item ${index+1}`} disabled={bazarEditEntry.editItems.length===1} onClick={() => setBazarEditEntry((old) => ({...old,editItems:old.editItems.filter((_,i)=>i!==index)}))}><PremiumDeleteIcon size={15}/></button>
+                        <label>Price (৳)<input type="number" min="0" step="0.01" value={row.price} placeholder="0.00" onChange={(e) => {
+                          const val = e.target.value;
+                          setBazarEditEntry((old) => {
+                            const nextItems = old.editItems.map((it, i) => i === index ? { ...it, price: val } : it);
+                            const nextTotal = nextItems.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
+                            let combinedMemberAmount = old.combinedMemberAmount;
+                            if (old.editPaidBy === "combine") {
+                              const cashNum = parseFloat(old.combinedCashAmount) || 0;
+                              combinedMemberAmount = String(Math.max(0, roundMoney(nextTotal - cashNum)));
+                            }
+                            return { ...old, editItems: nextItems, combinedMemberAmount };
+                          });
+                        }}/></label>
+                        <button type="button" className="danger-text icon-btn premium-delete-action bazar-action" aria-label={`Remove item ${index+1}`} disabled={bazarEditEntry.editItems.length===1} onClick={() => setBazarEditEntry((old) => {
+                          const nextItems = old.editItems.filter((_,i)=>i!==index);
+                          const nextTotal = nextItems.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
+                          let combinedMemberAmount = old.combinedMemberAmount;
+                          if (old.editPaidBy === "combine") {
+                            const cashNum = parseFloat(old.combinedCashAmount) || 0;
+                            combinedMemberAmount = String(Math.max(0, roundMoney(nextTotal - cashNum)));
+                          }
+                          return { ...old, editItems: nextItems, combinedMemberAmount };
+                        })}><PremiumDeleteIcon size={15}/></button>
                       </div>
                     ))}
                     <button type="button" className="secondary full" onClick={() => setBazarEditEntry((old) => ({...old,editItems:[...old.editItems,{item:"",price:""}]}))}>＋ Add item</button>
-                    {admin && <label>Paid by<select value={bazarEditEntry.editPaidBy} onChange={(e) => setBazarEditEntry((old) => ({...old, editPaidBy:e.target.value}))}><option value="Cash in Hand">Cash in Hand</option>{(db.users || []).filter((member) => member.active !== false).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>}
+                    {admin ? (
+                      <label>
+                        Paid by
+                        <select
+                          value={bazarEditEntry.editPaidBy}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const total = (bazarEditEntry.editItems || []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
+                            const oldCash = bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0;
+                            const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + oldCash));
+                            if (val === "combine") {
+                              const defaultCash = Math.min(total, avail);
+                              const defaultMember = Math.max(0, roundMoney(total - defaultCash));
+                              setBazarEditEntry((old) => ({
+                                ...old,
+                                editPaidBy: "combine",
+                                combinedCashAmount: defaultCash > 0 ? String(defaultCash) : "",
+                                combinedMemberAmount: defaultMember > 0 ? String(defaultMember) : "",
+                                combinedMemberId: old.combinedMemberId || old.paidBy || user?.id,
+                              }));
+                            } else {
+                              setBazarEditEntry((old) => ({ ...old, editPaidBy: val }));
+                            }
+                          }}
+                        >
+                          {(db.users || [])
+                            .filter((member) => member.active !== false || member.id === bazarEditEntry.editPaidBy)
+                            .map((member) => (
+                              <option key={member.id} value={member.id}>
+                                {member.name}{member.role === "admin" ? " (Admin)" : ""}
+                              </option>
+                            ))}
+                          <option value="cash-in-hand">Cash in Hand</option>
+                          <option value="combine">⚡ Combine (Cash in Hand + Member)</option>
+                        </select>
+                      </label>
+                    ) : (
+                      roundMoney(cashInHand - pendingCashSettlementTotal + (bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0)) > 0 && (
+                        <label className="bazar-combine-toggle">
+                          <input
+                            type="checkbox"
+                            checked={bazarEditEntry.editPaidBy === "combine"}
+                            onChange={(e) => {
+                              const total = (bazarEditEntry.editItems || []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
+                              const oldCash = bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0;
+                              const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + oldCash));
+                              if (e.target.checked) {
+                                const defaultCash = Math.min(total, avail);
+                                const defaultMember = Math.max(0, roundMoney(total - defaultCash));
+                                setBazarEditEntry((old) => ({
+                                  ...old,
+                                  editPaidBy: "combine",
+                                  combinedCashAmount: defaultCash > 0 ? String(defaultCash) : "",
+                                  combinedMemberAmount: defaultMember > 0 ? String(defaultMember) : "",
+                                  combinedMemberId: user?.id,
+                                }));
+                              } else {
+                                setBazarEditEntry((old) => ({ ...old, editPaidBy: user?.id }));
+                              }
+                            }}
+                          />
+                          <span>Combine with Cash in Hand (Mess cash + your pocket)</span>
+                        </label>
+                      )
+                    )}
+
+                    {bazarEditEntry.editPaidBy === "combine" && (
+                      <div className="bazar-combine-card">
+                        <div className="bazar-combine-header">
+                          <div className="bazar-combine-title">
+                            <Wallet size={16} />
+                            <strong>Combine payment breakdown</strong>
+                          </div>
+                          <span className="bazar-combine-avail">
+                            Available Cash: <strong>{money(Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + (bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0))))}</strong>
+                          </span>
+                        </div>
+
+                        {admin && (
+                          <label className="bazar-combine-member-select">
+                            Member paying balance
+                            <select
+                              value={bazarEditEntry.combinedMemberId || user?.id}
+                              onChange={(e) => setBazarEditEntry((old) => ({ ...old, combinedMemberId: e.target.value }))}
+                            >
+                              {allActiveUsers.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.name}{u.role === "admin" ? " (Admin)" : ""}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+
+                        <div className="bazar-combine-inputs">
+                          <label>
+                            From Cash in Hand (৳)
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={bazarEditEntry.combinedCashAmount}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const cashNum = parseFloat(val) || 0;
+                                const total = (bazarEditEntry.editItems || []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
+                                const remaining = Math.max(0, roundMoney(total - cashNum));
+                                setBazarEditEntry((old) => ({
+                                  ...old,
+                                  combinedCashAmount: val,
+                                  combinedMemberAmount: val === "" ? "" : String(remaining),
+                                }));
+                              }}
+                            />
+                          </label>
+
+                          <label>
+                            From {db.users.find((u) => u.id === (bazarEditEntry.combinedMemberId || user?.id))?.name || "Member"} (৳)
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={bazarEditEntry.combinedMemberAmount}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const memNum = parseFloat(val) || 0;
+                                const total = (bazarEditEntry.editItems || []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
+                                const remaining = Math.max(0, roundMoney(total - memNum));
+                                setBazarEditEntry((old) => ({
+                                  ...old,
+                                  combinedMemberAmount: val,
+                                  combinedCashAmount: val === "" ? "" : String(remaining),
+                                }));
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        <div className="bazar-combine-quick-btns">
+                          <button
+                            type="button"
+                            className="bazar-combine-quick-btn"
+                            onClick={() => {
+                              const total = (bazarEditEntry.editItems || []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
+                              const oldCash = bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0;
+                              const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + oldCash));
+                              const maxCash = Math.min(total, avail);
+                              const rem = Math.max(0, roundMoney(total - maxCash));
+                              setBazarEditEntry((old) => ({
+                                ...old,
+                                combinedCashAmount: String(maxCash),
+                                combinedMemberAmount: String(rem),
+                              }));
+                            }}
+                          >
+                            Use Max Cash ({money(Math.min((bazarEditEntry.editItems || []).reduce((s, r) => s + (Number(r.price) || 0), 0), Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + (bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0)))))})
+                          </button>
+                          <button
+                            type="button"
+                            className="bazar-combine-quick-btn"
+                            onClick={() => {
+                              const total = (bazarEditEntry.editItems || []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
+                              const half = roundMoney(total / 2);
+                              const other = roundMoney(total - half);
+                              setBazarEditEntry((old) => ({
+                                ...old,
+                                combinedCashAmount: String(half),
+                                combinedMemberAmount: String(other),
+                              }));
+                            }}
+                          >
+                            Split 50 / 50
+                          </button>
+                        </div>
+
+                        <div className="bazar-combine-status">
+                          {(() => {
+                            const cash = Number(bazarEditEntry.combinedCashAmount) || 0;
+                            const mem = Number(bazarEditEntry.combinedMemberAmount) || 0;
+                            const total = (bazarEditEntry.editItems || []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
+                            const oldCash = bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0;
+                            const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + oldCash));
+                            const memName = db.users.find((u) => u.id === (bazarEditEntry.combinedMemberId || user?.id))?.name || "Member";
+
+                            if (cash > avail) {
+                              return <span className="combine-error">⚠️ Cash exceeds available Cash in Hand ({money(avail)})</span>;
+                            }
+                            if (Math.abs(cash + mem - total) > 0.05) {
+                              const diff = roundMoney(total - (cash + mem));
+                              return <span className="combine-warning">Difference: {diff > 0 ? `৳${diff} remaining to assign` : `৳${Math.abs(diff)} extra`}</span>;
+                            }
+                            return (
+                              <span className="combine-match">
+                                ✓ <strong>{money(cash)}</strong> from Cash + <strong>{money(mem)}</strong> credited to {memName}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    )}
                     <div className="bazar-edit-total"><span>Total</span><strong>{money((bazarEditEntry.editItems||[]).reduce((sum,row)=>sum+(Number(row.price)||0),0))}</strong></div>
                   </div>
                   <div className="bazar-edit-actions">
                     <button type="button" className="secondary bazar-action" onClick={() => setBazarEditEntry(null)}>Cancel</button>
-                    <button type="button" className="primary" onClick={saveBazarEdit}>Save changes</button>
+                    <button type="button" className="primary" onClick={saveBazarEdit}>{bazarEditEntry.editPaidBy === "combine" ? "Save combined changes" : "Save changes"}</button>
                   </div>
                 </section>
               </div>
@@ -7605,7 +9047,25 @@ function App() {
                         })()}</tbody>
                     </table>
                   </div>
-                  <div className="total-row"><b>Total</b><b>{money(bazarDetailsEntry.amount)}</b></div>
+                  {bazarDetailsEntry.isCombined && (
+                    <div className="bazar-details-combine-card">
+                      <div className="bazar-details-combine-head">
+                        <strong>Payment split</strong>
+                        <span className="bazar-combine-badge">Combined purchase</span>
+                      </div>
+                      <div className="bazar-details-combine-rows">
+                        <div className="bazar-details-combine-row cash">
+                          <span>Paid from Cash in Hand</span>
+                          <strong>{money(bazarDetailsEntry.cashAmount)}</strong>
+                        </div>
+                        <div className="bazar-details-combine-row member">
+                          <span>Paid by {db.users.find((u) => u.id === bazarDetailsEntry.memberId)?.name || "Member"}</span>
+                          <strong>{money(bazarDetailsEntry.memberAmount)}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="total-row"><b>Total</b><b>{money(bazarDetailsEntry.isCombined ? bazarDetailsEntry.totalAmount : bazarDetailsEntry.amount)}</b></div>
                   <button type="button" className="secondary full bazar-details-close bazar-action" onClick={() => setBazarDetailsEntry(null)}>Close</button>
                 </section>
               </div>
@@ -7620,7 +9080,7 @@ function App() {
                   <p>This entry will be permanently removed. This action cannot be undone.</p>
                   <div className="delete-confirm-actions">
                     <button className="secondary delete-confirm-cancel bazar-action" onClick={() => setPendingBazarDelete(null)}>Cancel</button>
-                    <button className="danger delete-confirm-confirm bazar-action" onClick={async () => { const entry=pendingBazarDelete; try { const {error}=await supabase.from("bazar_entries").delete().eq("id",entry.id); if(error) throw error; setPendingBazarDelete(null); await loadCloudData(user.id,month); setBazarSuccessToast("Bazar deleted successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600); } catch(e) { alert("Could not delete bazar: "+e.message); } }}>Delete entry</button>
+                    <button className="danger delete-confirm-confirm bazar-action" onClick={async () => { const entry=pendingBazarDelete; try { const idsToDelete = entry.isCombined && entry.entries ? entry.entries.map((e) => e.id) : [entry.id]; const {error}=await supabase.from("bazar_entries").delete().in("id", idsToDelete); if(error) throw error; setPendingBazarDelete(null); await loadCloudData(user.id,month); setBazarSuccessToast(entry.isCombined ? "Combined bazar deleted successfully" : "Bazar deleted successfully"); window.setTimeout(() => setBazarSuccessToast(""), 2600); } catch(e) { alert("Could not delete bazar: "+e.message); } }}>Delete entry</button>
                   </div>
                 </section>
               </div>
@@ -8256,9 +9716,31 @@ function App() {
                     sub="Set the scrolling bulletin banner shown on member accounts"
                   />
                 </div>
-                <span className="bulletin-admin-count-badge">
-                  {activeBulletinNotices.length} active
-                </span>
+                <div className="bulletin-admin-heading-actions">
+                  <div className="bulletin-speed-control" role="group" aria-label="Bulletin animation speed">
+                    <span className="bulletin-speed-control-label">
+                      <Gauge size={14} aria-hidden="true" />
+                      {bulletinSpeedSaving ? "Saving…" : "Speed"}
+                    </span>
+                    <span className="bulletin-speed-options">
+                      {BULLETIN_SPEED_OPTIONS.map((option) => (
+                        <button
+                          type="button"
+                          key={option.value}
+                          className={`bulletin-speed-option${bulletinSpeed === option.value ? " is-active" : ""}`}
+                          aria-pressed={bulletinSpeed === option.value}
+                          disabled={bulletinSpeedSaving}
+                          onClick={() => saveBulletinSpeed(option.value)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </span>
+                  </div>
+                  <span className="bulletin-admin-count-badge">
+                    {activeBulletinNotices.length} active
+                  </span>
+                </div>
               </div>
               <form className="bulletin-admin-form" onSubmit={saveBulletinNotice}>
                 <input
@@ -8704,4 +10186,3 @@ function getUtilityTone(name) {
   return "amber";
 }
 createRoot(document.getElementById("root")).render(<App />);
-
