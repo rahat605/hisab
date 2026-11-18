@@ -30,6 +30,9 @@ import {
   ImagePlus,
   Send,
   Utensils,
+  UtensilsCrossed,
+  ArrowDown,
+  ChevronDown,
   Zap,
   ShoppingBasket,
   Wifi,
@@ -48,8 +51,6 @@ import {
   Images,
   Filter,
   Layers3,
-  Moon,
-  Sun,
   TriangleAlert,
   Scale,
   Sparkles,
@@ -57,7 +58,14 @@ import {
   Wrench,
   Lightbulb,
   Megaphone,
+  TrendingUp,
+  Star,
   Gauge,
+  Calculator,
+  Info,
+  Pencil,
+  Moon,
+  Sun,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -65,12 +73,376 @@ import "./style.css";
 import "@fontsource/baloo-da-2/bengali-500.css";
 import "@fontsource/baloo-da-2/bengali-600.css";
 import "./inbox.css";
+import "./theme.css";
+import "./theme-tail.css";
 import { supabase, supabaseConfigured } from "./supabase";
 import { openOverviewReport } from "./overviewReport";
+import {
+  findBazarFoodCatalogItem,
+  getBazarFoodSearchScore,
+  normalizeBazarFoodSearch,
+  searchBazarFoodCatalog,
+} from "./bazarFoodCatalog";
+
+const getInitialColorMode = () => {
+  if (typeof window === "undefined") return "light";
+  try {
+    const saved = localStorage.getItem("bh-theme");
+    if (saved === "dark" || saved === "light") return saved;
+  } catch {}
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+};
 
 if (typeof window !== "undefined") {
   window.__html2canvas = html2canvas;
   window.__jsPDF = jsPDF;
+  const initialColorMode = getInitialColorMode();
+  document.documentElement.dataset.theme = initialColorMode;
+  document.documentElement.style.colorScheme = initialColorMode;
+  try {
+    localStorage.removeItem("monthly-hisab-appearance");
+  } catch {}
+}
+
+const OilBottleIcon = ({ size = 24 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 32 32"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <rect x="12.5" y="2.5" width="7" height="3.5" rx="1.2" fill="#DC2626" />
+    <path d="M13 6h6v3.2l3.8 3.6A2.5 2.5 0 0 1 23.5 14.6V27a2.5 2.5 0 0 1-2.5 2.5H11A2.5 2.5 0 0 1 8.5 27V14.6a2.5 2.5 0 0 1 .7-1.8L13 9.2V6Z" fill="#FACC15" stroke="#CA8A04" strokeWidth="1.2" />
+    <rect x="10.5" y="15.5" width="11" height="8" rx="1.6" fill="#FEF08A" stroke="#EAB308" strokeWidth="0.9" />
+    <path d="M16 17.3c1.3 1.4 2 2.4 2 3.3a2 2 0 1 1-4 0c0-.9.7-1.9 2-3.3Z" fill="#EA580C" />
+  </svg>
+);
+
+const BAZAR_COMMON_ITEMS = [
+  { id: "chal", name: "চাল", emoji: "🍚", defaultUnit: "kg", hint: "চালের দাম ও পরিমান লিখুন" },
+  { id: "dal", name: "ডাল", emoji: "🥣", defaultUnit: "kg", hint: "ডালের দাম ও পরিমান লিখুন" },
+  { id: "tel", name: "তেল", emoji: "oil", iconType: "oil", defaultUnit: "liter", hint: "তেলের দাম ও পরিমান লিখুন" },
+  { id: "sobji", name: "সবজি", emoji: "🥬", defaultUnit: "kg", hint: "সবজির দাম ও পরিমান লিখুন" },
+  { id: "mangsho", name: "মাংস", emoji: "🥩", defaultUnit: "kg", hint: "মাংসের দাম ও পরিমান লিখুন" },
+  { id: "mach", name: "মাছ", emoji: "🐟", defaultUnit: "kg", hint: "মাছের দাম ও পরিমান লিখুন" },
+  { id: "dim", name: "ডিম", emoji: "🥚", defaultUnit: "pcs", hint: "ডিমের দাম ও পরিমান লিখুন" },
+  { id: "mosla", name: "মসলা", emoji: "🫙", defaultUnit: "pack", hint: "মসলার দাম ও পরিমান লিখুন" },
+  { id: "peyaj", name: "পেঁয়াজ", emoji: "🧅", defaultUnit: "kg", hint: "পেঁয়াজের দাম ও পরিমান লিখুন" },
+  { id: "morich", name: "মরিচ", emoji: "🌶️", defaultUnit: "gram", hint: "মরিচের দাম ও পরিমান লিখুন" },
+  { id: "rosun", name: "রসুন", emoji: "🧄", defaultUnit: "gram", hint: "রসুনের দাম ও পরিমান লিখুন" },
+  { id: "others", name: "অন্যান্য", emoji: "•••", defaultUnit: "pc", hint: "আইটেমের নাম, দাম ও পরিমান লিখুন", isCustom: true },
+];
+
+let latestCommonBazarItems = BAZAR_COMMON_ITEMS;
+
+function renderCommonBazarIcon(preset, size = 24) {
+  if (!preset) return "🛒";
+  if (preset.iconUrl) {
+    return (
+      <img
+        src={preset.iconUrl}
+        alt=""
+        className="bazar-common-uploaded-icon"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  if (preset.iconType === "oil") {
+    return <OilBottleIcon size={size} />;
+  }
+  return preset.emoji || "🛒";
+}
+
+const BAZAR_MOSHLA_OPTIONS = [
+  "জিরা গুড়া",
+  "হলুদ গুড়া",
+  "মরিচ গুড়া",
+  "ধনিয়া গুড়া",
+  "গরম মসলা",
+  "মুরগির মসলা",
+  "মাছের মসলা",
+];
+
+const BAZAR_MANGSHO_OPTIONS = ["মুরগি", "গরু"];
+
+const BAZAR_SHOBJI_SUGGESTIONS = [
+  { name: "আলু", aliases: ["alu", "alo", "aloo", "aalu", "potato", "potatoes"] },
+  { name: "বেগুন", aliases: ["begun", "brinjal", "eggplant"] },
+  { name: "পটল", aliases: ["potol", "patol", "pointed gourd"] },
+  { name: "করলা", aliases: ["korola", "karela", "bitter gourd"] },
+  { name: "টমেটো", aliases: ["tomato", "tometo"] },
+  { name: "লাউ", aliases: ["lau", "bottle gourd"] },
+  { name: "মিষ্টি কুমড়া", aliases: ["misti kumra", "mishti kumra", "kumra", "pumpkin"] },
+  { name: "চাল কুমড়া", aliases: ["chal kumra", "ash gourd"] },
+  { name: "ঝিঙ্গা", aliases: ["jhinga", "jhinge", "ridge gourd"] },
+  { name: "চিচিঙ্গা", aliases: ["chichinga", "snake gourd"] },
+  { name: "ঢেঁড়স", aliases: ["derosh", "dherosh", "bhindi", "okra"] },
+  { name: "বরবটি", aliases: ["borboti", "long bean"] },
+  { name: "শিম", aliases: ["shim", "sim", "bean"] },
+  { name: "ফুলকপি", aliases: ["fulkopi", "phulkopi", "cauliflower"] },
+  { name: "বাঁধাকপি", aliases: ["badhakopi", "bandhakopi", "cabbage"] },
+  { name: "গাজর", aliases: ["gajor", "carrot"] },
+  { name: "মুলা", aliases: ["mula", "radish"] },
+  { name: "শসা", aliases: ["shosha", "sosa", "cucumber"] },
+  { name: "পেঁপে", aliases: ["pepe", "papaya"] },
+  { name: "কাঁচা কলা", aliases: ["kacha kola", "kola"] },
+  { name: "কাঁকরোল", aliases: ["kakrol", "teasel gourd"] },
+  { name: "কচুর মুখী", aliases: ["kochur mukhi", "mukhi", "kochu"] },
+  { name: "কচুর লতি", aliases: ["kochur loti", "loti"] },
+  { name: "লাল শাক", aliases: ["lal shak", "lal sak", "shak", "sak"] },
+  { name: "পালং শাক", aliases: ["palong shak", "palong", "spinach", "shak"] },
+  { name: "পুঁই শাক", aliases: ["pui shak", "pui", "shak"] },
+  { name: "কলমি শাক", aliases: ["kolmi shak", "kolmi", "shak"] },
+  { name: "লাউ শাক", aliases: ["lau shak", "shak"] },
+  { name: "ডাটা", aliases: ["data", "stem"] },
+  { name: "ধনেপাতা", aliases: ["dhonepata", "dhoniapata", "coriander"] },
+];
+
+const BAZAR_MACH_SUGGESTIONS = [
+  { name: "রুই", aliases: ["rui", "rohu"] },
+  { name: "কাতলা", aliases: ["katla", "catla"] },
+  { name: "তেলাপিয়া", aliases: ["tilapia", "telapiya", "telapia"] },
+  { name: "ইলিশ", aliases: ["ilish", "hilsa", "elish"] },
+  { name: "পাঙ্গাস", aliases: ["pangash", "pangas"] },
+  { name: "চিংড়ি", aliases: ["chingri", "shrimp", "prawn"] },
+  { name: "কই", aliases: ["koi"] },
+  { name: "শিং", aliases: ["shing", "sing"] },
+  { name: "মাগুর", aliases: ["magur"] },
+  { name: "পাবদা", aliases: ["pabda"] },
+  { name: "বোয়াল", aliases: ["boal"] },
+  { name: "মৃগেল", aliases: ["mrigel", "mrigal"] },
+  { name: "রূপচাঁদা", aliases: ["rupchanda", "rupchada"] },
+  { name: "টেংরা", aliases: ["tengra", "tangra"] },
+  { name: "শোল", aliases: ["shol"] },
+  { name: "চিতল", aliases: ["chital"] },
+  { name: "পুঁটি", aliases: ["puti", "punti"] },
+  { name: "কাচকি", aliases: ["kachki"] },
+  { name: "বাটা", aliases: ["bata"] },
+  { name: "কোরাল", aliases: ["koral", "bhetki"] },
+];
+
+const BAZAR_NESTED_SEARCH_OPTIONS = {
+  sobji: BAZAR_SHOBJI_SUGGESTIONS,
+  mach: BAZAR_MACH_SUGGESTIONS,
+  mosla: BAZAR_MOSHLA_OPTIONS.map((name) => ({
+    name,
+    aliases: ({
+      "জিরা গুড়া": ["jira", "jire", "cumin"],
+      "হলুদ গুড়া": ["holud", "turmeric"],
+      "মরিচ গুড়া": ["morich gura", "chili powder", "chilli powder"],
+      "ধনিয়া গুড়া": ["dhonia gura", "coriander powder"],
+      "গরম মসলা": ["gorom mosla", "garam masala"],
+      "মুরগির মসলা": ["murgir mosla", "chicken masala"],
+      "মাছের মসলা": ["macher mosla", "fish masala"],
+    })[name] || [],
+  })),
+  mangsho: BAZAR_MANGSHO_OPTIONS.map((name) => ({
+    name,
+    aliases: name === "মুরগি" ? ["murgi", "chicken"] : ["goru", "beef", "cow"],
+  })),
+};
+
+function isSobjiBaseName(baseName) {
+  const clean = String(baseName || "").trim();
+  if (!clean) return { isSobji: false, subName: "" };
+  const lower = clean.toLowerCase();
+  if (clean === "সবজি" || lower === "vegetables" || lower === "veg") {
+    return { isSobji: true, subName: "সাধারণ সবজি" };
+  }
+  const prefixMatch = clean.match(/^সবজি\s*[-–:]\s*(.+)$/);
+  if (prefixMatch) {
+    return { isSobji: true, subName: prefixMatch[1].trim() || "সাধারণ সবজি" };
+  }
+  const matched = BAZAR_SHOBJI_SUGGESTIONS.find(
+    (s) => s.name === clean || s.aliases.some((a) => a === lower),
+  );
+  if (matched) {
+    return { isSobji: true, subName: matched.name };
+  }
+  return { isSobji: false, subName: "" };
+}
+
+function classifyBazarDashboardGroup(baseName) {
+  const clean = String(baseName || "").trim();
+  if (!clean) return null;
+  const lower = clean.toLowerCase();
+
+  const sobjiInfo = isSobjiBaseName(clean);
+  if (sobjiInfo.isSobji) {
+    return { groupName: "সবজি", emoji: "🥬", subName: sobjiInfo.subName };
+  }
+
+  // Check মশলা before মাছ/মরিচ because "মাছের মসলা" & "মরিচ গুড়া" belong to মসলা
+  if (
+    clean === "মসলা" ||
+    lower === "spices" ||
+    lower === "masala" ||
+    clean.includes("মসলা") ||
+    clean.includes("গুড়া") ||
+    BAZAR_MOSHLA_OPTIONS.some((opt) => clean.toLowerCase().includes(opt.toLowerCase()))
+  ) {
+    const subName =
+      clean === "মসলা" || lower === "spices" || lower === "masala"
+        ? "সাধারণ মসলা"
+        : clean.replace(/^মসলা\s*[-–:]\s*/, "").trim() || "সাধারণ মসলা";
+    return { groupName: "মসলা", emoji: "🫙", subName };
+  }
+
+  // Check মাংস
+  if (
+    clean === "মাংস" ||
+    lower === "meat" ||
+    lower === "chicken" ||
+    lower === "beef" ||
+    clean.includes("মাংস") ||
+    BAZAR_MANGSHO_OPTIONS.some((opt) => clean === opt || clean.includes(opt))
+  ) {
+    const subName =
+      clean === "মাংস" || lower === "meat"
+        ? "সাধারণ মাংস"
+        : clean.replace(/^মাংস\s*[-–:]\s*/, "").trim() || "সাধারণ মাংস";
+    return { groupName: "মাংস", emoji: "🥩", subName };
+  }
+
+  // Check মাছ
+  const machPrefix = clean.match(/^মাছ\s*[-–:]\s*(.+)$/);
+  const matchedMach = BAZAR_MACH_SUGGESTIONS.find(
+    (m) => clean === m.name || clean === `${m.name} মাছ` || m.aliases.some((a) => a === lower),
+  );
+  if (
+    clean === "মাছ" ||
+    lower === "fish" ||
+    machPrefix ||
+    matchedMach ||
+    clean.includes("মাছ")
+  ) {
+    const subName =
+      clean === "মাছ" || lower === "fish"
+        ? "সাধারণ মাছ"
+        : machPrefix
+          ? machPrefix[1].trim() || "সাধারণ মাছ"
+          : matchedMach
+            ? matchedMach.name
+            : clean;
+    return { groupName: "মাছ", emoji: "🐟", subName };
+  }
+
+  return null;
+}
+
+function getBazarFieldSuggestions(list, query) {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return [];
+  const starts = [];
+  const contains = [];
+  for (const item of list) {
+    const nameLower = item.name.toLowerCase();
+    if (nameLower === q) continue;
+    if (nameLower.startsWith(q) || item.aliases.some((alias) => alias.startsWith(q))) {
+      starts.push(item);
+    } else if (nameLower.includes(q) || item.aliases.some((alias) => alias.includes(q))) {
+      contains.push(item);
+    }
+  }
+  return [...starts, ...contains].slice(0, 6);
+}
+
+function renderBazarSuggestList(list, emoji, query, onSelect, ariaLabel) {
+  const suggestions = getBazarFieldSuggestions(list, query);
+  if (!suggestions.length) return null;
+  return (
+    <div className="bazar-sobji-suggest-list" role="listbox" aria-label={ariaLabel}>
+      {suggestions.map((item) => (
+        <button
+          key={item.name}
+          type="button"
+          className="bazar-sobji-suggest-item"
+          onMouseDown={(event) => {
+            event.preventDefault();
+            onSelect(item.name);
+          }}
+          onClick={() => onSelect(item.name)}
+        >
+          <span aria-hidden="true">{emoji}</span>
+          <span>{item.name}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const BAZAR_ITEM_ALIAS_IDS = [
+  ["rice", "chal"],
+  ["dal", "dal"],
+  ["lentil", "dal"],
+  ["oil", "tel"],
+  ["veg", "sobji"],
+  ["meat", "mangsho"],
+  ["beef", "mangsho"],
+  ["chicken", "mangsho"],
+  ["fish", "mach"],
+  ["egg", "dim"],
+  ["spice", "mosla"],
+  ["onion", "peyaj"],
+  ["chili", "morich"],
+  ["chilli", "morich"],
+  ["garlic", "rosun"],
+];
+
+function renderBazarItemIcon(itemName, size = 18) {
+  const clean = String(itemName || "").replace(/\([^)]*\)/g, "").trim().toLowerCase();
+  const catalogItem = findBazarFoodCatalogItem(clean);
+  if (catalogItem?.emoji) return catalogItem.emoji;
+  const presets = [...latestCommonBazarItems]
+    .filter((preset) => !preset.isCustom && String(preset.name || "").trim())
+    .sort((a, b) => String(b.name).length - String(a.name).length);
+  let matched = presets.find((preset) => {
+    const presetName = String(preset.name).trim().toLowerCase();
+    return (
+      clean === presetName ||
+      clean.startsWith(`${presetName} -`) ||
+      clean.startsWith(`${presetName}:`) ||
+      clean.includes(presetName)
+    );
+  });
+  if (!matched && clean) {
+    const alias = BAZAR_ITEM_ALIAS_IDS.find(([key]) => clean.includes(key));
+    if (alias) matched = presets.find((preset) => preset.id === alias[1]);
+  }
+  if (matched) return renderCommonBazarIcon(matched, size);
+  if (
+    clean.includes("মসলা") ||
+    clean.includes("গুড়া") ||
+    BAZAR_MOSHLA_OPTIONS.some((opt) => clean.includes(opt.toLowerCase()))
+  ) {
+    return "🫙";
+  }
+  if (clean.includes("মুরগি") || clean.includes("গরু")) {
+    return "🥩";
+  }
+  if (isSobjiBaseName(clean).isSobji) {
+    return "🥬";
+  }
+  if (
+    BAZAR_MACH_SUGGESTIONS.some(
+      (m) => clean === m.name.toLowerCase() || m.aliases.some((a) => a === clean),
+    )
+  ) {
+    return "🐟";
+  }
+  return "🛒";
+}
+
+function renderBazarReportIcon(itemName, size = 18) {
+  const clean = normalizeBazarFoodSearch(
+    String(itemName || "").replace(/\([^)]*\)/g, ""),
+  );
+  if (clean === "তেল" || clean === "tel" || clean === "oil") {
+    return <OilBottleIcon size={size} />;
+  }
+  return renderBazarItemIcon(itemName, size);
 }
 
 const starter = {
@@ -254,7 +626,7 @@ const groupMonthBazar = (entries) => {
 const splitBazarItems = (items, targetAmount, totalAmount) => {
   if (!items || !items.length) return [{ item: "Bazar item", price: targetAmount }];
   if (items.length === 1) {
-    return [{ item: items[0].item, price: targetAmount }];
+    return [{ ...items[0], price: targetAmount }];
   }
   let running = 0;
   const result = [];
@@ -262,11 +634,11 @@ const splitBazarItems = (items, targetAmount, totalAmount) => {
     const it = items[i];
     if (i === items.length - 1) {
       const remaining = roundMoney(targetAmount - running);
-      result.push({ item: it.item, price: Math.max(0, remaining) });
+      result.push({ ...it, price: Math.max(0, remaining) });
     } else {
       const share = roundMoney((it.price / totalAmount) * targetAmount);
       running = roundMoney(running + share);
-      result.push({ item: it.item, price: share });
+      result.push({ ...it, price: share });
     }
   }
   return result;
@@ -424,12 +796,12 @@ const dhakaDateFormatters = {
   date: new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", day: "numeric", month: "long", year: "numeric" }),
   month: new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", month: "short" }),
   day: new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", day: "numeric" }),
-  time: new Intl.DateTimeFormat("en-GB", {
+  time: new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Dhaka",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    hour12: false,
+    hour12: true,
   }),
 };
 
@@ -464,22 +836,57 @@ function AccountTodayCard() {
   );
 }
 
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("Monthly Hisab crashed:", error, info);
+  }
+
+  returnToLogin = async () => {
+    try {
+      sessionStorage.removeItem("bh-user");
+      sessionStorage.removeItem("bh-page");
+      await supabase?.auth?.signOut();
+    } catch (error) {
+      console.warn("Could not fully clear the previous session:", error?.message);
+    } finally {
+      window.location.reload();
+    }
+  };
+
+  render() {
+    if (!this.state.error) return this.props.children;
+
+    return (
+      <div className="login-wrap">
+        <section className="login-card" role="alert">
+          <div className="brand-mark"><TriangleAlert /></div>
+          <h1>Unable to open the dashboard</h1>
+          <p>The app hit an unexpected error. Reload it, or return to login to start a clean session.</p>
+          <div className="error">{this.state.error?.message || "Unknown application error"}</div>
+          <button type="button" className="primary full" onClick={() => window.location.reload()}>
+            Reload app
+          </button>
+          <button type="button" className="secondary full" onClick={this.returnToLogin}>
+            Return to login
+          </button>
+        </section>
+      </div>
+    );
+  }
+}
+
 function App() {
   const [db, setDb] = useState(starter);
-  const [theme, setTheme] = useState(() => {
-    try {
-      return localStorage.getItem("bh-theme") === "dark" ? "dark" : "light";
-    } catch {
-      return "light";
-    }
-  });
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
-    try {
-      localStorage.setItem("bh-theme", theme);
-    } catch {}
-  }, [theme]);
+  const [colorMode, setColorMode] = useState(getInitialColorMode);
   const [session, setSession] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem("bh-user"));
@@ -491,12 +898,6 @@ function App() {
     try { return Boolean(JSON.parse(sessionStorage.getItem("bh-user"))?.id); }
     catch { return false; }
   });
-  useEffect(() => {
-    if (!session?.id) return;
-    supabase.from("member_contacts").select("*").order("category").then(({ data, error }) => {
-      if (!error && data) setContactRows(data);
-    });
-  }, [session?.id]);
   const [page, setPage] = useState(() => {
     const validPages = new Set([
       "overview", "my-account", "bazar", "contacts", "pay-rent",
@@ -514,7 +915,35 @@ function App() {
     [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const monthPickerRef = useRef(null);
   const monthPickerTriggerRef = useRef(null);
+  const [isPhoneView, setIsPhoneView] = useState(
+    () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(max-width: 700px)").matches),
+  );
+  useEffect(() => {
+    const query = window.matchMedia?.("(max-width: 700px)");
+    if (!query) return undefined;
+    const sync = () => setIsPhoneView(query.matches);
+    sync();
+    query.addEventListener?.("change", sync);
+    return () => query.removeEventListener?.("change", sync);
+  }, []);
   const monthChoices = (() => { const now = new Date(); return [-2,-1,0,1].map(offset => new Date(now.getFullYear(), now.getMonth()+offset, 1).toLocaleDateString("en-US", {month:"long",year:"numeric"})); })();
+  useEffect(() => {
+    document.documentElement.dataset.theme = colorMode;
+    document.documentElement.style.colorScheme = colorMode;
+    try {
+      localStorage.setItem("bh-theme", colorMode);
+    } catch {}
+  }, [colorMode]);
+  const toggleColorMode = () => setColorMode((current) => current === "dark" ? "light" : "dark");
+  const todayDateObj = new Date();
+  const todayWeekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(todayDateObj);
+  const todayFormattedDate = new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(todayDateObj);
+  const todayShortMonth = new Intl.DateTimeFormat("en-US", { month: "short" }).format(todayDateObj).toUpperCase();
+  const todayDayNum = new Intl.DateTimeFormat("en-US", { day: "numeric" }).format(todayDateObj);
   useEffect(() => {
     if (!monthMenuOpen) return undefined;
     const closeOnOutsideClick = (event) => {
@@ -546,6 +975,28 @@ function App() {
   const [contactBusy, setContactBusy] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [contactError, setContactError] = useState("");
+
+  useEffect(() => {
+    if (!session?.id || !supabaseConfigured || !supabase) return undefined;
+
+    let cancelled = false;
+    supabase
+      .from("member_contacts")
+      .select("*")
+      .order("category")
+      .then(({ data, error: contactsError }) => {
+        if (!cancelled && !contactsError && data) setContactRows(data);
+      })
+      .catch((contactsError) => {
+        if (!cancelled) {
+          console.warn("Could not load member contacts:", contactsError?.message);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.id]);
 
   const [profileOpen, setProfileOpen] = useState(false);
   async function updateProfileEmail(e) {
@@ -654,24 +1105,175 @@ function App() {
     combinedMemberAmount: "",
     combinedMemberId: "",
   });
-  const [bazarRows, setBazarRows] = useState([{ item: "", price: "" }, { item: "", price: "" }, { item: "", price: "" }]);
+  const [bazarRows, setBazarRows] = useState([]);
+  const [bazarItemPicker, setBazarItemPicker] = useState({
+    itemId: "",
+    customName: "",
+    unitPrice: "",
+    qty: "",
+    unit: "kg",
+  });
+  const [bazarItemSearch, setBazarItemSearch] = useState("");
+  const [bazarSuggestionOpen, setBazarSuggestionOpen] = useState(false);
+  const [bazarPickerError, setBazarPickerError] = useState("");
+  const [bazarAddCheckPop, setBazarAddCheckPop] = useState(false);
+  const bazarAddCheckTimerRef = useRef(0);
   const [bazarNeededItems, setBazarNeededItems] = useState([]);
   const [bazarNeededDraft, setBazarNeededDraft] = useState("");
+  const [bazarNeededPicker, setBazarNeededPicker] = useState({
+    itemId: "",
+    customName: "",
+    unitPrice: "",
+    qty: "",
+    unit: "kg",
+  });
+  const [bazarNeededItemSearch, setBazarNeededItemSearch] = useState("");
+  const [bazarNeededSuggestionOpen, setBazarNeededSuggestionOpen] = useState(false);
+  const [bazarNeededPickerError, setBazarNeededPickerError] = useState("");
   const [bazarNeededBusy, setBazarNeededBusy] = useState(false);
   const [showBazarNeeded, setShowBazarNeeded] = useState(false);
+  const [showBazarNeededLoginPopup, setShowBazarNeededLoginPopup] = useState(false);
+  const pendingBazarNeededItems = bazarNeededItems.filter((item) => !item.done);
   const [bazarDetailsEntry, setBazarDetailsEntry] = useState(null);
   const [bazarEditEntry, setBazarEditEntry] = useState(null);
+  const [bazarEditPicker, setBazarEditPicker] = useState({
+    itemId: "",
+    customName: "",
+    unitPrice: "",
+    qty: "",
+    unit: "kg",
+  });
+  const [bazarEditItemSearch, setBazarEditItemSearch] = useState("");
+  const [bazarEditSuggestionOpen, setBazarEditSuggestionOpen] = useState(false);
+  const [bazarEditPickerError, setBazarEditPickerError] = useState("");
+  const [bazarEditCheckPop, setBazarEditCheckPop] = useState(false);
+  const bazarEditCheckTimerRef = useRef(0);
   const [bazarActionMenuId, setBazarActionMenuId] = useState(null);
   const bazarActionMenuRef = useRef(null);
   const [bazarFilterMenuOpen, setBazarFilterMenuOpen] = useState(false);
+  const [bazarUsageDetailsItem, setBazarUsageDetailsItem] = useState(null);
+  const [monthlyBazarHistory, setMonthlyBazarHistory] = useState([]);
+  const [bazarTrendRange, setBazarTrendRange] = useState("30D");
+  const [bazarTrendFocusIdx, setBazarTrendFocusIdx] = useState(null);
   const [bazarSearch, setBazarSearch] = useState("");
   const bazarFilterRef = useRef(null);
   const bazarFilterTriggerRef = useRef(null);
   const [bazarSuccessToast, setBazarSuccessToast] = useState("");
+  const isDeleteSuccessToast = /\b(?:deleted|removed)\b/i.test(bazarSuccessToast);
   const [pendingBazarDelete, setPendingBazarDelete] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
-  const updateBazarRow = (index, field, value) => {
-    const next = bazarRows.map((row, i) => i === index ? { ...row, [field]: value } : row);
+  const [commonBazarItems, setCommonBazarItems] = useState(BAZAR_COMMON_ITEMS);
+  const [commonItemsModalOpen, setCommonItemsModalOpen] = useState(false);
+  const [commonItemsBusy, setCommonItemsBusy] = useState(false);
+  const [commonItemForm, setCommonItemForm] = useState({
+    editingId: "",
+    name: "",
+    emoji: "🛒",
+    iconUrl: "",
+    defaultUnit: "kg",
+  });
+  const [commonIconUploading, setCommonIconUploading] = useState(false);
+  latestCommonBazarItems = commonBazarItems;
+  const chosenBazarPreset =
+    commonBazarItems.find((item) => item.id === bazarItemPicker.itemId) || null;
+  const selectedBazarPreset = chosenBazarPreset || commonBazarItems[0] || BAZAR_COMMON_ITEMS[0];
+  const normalizedBazarItemSearch = normalizeBazarFoodSearch(bazarItemSearch);
+  const getCommonBazarSuggestions = (query) => {
+    const normalized = normalizeBazarFoodSearch(query);
+    const visibleParents = commonBazarItems.filter((item) => !item.isCustom);
+    if (!normalized) {
+      return visibleParents.map((item, index) => ({
+        ...item,
+        suggestionKey: `preset-${item.id}`,
+        parentName: item.name,
+        subItem: "",
+        searchScore: index,
+      }));
+    }
+
+    const parentSuggestions = visibleParents
+      .map((item, index) => {
+        const aliases = BAZAR_ITEM_ALIAS_IDS
+          .filter(([, itemId]) => itemId === item.id)
+          .map(([alias]) => alias);
+        const searchScore = getBazarFoodSearchScore(
+          { name: item.name, aliases: [item.id, ...aliases] },
+          normalized,
+        );
+        return {
+          ...item,
+          suggestionKey: `preset-${item.id}`,
+          parentName: item.name,
+          subItem: "",
+          searchScore,
+          sortIndex: index,
+        };
+      })
+      .filter((item) => Number.isFinite(item.searchScore));
+
+    const customParent = commonBazarItems.find((item) => item.isCustom) || null;
+    const catalogSuggestions = searchBazarFoodCatalog(normalized, 24)
+      .map((catalogItem, index) => {
+        const parent = commonBazarItems.find((item) => item.id === catalogItem.parentId)
+          || (catalogItem.parentId === "others" ? customParent : null);
+        if (!parent) return null;
+        const resolvedName = catalogItem.parentId === "sobji"
+          ? `সবজি - ${catalogItem.name}`
+          : catalogItem.parentId === "mach"
+            ? `মাছ - ${catalogItem.name}`
+            : catalogItem.name;
+        return {
+          ...parent,
+          name: catalogItem.name,
+          emoji: catalogItem.emoji,
+          iconUrl: "",
+          iconType: undefined,
+          defaultUnit: catalogItem.defaultUnit || parent.defaultUnit,
+          aliases: catalogItem.aliases || [],
+          suggestionKey: `food-${catalogItem.id}`,
+          parentName: parent.name,
+          subItem: catalogItem.name,
+          resolvedName,
+          isCatalogItem: true,
+          searchScore: catalogItem.searchScore,
+          sortIndex: visibleParents.length + index,
+        };
+      })
+      .filter(Boolean);
+
+    const seen = new Set();
+    return [...parentSuggestions, ...catalogSuggestions]
+      .sort((a, b) => a.searchScore - b.searchScore || a.sortIndex - b.sortIndex)
+      .filter((item) => {
+        const key = normalizeBazarFoodSearch(item.name);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 15);
+  };
+  const getBazarPickerSuggestionPatch = (suggestion) => ({
+    itemId: suggestion.id,
+    customName: suggestion.isCustom && suggestion.isCatalogItem ? suggestion.name : "",
+    catalogName: suggestion.resolvedName || "",
+    catalogEmoji: suggestion.isCatalogItem ? suggestion.emoji : "",
+    unit: suggestion.defaultUnit,
+    ...(suggestion.id === "sobji" && suggestion.subItem ? { sobjiName: suggestion.subItem } : {}),
+    ...(suggestion.id === "mach" && suggestion.subItem ? { machName: suggestion.subItem } : {}),
+    ...(suggestion.id === "mosla" && suggestion.subItem ? { moshlaType: suggestion.subItem } : {}),
+    ...(suggestion.id === "mangsho" && suggestion.subItem ? { mangshoType: suggestion.subItem } : {}),
+  });
+  const bazarItemSuggestions = getCommonBazarSuggestions(bazarItemSearch);
+  const chosenBazarNeededPreset =
+    commonBazarItems.find((item) => item.id === bazarNeededPicker.itemId) || null;
+  const bazarNeededSuggestions = getCommonBazarSuggestions(bazarNeededItemSearch);
+  const chosenBazarEditPreset =
+    commonBazarItems.find((item) => item.id === bazarEditPicker.itemId) || null;
+  const bazarEditSuggestions = getCommonBazarSuggestions(bazarEditItemSearch);
+  const bazarPickerQty = Math.max(0, Number(bazarItemPicker.qty) || 0);
+  const bazarPickerUnitPrice = Math.max(0, Number(bazarItemPicker.unitPrice) || 0);
+  const bazarPickerSubtotal = roundMoney(bazarPickerUnitPrice);
+  const applyBazarRowsUpdate = (next) => {
     setBazarRows(next);
     const filled = next.filter((row) => row.item.trim() && Number(row.price) > 0);
     const nextTotal = filled.reduce((sum, row) => sum + Number(row.price), 0);
@@ -687,6 +1289,166 @@ function App() {
         items: filled.map((row) => row.item.trim()).join(", "),
         combinedMemberAmount,
       };
+    });
+  };
+  const updateBazarRow = (index, field, value) => {
+    const next = bazarRows.map((row, i) => (i === index ? { ...row, [field]: value } : row));
+    applyBazarRowsUpdate(next);
+  };
+  const removeBazarRow = (index) => {
+    const next = bazarRows.filter((_, i) => i !== index);
+    applyBazarRowsUpdate(next);
+  };
+  const resolveBazarPickerBaseName = (preset, picker) => {
+    if (picker.catalogName) return picker.catalogName.trim();
+    if (preset.isCustom) return picker.customName.trim();
+    if (preset.id === "mosla") return picker.moshlaType || BAZAR_MOSHLA_OPTIONS[0];
+    if (preset.id === "mangsho") return picker.mangshoType || BAZAR_MANGSHO_OPTIONS[0];
+    if (preset.id === "sobji") {
+      const extra = picker.sobjiName.trim();
+      return extra ? `সবজি - ${extra}` : preset.name;
+    }
+    if (preset.id === "mach") {
+      const extra = picker.machName.trim();
+      if (!extra) return preset.name;
+      return extra.includes("মাছ") ? extra : `মাছ - ${extra}`;
+    }
+    return preset.name;
+  };
+  const addPickerItemToBazarRows = () => {
+    if (!chosenBazarPreset) {
+      setBazarPickerError("Select an item from the suggestions.");
+      setBazarSuggestionOpen(true);
+      return;
+    }
+    const baseName = resolveBazarPickerBaseName(selectedBazarPreset, bazarItemPicker);
+    if (!baseName) {
+      setBazarPickerError("Please enter an item name.");
+      return;
+    }
+    if (bazarPickerQty <= 0) {
+      setBazarPickerError("Enter the item quantity.");
+      return;
+    }
+    if (bazarPickerSubtotal <= 0) {
+      setBazarPickerError("Please enter a price greater than 0.");
+      return;
+    }
+    setBazarPickerError("");
+    const next = [
+      ...bazarRows.filter((row) => row.item.trim() || Number(row.price) > 0),
+      {
+        item: baseName,
+        quantity: bazarPickerQty,
+        unit: bazarItemPicker.unit || selectedBazarPreset.defaultUnit,
+        price: String(bazarPickerSubtotal),
+      },
+    ];
+    applyBazarRowsUpdate(next);
+    setBazarItemPicker({
+      itemId: "",
+      customName: "",
+      unitPrice: "",
+      qty: "",
+      unit: "kg",
+    });
+    setBazarItemSearch("");
+    setBazarSuggestionOpen(false);
+    if (bazarAddCheckTimerRef.current) {
+      window.clearTimeout(bazarAddCheckTimerRef.current);
+    }
+    setBazarAddCheckPop(false);
+    window.requestAnimationFrame(() => {
+      setBazarAddCheckPop(true);
+      bazarAddCheckTimerRef.current = window.setTimeout(() => {
+        setBazarAddCheckPop(false);
+      }, 850);
+    });
+  };
+  const selectedBazarEditPreset =
+    commonBazarItems.find((item) => item.id === bazarEditPicker.itemId) || commonBazarItems[0] || BAZAR_COMMON_ITEMS[0];
+  const bazarEditPickerQty = Math.max(0, Number(bazarEditPicker.qty) || 0);
+  const bazarEditPickerPrice = roundMoney(Math.max(0, Number(bazarEditPicker.unitPrice) || 0));
+  const addPickerItemToEditBazar = () => {
+    if (!bazarEditEntry) return;
+    if (!chosenBazarEditPreset) {
+      setBazarEditPickerError("Select an item from the suggestions.");
+      setBazarEditSuggestionOpen(true);
+      return;
+    }
+    const baseName = resolveBazarPickerBaseName(selectedBazarEditPreset, bazarEditPicker);
+    if (!baseName) {
+      setBazarEditPickerError("Please enter an item name.");
+      return;
+    }
+    if (bazarEditPickerQty <= 0) {
+      setBazarEditPickerError("Enter the item quantity.");
+      return;
+    }
+    if (bazarEditPickerPrice <= 0) {
+      setBazarEditPickerError("Please enter a price greater than 0.");
+      return;
+    }
+    setBazarEditPickerError("");
+    setBazarEditEntry((old) => {
+      if (!old) return old;
+      const nextItems = [
+        ...(old.editItems || []).filter((r) => String(r.item || "").trim() || Number(r.price) > 0),
+        {
+          item: baseName,
+          quantity: bazarEditPickerQty,
+          unit: bazarEditPicker.unit || selectedBazarEditPreset.defaultUnit,
+          price: String(bazarEditPickerPrice),
+        },
+      ];
+      const nextTotal = nextItems.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
+      let combinedMemberAmount = old.combinedMemberAmount;
+      if (old.editPaidBy === "combine") {
+        const cashNum = parseFloat(old.combinedCashAmount) || 0;
+        combinedMemberAmount = String(Math.max(0, roundMoney(nextTotal - cashNum)));
+      }
+      return { ...old, editItems: nextItems, combinedMemberAmount };
+    });
+    setBazarEditPicker({ itemId: "", customName: "", unitPrice: "", qty: "", unit: "kg" });
+    setBazarEditItemSearch("");
+    setBazarEditSuggestionOpen(false);
+    if (bazarEditCheckTimerRef.current) {
+      window.clearTimeout(bazarEditCheckTimerRef.current);
+    }
+    setBazarEditCheckPop(false);
+    window.requestAnimationFrame(() => {
+      setBazarEditCheckPop(true);
+      bazarEditCheckTimerRef.current = window.setTimeout(() => {
+        setBazarEditCheckPop(false);
+      }, 850);
+    });
+  };
+  const updateBazarEditItem = (index, field, value) => {
+    setBazarEditEntry((old) => {
+      if (!old) return old;
+      const nextItems = (old.editItems || []).map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      );
+      const nextTotal = nextItems.reduce((sum, row) => sum + (Number(row.price) || 0), 0);
+      let combinedMemberAmount = old.combinedMemberAmount;
+      if (old.editPaidBy === "combine") {
+        const cashNum = parseFloat(old.combinedCashAmount) || 0;
+        combinedMemberAmount = String(Math.max(0, roundMoney(nextTotal - cashNum)));
+      }
+      return { ...old, editItems: nextItems, combinedMemberAmount };
+    });
+  };
+  const removeBazarEditItem = (index) => {
+    setBazarEditEntry((old) => {
+      if (!old) return old;
+      const nextItems = (old.editItems || []).filter((_, itemIndex) => itemIndex !== index);
+      const nextTotal = nextItems.reduce((sum, row) => sum + (Number(row.price) || 0), 0);
+      let combinedMemberAmount = old.combinedMemberAmount;
+      if (old.editPaidBy === "combine") {
+        const cashNum = parseFloat(old.combinedCashAmount) || 0;
+        combinedMemberAmount = String(Math.max(0, roundMoney(nextTotal - cashNum)));
+      }
+      return { ...old, editItems: nextItems, combinedMemberAmount };
     });
   };
   useEffect(() => {
@@ -1301,6 +2063,45 @@ function App() {
     return matchesMember && matchesSearch;
   });
   const bazarTotal = monthBazar.reduce((s, b) => s + Number(b.amount || 0), 0);
+  useEffect(() => {
+    if (page !== "bazar-report" || !supabaseConfigured) return undefined;
+    let cancelled = false;
+    const parseMonthOrd = (label) => {
+      const m = String(label || "").trim().match(/^([A-Za-z]+)\s+(\d{4})$/);
+      if (!m) return -1;
+      const idx = ["january","february","march","april","may","june","july","august","september","october","november","december"].indexOf(m[1].toLowerCase());
+      return idx < 0 ? -1 : Number(m[2]) * 12 + idx;
+    };
+    (async () => {
+      try {
+        const [{ data: monthsRows, error: mErr }, { data: entryRows, error: eErr }] = await Promise.all([
+          supabase.from("months").select("id,label"),
+          supabase.from("bazar_entries").select("month_id,amount"),
+        ]);
+        if (mErr || eErr || cancelled) return;
+        const totalsByMonthId = new Map();
+        (entryRows || []).forEach((row) => {
+          const mid = row.month_id;
+          totalsByMonthId.set(mid, roundMoney((totalsByMonthId.get(mid) || 0) + (Number(row.amount) || 0)));
+        });
+        const merged = (monthsRows || [])
+          .map((m) => ({
+            id: m.id,
+            label: m.label,
+            ord: parseMonthOrd(m.label),
+            amount: m.label === month ? bazarTotal : (totalsByMonthId.get(m.id) || 0),
+          }))
+          .filter((m) => m.ord >= 0 && (m.amount > 0 || m.label === month))
+          .sort((a, b) => a.ord - b.ord);
+        if (!merged.some((m) => m.label === month)) {
+          merged.push({ id: "current", label: month, ord: parseMonthOrd(month), amount: bazarTotal });
+          merged.sort((a, b) => a.ord - b.ord);
+        }
+        if (!cancelled) setMonthlyBazarHistory(merged.slice(-6));
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [bazarTotal, month, page]);
   const selectedBazarTotal = monthBazar
     .filter((entry) => {
       if (bazarFilter === "all") return true;
@@ -1308,6 +2109,189 @@ function App() {
       return !entry.paidFromCash && entry.paidBy === bazarFilter;
     })
     .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const [showAllBazarReportItems, setShowAllBazarReportItems] = useState(false);
+  const bazarItemUsageReport = useMemo(() => {
+    const pickItemEmoji = (name) => {
+      const lower = String(name || "").toLowerCase();
+      if (/spice|masala|mosla|মসলা|হলুদ|গুড়া|জিরা|ধনিয়া/.test(lower)) return "🫙";
+      if (/chal|চাল|rice/.test(lower)) return "🍚";
+      if (/dal|ডাল|lentil/.test(lower)) return "🥣";
+      if (/tel|oil|তেল/.test(lower)) return "oil";
+      if (/onion|peyaj|পেঁয়াজ|পেয়াজ/.test(lower)) return "🧅";
+      if (/morich|chili|মরিচ/.test(lower)) return "🌶️";
+      if (/rosun|garlic|রসুন/.test(lower)) return "🧄";
+      if (/potato|alu|আলু/.test(lower)) return "🥔";
+      if (/egg|dim|ডিম/.test(lower)) return "🥚";
+      if (/chicken|murgi|beef|meat|মাংস|মুরগি|গরু/.test(lower)) return "🥩";
+      if (/fish|mach|মাছ/.test(lower)) return "🐟";
+      if (/veg|sobji|শাক|সবজি/.test(lower)) return "🥬";
+      if (/milk|dudh|দুধ/.test(lower)) return "🥛";
+      return "🛒";
+    };
+    const buckets = new Map();
+    let grandTotal = 0;
+    groupedMonthBazar.forEach((entry) => {
+      let parsed = Array.isArray(entry.items) ? entry.items : null;
+      if (!parsed && typeof entry.items === "string") {
+        try {
+          const maybe = JSON.parse(entry.items);
+          if (Array.isArray(maybe)) parsed = maybe;
+        } catch {}
+      }
+      if (!parsed || parsed.length === 0) {
+        const label = getBazarItemSummary(entry.items).trim() || "Bazar";
+        const amt = Math.max(0, Number(entry.amount) || 0);
+        if (amt <= 0) return;
+        parsed = [{ item: label, price: amt }];
+      }
+      parsed.forEach((rawItem) => {
+        const rawLabel =
+          typeof rawItem === "string"
+            ? rawItem.trim()
+            : String(rawItem?.item ?? rawItem?.name ?? rawItem?.title ?? "").trim();
+        const price =
+          typeof rawItem === "object" && rawItem !== null
+            ? Math.max(0, Number(rawItem.price ?? rawItem.amount) || 0)
+            : 0;
+        if (!rawLabel) return;
+        const qtyMatch = rawLabel.match(/^(.+?)\s*\(([\d.]+)\s*([a-zA-Z]+)\)$/);
+        const rawBaseName = (qtyMatch ? qtyMatch[1] : rawLabel).trim();
+        const structuredQty =
+          typeof rawItem === "object" && rawItem !== null
+            ? Math.max(0, Number(rawItem.quantity ?? rawItem.qty) || 0)
+            : 0;
+        const structuredUnit =
+          typeof rawItem === "object" && rawItem !== null
+            ? String(rawItem.unit || "").trim().toLowerCase()
+            : "";
+        const qtyVal = structuredQty > 0 ? structuredQty : qtyMatch ? Number(qtyMatch[2]) || 0 : 0;
+        const qtyUnit =
+          structuredQty > 0
+            ? structuredUnit || "pcs"
+            : qtyMatch
+              ? qtyMatch[3].toLowerCase()
+              : "";
+        const groupInfo = classifyBazarDashboardGroup(rawBaseName);
+        const baseName = groupInfo ? groupInfo.groupName : rawBaseName;
+        const key = baseName.toLowerCase();
+        const existing = buckets.get(key) || {
+          key,
+          name: baseName,
+          emoji: groupInfo ? groupInfo.emoji : pickItemEmoji(baseName),
+          totalSpent: 0,
+          count: 0,
+          qtyByUnit: {},
+          subMap: new Map(),
+        };
+        existing.totalSpent = roundMoney(existing.totalSpent + price);
+        existing.count += 1;
+        if (qtyVal > 0 && qtyUnit) {
+          existing.qtyByUnit[qtyUnit] = roundMoney((existing.qtyByUnit[qtyUnit] || 0) + qtyVal);
+        }
+        if (groupInfo && groupInfo.subName) {
+          const subKey = groupInfo.subName.toLowerCase();
+          const subExisting = existing.subMap.get(subKey) || {
+            key: subKey,
+            name: groupInfo.subName,
+            emoji: groupInfo.emoji,
+            totalSpent: 0,
+            count: 0,
+            qtyByUnit: {},
+          };
+          subExisting.totalSpent = roundMoney(subExisting.totalSpent + price);
+          subExisting.count += 1;
+          if (qtyVal > 0 && qtyUnit) {
+            subExisting.qtyByUnit[qtyUnit] = roundMoney(
+              (subExisting.qtyByUnit[qtyUnit] || 0) + qtyVal,
+            );
+          }
+          existing.subMap.set(subKey, subExisting);
+        }
+        buckets.set(key, existing);
+        grandTotal = roundMoney(grandTotal + price);
+      });
+    });
+    const list = Array.from(buckets.values())
+      .sort((a, b) => b.totalSpent - a.totalSpent || b.count - a.count)
+      .map((item, idx) => {
+        const qtyParts = Object.entries(item.qtyByUnit).map(([u, v]) => `${v} ${u}`);
+        const subItems = item.subMap
+          ? Array.from(item.subMap.values())
+              .sort((a, b) => b.totalSpent - a.totalSpent || b.count - a.count)
+              .map((sub) => ({
+                ...sub,
+                qtySummary: Object.entries(sub.qtyByUnit)
+                  .map(([u, v]) => `${v} ${u}`)
+                  .join(" + "),
+              }))
+          : [];
+        return {
+          ...item,
+          qtySummary: qtyParts.join(" + "),
+          subItems,
+          sharePct: grandTotal > 0 ? (item.totalSpent / grandTotal) * 100 : 0,
+          colorIndex: idx % 6,
+        };
+      });
+
+    const dailyMap = new Map();
+    const payerMap = new Map();
+    const addPayer = (key, name, amt) => {
+      if (amt <= 0) return;
+      const cur = payerMap.get(key) || { key, name, amount: 0, count: 0 };
+      cur.amount = roundMoney(cur.amount + amt);
+      cur.count += 1;
+      payerMap.set(key, cur);
+    };
+    groupedMonthBazar.forEach((entry) => {
+      const dateStr = String(entry.date || "").trim();
+      const amt = Math.max(0, Number(entry.amount) || 0);
+      if (dateStr && amt > 0) {
+        const dCur = dailyMap.get(dateStr) || { date: dateStr, amount: 0, count: 0 };
+        dCur.amount = roundMoney(dCur.amount + amt);
+        dCur.count += 1;
+        dailyMap.set(dateStr, dCur);
+      }
+      if (entry.isCombined) {
+        const cashAmt = Math.max(0, Number(entry.cashAmount ?? entry.cashEntry?.amount ?? 0));
+        const memAmt = Math.max(0, Number(entry.memberAmount ?? entry.memberEntry?.amount ?? 0));
+        addPayer("cash-in-hand", "Cash in Hand", cashAmt);
+        const mId = entry.paidBy || "member";
+        const mName = db.users.find((u) => u.id === mId)?.name || "Member";
+        addPayer(mId, mName, memAmt);
+      } else if (entry.paidFromCash) {
+        addPayer("cash-in-hand", "Cash in Hand", amt);
+      } else {
+        const mId = entry.paidBy || "member";
+        const mName = db.users.find((u) => u.id === mId)?.name || "Member";
+        addPayer(mId, mName, amt);
+      }
+    });
+    const dailyTrend = Array.from(dailyMap.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((d) => ({
+        ...d,
+        label: d.date.slice(5),
+      }));
+    const maxDaily = dailyTrend.reduce((m, d) => Math.max(m, d.amount), 0);
+    const payerTotalSum = Array.from(payerMap.values()).reduce((s, p) => s + p.amount, 0);
+    const payerTotals = Array.from(payerMap.values())
+      .sort((a, b) => b.amount - a.amount)
+      .map((p, idx) => ({
+        ...p,
+        sharePct: payerTotalSum > 0 ? (p.amount / payerTotalSum) * 100 : 0,
+        colorIndex: idx % 6,
+      }));
+
+    return {
+      items: list,
+      totalSpent: grandTotal > 0 ? grandTotal : bazarTotal,
+      maxSpent: list[0]?.totalSpent || 0,
+      dailyTrend,
+      maxDaily,
+      payerTotals,
+    };
+  }, [bazarTotal, db.users, groupedMonthBazar]);
   // Utilities are admin-configured expenses; bazar is tracked separately as meal cost.
   const utilityCategories = db.categories.filter(
     (c) => c.name.toLowerCase() !== "bazar",
@@ -2160,6 +3144,8 @@ function App() {
       setInboxMediaFiles([]);
       setInboxMediaOpen(false);
       setInboxMenuOpen(false);
+      setBazarSuccessToast("Conversation deleted successfully");
+      window.setTimeout(() => setBazarSuccessToast(""), 2600);
     } catch (deleteError) {
       console.error("Could not delete inbox conversation:", deleteError);
       setInboxError(deleteError?.message || "Could not delete conversation. Please try again.");
@@ -2256,6 +3242,86 @@ function App() {
       setNoticeModal(false);
     } finally {
       setNoticeReadBusy(false);
+    }
+  }
+
+  async function markNoticeRead(notice, profileId = session?.id) {
+    if (!profileId || !notice) return;
+    const noticeIdStr = String(notice.id);
+    if (readNoticeIds.includes(noticeIdStr)) return;
+    const nextReadIds = Array.from(new Set([...readNoticeIds, noticeIdStr]));
+    writeStoredNotificationIds(
+      NOTIFICATION_READ_STORAGE,
+      profileId,
+      nextReadIds,
+    );
+    if (notice.source === "notice" && supabase) {
+      try {
+        await supabase
+          .from("notice_reads")
+          .upsert([{ user_id: profileId, notice_id: notice.id, read_at: new Date().toISOString() }], { onConflict: "user_id,notice_id" });
+      } catch (err) {
+        console.warn("Could not sync single notice read:", err?.message);
+      }
+    }
+    setReadNoticeIds(nextReadIds);
+  }
+
+  async function handleNotificationClick(n) {
+    if (!n) return;
+    void markNoticeRead(n, user?.id || session?.id);
+    if (n.activity_type === "bazar_added" || n.title === "New Bazar Added") {
+      let targetBazar = (db.bazars || []).find((b) => String(b.id) === String(n.entity_id));
+      if (!targetBazar && n.entity_id && supabase) {
+        try {
+          const { data: bData } = await supabase
+            .from("bazar_entries")
+            .select("id,entry_date,amount,paid_by,paid_from_cash,items,created_by")
+            .eq("id", n.entity_id)
+            .maybeSingle();
+          if (bData) {
+            targetBazar = {
+              id: bData.id,
+              date: bData.entry_date,
+              amount: Number(bData.amount),
+              paidBy: bData.paid_by,
+              paidFromCash: Boolean(bData.paid_from_cash),
+              createdBy: bData.created_by,
+              items: (() => {
+                const raw = bData.items;
+                if (Array.isArray(raw)) return raw;
+                const text = String(raw || "");
+                try { const parsed = JSON.parse(text); if (Array.isArray(parsed)) return parsed; } catch {}
+                return text.split(/[,\n]/).map((v) => v.trim()).filter(Boolean);
+              })(),
+            };
+          }
+        } catch (err) {
+          console.warn("Could not fetch clicked bazar:", err);
+        }
+      }
+      if (!targetBazar && n.metadata) {
+        targetBazar = {
+          id: n.entity_id || n.id,
+          date: n.created_at ? n.created_at.slice(0, 10) : todayForDateInput(),
+          amount: Number(n.metadata.amount || 0),
+          paidBy: n.metadata.member_id,
+          paidFromCash: Boolean(n.metadata.paid_from_cash),
+          createdBy: n.metadata.actor_id,
+          items: n.metadata.items,
+        };
+      }
+      setNoticePanelOpen(false);
+      setPage("bazar");
+      if (targetBazar) {
+        setBazarDetailsEntry(targetBazar);
+      }
+    } else if (n.activity_type === "payment_confirmed") {
+      setNoticePanelOpen(false);
+      setPage("account");
+    } else if (n.activity_type === "cash_contribution_added") {
+      setNoticePanelOpen(false);
+      setPage("account");
     }
   }
 
@@ -2527,6 +3593,7 @@ function App() {
         { data: sharedUtilitySetting, error: sharedUtilityError },
         { data: monthUtilitySetting, error: monthUtilityError },
         { data: bazarNeededSetting, error: bazarNeededError },
+        { data: commonBazarSetting, error: commonBazarError },
       ] = await Promise.all([
         supabase
           .from("profiles")
@@ -2558,6 +3625,11 @@ function App() {
           .select("value")
           .eq("key", "bazar_needed_items")
           .maybeSingle(),
+        supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", "bazar_common_items")
+          .maybeSingle(),
       ]);
       if (pe) throw pe;
       if (mealSettingError) throw mealSettingError;
@@ -2565,6 +3637,30 @@ function App() {
       if (sharedUtilityError) throw sharedUtilityError;
       if (monthUtilityError) throw monthUtilityError;
       if (bazarNeededError) throw bazarNeededError;
+      if (!commonBazarError && commonBazarSetting?.value) {
+        try {
+          const parsedCommon = JSON.parse(commonBazarSetting.value);
+          if (Array.isArray(parsedCommon) && parsedCommon.length > 0) {
+            const normalizedCommon = parsedCommon
+              .filter((item) => item && typeof item === "object" && String(item.name || "").trim())
+              .map((item, idx) => ({
+                id: String(item.id || `custom_${idx}`),
+                name: String(item.name).trim(),
+                emoji: String(item.emoji || "🛒").trim() || "🛒",
+                iconUrl: item.iconUrl ? String(item.iconUrl).trim() : "",
+                iconType: item.iconType ? String(item.iconType) : undefined,
+                defaultUnit: String(item.defaultUnit || "kg"),
+                hint: item.hint ? String(item.hint) : `${String(item.name).trim()} এর দাম ও পরিমান লিখুন`,
+                isCustom: Boolean(item.isCustom),
+              }));
+            if (normalizedCommon.length > 0) {
+              setCommonBazarItems(normalizedCommon);
+            }
+          }
+        } catch (err) {
+          console.warn("Could not parse bazar_common_items:", err?.message);
+        }
+      }
       const activeProfile = (profiles || []).find(
         (p) => p.id === profileId && p.active,
       );
@@ -2585,14 +3681,27 @@ function App() {
           savedBazarNeededItems = parsedNeededItems
             .map((item, index) => {
               if (typeof item === "string") {
-                return { id: `legacy-${index}`, name: item.trim(), done: false };
+                return {
+                  id: `legacy-${index}`,
+                  name: item.trim(),
+                  quantity: 0,
+                  unit: "",
+                  estimatedPrice: 0,
+                  done: false,
+                };
               }
               if (!item || typeof item !== "object") return null;
               return {
                 id: String(item.id || `legacy-${index}`),
                 name: String(item.name || item.item || "").trim(),
+                quantity: Math.max(0, Number(item.quantity ?? item.qty) || 0),
+                unit: String(item.unit || "").trim(),
+                estimatedPrice: Math.max(0, Number(item.estimatedPrice ?? item.price) || 0),
                 done: Boolean(item.done),
                 addedBy: item.addedBy ? String(item.addedBy) : "",
+                boughtBy: item.boughtBy ? String(item.boughtBy) : "",
+                boughtByName: item.boughtByName ? String(item.boughtByName) : "",
+                boughtPrice: Number.isFinite(Number(item.boughtPrice)) ? Number(item.boughtPrice) : 0,
                 createdAt: item.createdAt ? String(item.createdAt) : "",
                 completedAt: item.completedAt ? String(item.completedAt) : "",
               };
@@ -2603,6 +3712,9 @@ function App() {
         console.warn("Could not read the shared need-to-buy list:", error?.message);
       }
       setBazarNeededItems(savedBazarNeededItems);
+      setShowBazarNeededLoginPopup(
+        activeProfile.role === "member" && savedBazarNeededItems.length > 0,
+      );
       const [catsRes, payRes, bazRes, cashRes, settlementRes, utilityPaidResult, lastLoginResult] = await Promise.all([
         supabase
           .from("expense_categories")
@@ -2864,7 +3976,6 @@ function App() {
         refresh_token: data.refresh_token,
       });
       if (sessionError) throw sessionError;
-      setSession({ id: data.user.id });
       const profile = await loadCloudData(data.user.id, month);
       if (!profile)
         throw new Error("Could not load your profile. Contact the admin.");
@@ -2877,6 +3988,8 @@ function App() {
         rent: Number(profile.rent || 0),
         paid: 0,
       };
+      setError("");
+      setSession({ id: data.user.id });
       setPage(mapped.role === "member" ? "my-account" : "overview");
       // Non-critical extras should not keep the login button in its loading state.
       // The app is already routed to the user's page; load these in the background.
@@ -3129,6 +4242,225 @@ function App() {
   function askConfirm(message, title = "Are you sure?", variant = "") {
     return new Promise((resolve) => setConfirmDialog({ message, title, variant, resolve }));
   }
+  function openCommonItemsModal() {
+    if (!admin) return;
+    setCommonItemForm({
+      editingId: "",
+      name: "",
+      emoji: "🛒",
+      iconUrl: "",
+      defaultUnit: "kg",
+    });
+    setCommonItemsModalOpen(true);
+  }
+  async function handleCommonItemIconUpload(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !admin) return;
+    setCommonIconUploading(true);
+    try {
+      let uploadedUrl = "";
+      if (supabaseConfigured) {
+        try {
+          const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+          const path = `common-item-icons/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+          const { error: uploadError } = await supabase.storage
+            .from("profile-photos")
+            .upload(path, file, { upsert: true });
+          if (!uploadError) {
+            const { data } = supabase.storage.from("profile-photos").getPublicUrl(path);
+            if (data?.publicUrl) {
+              uploadedUrl = `${data.publicUrl}?t=${Date.now()}`;
+            }
+          }
+        } catch {
+          // Fall back to compact data URL below if storage bucket rejects upload.
+        }
+      }
+      if (!uploadedUrl) {
+        uploadedUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error("Could not read icon file."));
+          reader.onload = () => {
+            const rawDataUrl = String(reader.result || "");
+            if (file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg")) {
+              resolve(rawDataUrl);
+              return;
+            }
+            const img = new Image();
+            img.onload = () => {
+              const size = 96;
+              const canvas = document.createElement("canvas");
+              canvas.width = size;
+              canvas.height = size;
+              const ctx = canvas.getContext("2d");
+              if (!ctx) {
+                resolve(rawDataUrl);
+                return;
+              }
+              const scale = Math.min(size / img.width, size / img.height);
+              const w = img.width * scale;
+              const h = img.height * scale;
+              ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+              resolve(canvas.toDataURL("image/png"));
+            };
+            img.onerror = () => resolve(rawDataUrl);
+            img.src = rawDataUrl;
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+      if (uploadedUrl) {
+        setCommonItemForm((prev) => ({ ...prev, iconUrl: uploadedUrl }));
+      }
+    } catch (err) {
+      alert(err?.message || "Could not upload icon.");
+    } finally {
+      setCommonIconUploading(false);
+    }
+  }
+  async function saveCommonBazarItems(nextItems, successMessage = "") {
+    if (!admin || commonItemsBusy) return false;
+    const previousItems = commonBazarItems;
+    setCommonBazarItems(nextItems);
+    if (!supabaseConfigured) {
+      if (successMessage) {
+        setBazarSuccessToast(successMessage);
+        window.setTimeout(() => setBazarSuccessToast(""), 2400);
+      }
+      return true;
+    }
+    setCommonItemsBusy(true);
+    try {
+      const { error } = await supabase.from("app_settings").upsert(
+        {
+          key: "bazar_common_items",
+          value: JSON.stringify(nextItems),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      );
+      if (error) throw error;
+      if (successMessage) {
+        setBazarSuccessToast(successMessage);
+        window.setTimeout(() => setBazarSuccessToast(""), 2400);
+      }
+      return true;
+    } catch (error) {
+      setCommonBazarItems(previousItems);
+      alert(`Could not update common items: ${error.message}`);
+      return false;
+    } finally {
+      setCommonItemsBusy(false);
+    }
+  }
+  async function submitCommonItemForm(event) {
+    if (event) event.preventDefault();
+    if (!admin || commonItemsBusy) return;
+    const trimmedName = commonItemForm.name.trim();
+    const trimmedEmoji = commonItemForm.emoji.trim() || "🛒";
+    const trimmedIconUrl = String(commonItemForm.iconUrl || "").trim();
+    if (!trimmedName) return;
+    if (commonItemForm.editingId) {
+      const nextItems = commonBazarItems.map((item) =>
+        item.id === commonItemForm.editingId
+          ? {
+              ...item,
+              name: trimmedName,
+              emoji: trimmedEmoji,
+              iconUrl: trimmedIconUrl,
+              iconType: trimmedIconUrl ? undefined : item.iconType,
+              defaultUnit: commonItemForm.defaultUnit || item.defaultUnit || "kg",
+              hint: `${trimmedName} এর দাম ও পরিমান লিখুন`,
+            }
+          : item,
+      );
+      const ok = await saveCommonBazarItems(nextItems, `Updated "${trimmedName}"`);
+      if (ok) {
+        setCommonItemForm({ editingId: "", name: "", emoji: "🛒", iconUrl: "", defaultUnit: "kg" });
+      }
+      return;
+    }
+    const slug = trimmedName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    const newId = `${slug || "item"}_${Date.now().toString(36)}`;
+    const newItem = {
+      id: newId,
+      name: trimmedName,
+      emoji: trimmedEmoji,
+      iconUrl: trimmedIconUrl,
+      defaultUnit: commonItemForm.defaultUnit || "kg",
+      hint: `${trimmedName} এর দাম ও পরিমান লিখুন`,
+    };
+    const othersIdx = commonBazarItems.findIndex((item) => item.isCustom);
+    const nextItems =
+      othersIdx >= 0
+        ? [
+            ...commonBazarItems.slice(0, othersIdx),
+            newItem,
+            ...commonBazarItems.slice(othersIdx),
+          ]
+        : [...commonBazarItems, newItem];
+    const ok = await saveCommonBazarItems(nextItems, `Added "${trimmedName}"`);
+    if (ok) {
+      setCommonItemForm({ editingId: "", name: "", emoji: "🛒", iconUrl: "", defaultUnit: "kg" });
+    }
+  }
+  function editCommonItemRow(item) {
+    if (!admin) return;
+    setCommonItemForm({
+      editingId: item.id,
+      name: item.name,
+      emoji: item.iconType === "oil" ? "🫗" : item.emoji || "🛒",
+      iconUrl: item.iconUrl || "",
+      defaultUnit: item.defaultUnit || "kg",
+    });
+  }
+  async function deleteCommonItemRow(item) {
+    if (!admin || commonItemsBusy) return;
+    if (commonBazarItems.length <= 1) {
+      alert("At least one common item must remain.");
+      return;
+    }
+    const confirmed = await askConfirm(
+      `Remove "${item.name}" from Common Items?`,
+      "Delete common item?",
+      "danger",
+    );
+    if (!confirmed) return;
+    const nextItems = commonBazarItems.filter((entry) => entry.id !== item.id);
+    if (bazarItemPicker.itemId === item.id && nextItems[0]) {
+      setBazarItemPicker((prev) => ({
+        ...prev,
+        itemId: nextItems[0].id,
+        unit: nextItems[0].defaultUnit,
+      }));
+    }
+    if (bazarEditPicker.itemId === item.id && nextItems[0]) {
+      setBazarEditPicker((prev) => ({
+        ...prev,
+        itemId: nextItems[0].id,
+        unit: nextItems[0].defaultUnit,
+      }));
+    }
+    if (commonItemForm.editingId === item.id) {
+      setCommonItemForm({ editingId: "", name: "", emoji: "🛒", defaultUnit: "kg" });
+    }
+    await saveCommonBazarItems(nextItems, `Deleted "${item.name}"`);
+  }
+  async function resetCommonBazarItems() {
+    if (!admin || commonItemsBusy) return;
+    const confirmed = await askConfirm(
+      "Restore the default Common Items list (names and icons)?",
+      "Reset common items?",
+      "",
+    );
+    if (!confirmed) return;
+    await saveCommonBazarItems(BAZAR_COMMON_ITEMS, "Restored default common items");
+    setCommonItemForm({ editingId: "", name: "", emoji: "🛒", defaultUnit: "kg" });
+  }
   async function saveBazarNeededItems(nextItems, successMessage = "") {
     if (!supabaseConfigured || bazarNeededBusy) return false;
     const previousItems = bazarNeededItems;
@@ -3158,9 +4490,26 @@ function App() {
     }
   }
   async function addBazarNeededItem(event) {
-    event.preventDefault();
-    const name = bazarNeededDraft.trim();
-    if (!name || bazarNeededBusy) return;
+    if (event) event.preventDefault();
+    if (bazarNeededBusy) return;
+    if (!chosenBazarNeededPreset) {
+      setBazarNeededPickerError("Select an item from the suggestions.");
+      setBazarNeededSuggestionOpen(true);
+      return;
+    }
+    const name = resolveBazarPickerBaseName(chosenBazarNeededPreset, bazarNeededPicker);
+    const quantity = Math.max(0, Number(bazarNeededPicker.qty) || 0);
+    const estimatedPrice = 0;
+    const unit = bazarNeededPicker.unit || chosenBazarNeededPreset.defaultUnit || "kg";
+    if (!name) {
+      setBazarNeededPickerError("Please enter an item name.");
+      return;
+    }
+    if (quantity <= 0) {
+      setBazarNeededPickerError("Enter the item quantity.");
+      return;
+    }
+    setBazarNeededPickerError("");
     const existing = bazarNeededItems.find(
       (item) => item.name.trim().toLowerCase() === name.toLowerCase(),
     );
@@ -3170,14 +4519,30 @@ function App() {
     }
     const nextItems = existing
       ? bazarNeededItems.map((item) => item.id === existing.id
-        ? { ...item, done: false, completedAt: "" }
+        ? {
+            ...item,
+            quantity,
+            unit,
+            estimatedPrice,
+            done: false,
+            boughtBy: "",
+            boughtByName: "",
+            boughtPrice: 0,
+            completedAt: "",
+          }
         : item)
       : [
           {
             id: globalThis.crypto?.randomUUID?.() || `need-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             name,
+            quantity,
+            unit,
+            estimatedPrice,
             done: false,
             addedBy: user.id,
+            boughtBy: "",
+            boughtByName: "",
+            boughtPrice: 0,
             createdAt: new Date().toISOString(),
             completedAt: "",
           },
@@ -3185,22 +4550,23 @@ function App() {
         ];
     if (await saveBazarNeededItems(nextItems)) {
       setBazarNeededDraft("");
+      setBazarNeededPicker({ itemId: "", customName: "", unitPrice: "", qty: "", unit: "kg" });
+      setBazarNeededItemSearch("");
+      setBazarNeededSuggestionOpen(false);
     }
   }
   function toggleBazarNeededPanel() {
     const nextOpen = !showBazarNeeded;
     setShowBazarNeeded(nextOpen);
-    if (nextOpen) {
-      window.setTimeout(() => {
-        document.getElementById("bazar-needed-input")?.focus();
-      }, 80);
-    }
   }
   async function toggleBazarNeededItem(itemId) {
     const nextItems = bazarNeededItems.map((item) => item.id === itemId
       ? {
           ...item,
           done: !item.done,
+          boughtBy: item.done ? "" : (user?.id || ""),
+          boughtByName: item.done ? "" : (user?.name || ""),
+          boughtPrice: 0,
           completedAt: item.done ? "" : new Date().toISOString(),
         }
       : item);
@@ -3218,6 +4584,7 @@ function App() {
     ) return;
     await saveBazarNeededItems(
       bazarNeededItems.filter((candidate) => candidate.id !== itemId),
+      `Removed "${item.name}" from need-to-buy list`,
     );
   }
   async function clearAllBazarNeededItems() {
@@ -3252,9 +4619,23 @@ function App() {
   }
   async function addBazar(e) {
     e.preventDefault();
-    const validItems = bazarRows.filter(row => row.item.trim() && Number(row.price) > 0).map(row => ({ item: row.item.trim(), price: Number(row.price) }));
+    const validItems = bazarRows
+      .filter((row) => row.item.trim() && Number(row.price) > 0)
+      .map((row) => ({
+        item: row.item.trim(),
+        quantity: Math.max(0, Number(row.quantity) || 0),
+        unit: String(row.unit || "").trim(),
+        price: Number(row.price),
+      }));
     const itemTotal = validItems.reduce((sum, row) => sum + row.price, 0);
-    if (itemTotal <= 0 || !validItems.length) return;
+    if (validItems.some((row) => row.quantity <= 0 || !row.unit)) {
+      setBazarPickerError("Every tracked item needs a quantity and unit.");
+      return;
+    }
+    if (itemTotal <= 0 || !validItems.length) {
+      setBazarPickerError("Select an item, enter quantity and price, then press Add item.");
+      return;
+    }
     try {
       if (bazarForm.paidBy === "combine") {
         const cashAmount = roundMoney(Number(bazarForm.combinedCashAmount) || 0);
@@ -3329,7 +4710,11 @@ function App() {
           console.warn("Could not refresh bazar notifications:", notificationError?.message),
         );
         await loadCloudData(user.id, month);
-        setBazarRows([{ item: "", price: "" }, { item: "", price: "" }, { item: "", price: "" }]);
+        setBazarRows([]);
+        setBazarItemPicker({ itemId: "", customName: "", unitPrice: "", qty: "", unit: "kg" });
+        setBazarItemSearch("");
+        setBazarSuggestionOpen(false);
+        setBazarPickerError("");
         setBazarForm((f) => ({
           ...f,
           amount: "",
@@ -3381,7 +4766,11 @@ function App() {
         console.warn("Could not refresh bazar notifications:", notificationError?.message),
       );
       await loadCloudData(user.id, month);
-      setBazarRows([{ item: "", price: "" }, { item: "", price: "" }, { item: "", price: "" }]);
+      setBazarRows([]);
+      setBazarItemPicker({ itemId: "", customName: "", unitPrice: "", qty: "", unit: "kg" });
+      setBazarItemSearch("");
+      setBazarSuggestionOpen(false);
+      setBazarPickerError("");
       setBazarForm((f) => ({
         ...f,
         amount: "",
@@ -3401,14 +4790,23 @@ function App() {
   }
   function editBazar(b) {
     if (!admin && b.createdBy !== user?.id) { alert("You can edit only entries you created."); return; }
+    setBazarEditPicker({ itemId: "", customName: "", unitPrice: "", qty: "", unit: "kg" });
+    setBazarEditItemSearch("");
+    setBazarEditSuggestionOpen(false);
+    setBazarEditPickerError("");
     let raw = b.items;
     if (typeof raw === "string") { try { raw = JSON.parse(raw); } catch {} }
     let items = Array.isArray(raw) ? raw.map((row) => typeof row === "string"
-      ? { item: row.trim(), price: "" }
-      : { item: String(row?.item || ""), price: String(row?.price ?? "") })
-      : String(raw || "").split(",").map((item) => ({ item: item.trim(), price: "" })).filter((row) => row.item);
+      ? { item: row.trim(), quantity: 1, unit: "pcs", price: "" }
+      : {
+          item: String(row?.item || ""),
+          quantity: Number(row?.quantity ?? row?.qty) > 0 ? row?.quantity ?? row?.qty : 1,
+          unit: String(row?.unit || "pcs"),
+          price: String(row?.price ?? ""),
+        })
+      : String(raw || "").split(",").map((item) => ({ item: item.trim(), quantity: 1, unit: "pcs", price: "" })).filter((row) => row.item);
     items = items.filter((row) => row.item || row.price);
-    if (!items.length) items = [{ item: "", price: "" }];
+    if (!items.length) items = [{ item: "", quantity: 1, unit: "pcs", price: "" }];
 
     if (b.isCombined) {
       setBazarEditEntry({
@@ -3424,28 +4822,38 @@ function App() {
       });
       return;
     }
-    const editPaidBy = b.paidFromCash ? "cash-in-hand" : String(b.paidBy || b.paid_by || user?.id || "");
+    const isCashInHand = Boolean(b.paidFromCash) ||
+      String(b.paidBy || "").toLowerCase() === "cash-in-hand" ||
+      String(b.paidBy || "").toLowerCase() === "cash in hand";
+    const editPaidBy = isCashInHand ? "cash-in-hand" : String(b.paidBy || b.paid_by || user?.id || "");
     const totalAmount = items.reduce((sum, row) => sum + (Number(row.price) || 0), 0);
-    const oldCash = b.paidFromCash ? Number(b.amount || 0) : 0;
+    const oldCash = isCashInHand ? Number(b.amount || 0) : 0;
     const availCash = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + oldCash));
-    const defaultCash = b.paidFromCash ? Number(b.amount || 0) : Math.min(totalAmount, availCash);
+    const defaultCash = isCashInHand ? Number(b.amount || 0) : Math.min(totalAmount, availCash);
     const defaultMember = Math.max(0, roundMoney(totalAmount - defaultCash));
     setBazarEditEntry({
       ...b,
+      paidFromCash: isCashInHand,
       editDate: String(b.date || ""),
       editItems: items,
       editPaidBy,
       combinedCashAmount: String(defaultCash > 0 ? defaultCash : ""),
       combinedMemberAmount: String(defaultMember > 0 ? defaultMember : ""),
-      combinedMemberId: b.paidFromCash ? (b.createdBy || user?.id) : (b.paidBy || user?.id),
+      combinedMemberId: isCashInHand ? (b.createdBy || user?.id) : (b.paidBy || user?.id),
     });
   }
 
   async function saveBazarEdit() {
     if (!bazarEditEntry) return;
-    const rows = (bazarEditEntry.editItems || []).map((row) => ({ item: String(row.item || "").trim(), price: Number(row.price) || 0 })).filter((row) => row.item && row.price > 0);
+    const rows = (bazarEditEntry.editItems || []).map((row) => ({
+      item: String(row.item || "").trim(),
+      quantity: Math.max(0, Number(row.quantity) || 0),
+      unit: String(row.unit || "").trim(),
+      price: Number(row.price) || 0,
+    })).filter((row) => row.item && row.price > 0);
     const amount = rows.reduce((sum, row) => sum + row.price, 0);
     if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(bazarEditEntry.editDate || "")) || !rows.length) { alert("Enter a valid date and at least one item with a price."); return; }
+    if (rows.some((row) => row.quantity <= 0 || !row.unit)) { alert("Enter a quantity and unit for every item."); return; }
     try {
       if (bazarEditEntry.editPaidBy === "combine") {
         const cashAmount = roundMoney(Number(bazarEditEntry.combinedCashAmount) || 0);
@@ -3457,7 +4865,11 @@ function App() {
         if (Math.abs(roundMoney(cashAmount + memberAmount) - roundMoney(amount)) > 0.05) {
           throw new Error(`Cash amount (${money(cashAmount)}) + Member amount (${money(memberAmount)}) must equal total bazar (${money(amount)}).`);
         }
-        const oldCash = bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0;
+        const oldCash = bazarEditEntry.isCombined
+          ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0)
+          : bazarEditEntry.paidFromCash
+            ? Number(bazarEditEntry.amount || 0)
+            : 0;
         const availableCash = roundMoney(cashInHand - pendingCashSettlementTotal + oldCash);
         if (cashAmount > availableCash) {
           throw new Error(`Not enough cash in hand. Available balance: ${money(Math.max(0, availableCash))}.`);
@@ -3562,17 +4974,34 @@ function App() {
 
       const update = { entry_date: bazarEditEntry.editDate, amount, items: JSON.stringify(rows), updated_at: new Date().toISOString() };
       if (admin) {
-        const isCash = bazarEditEntry.editPaidBy === "cash-in-hand" || bazarEditEntry.editPaidBy === "Cash in Hand";
-        const paidBy = isCash ? (bazarEditEntry.createdBy || user?.id) : bazarEditEntry.editPaidBy.trim();
-        if (!isCash && (!paidBy || !(db.users || []).some((u) => u.id === paidBy))) {
-          throw new Error("Please select who paid for this bazar.");
-        }
+        const rawPaidBy = String(bazarEditEntry.editPaidBy || "").trim();
+        const isCash = rawPaidBy.toLowerCase() === "cash-in-hand" || rawPaidBy.toLowerCase() === "cash in hand";
+        const validUsers = db.users || [];
+        const isUuid = (val) => typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+        let paidBy = user?.id;
         if (isCash) {
-          const oldCash = bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0;
+          // Cash in Hand bazar must store a valid user UUID in paid_by (the creator or current admin), never string literal "Cash in Hand"
+          const creatorId = bazarEditEntry.createdBy;
+          if (creatorId && isUuid(creatorId) && validUsers.some((u) => u.id === creatorId)) {
+            paidBy = creatorId;
+          } else {
+            paidBy = user?.id;
+          }
+          const oldCash = bazarEditEntry.isCombined
+          ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0)
+          : bazarEditEntry.paidFromCash
+            ? Number(bazarEditEntry.amount || 0)
+            : 0;
           const availableCash = roundMoney(cashInHand - pendingCashSettlementTotal + oldCash);
           if (amount > availableCash) {
             throw new Error(`Not enough cash in hand. Available balance: ${money(Math.max(0, availableCash))}.`);
           }
+        } else {
+          if (!rawPaidBy || !validUsers.some((u) => u.id === rawPaidBy)) {
+            throw new Error("Please select who paid for this bazar.");
+          }
+          paidBy = rawPaidBy;
         }
         update.paid_from_cash = isCash;
         update.paid_by = paidBy;
@@ -4704,6 +6133,9 @@ function App() {
       <base href="${escapeHtml(window.location.origin)}/">
       <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+      <base href="${escapeHtml(window.location.origin)}/">
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
         *{box-sizing:border-box}
@@ -5704,17 +7136,38 @@ function App() {
     }
   }
   function exportPremiumPdf() {
+    if (previousDueLoading) {
+      alert("Previous balances are still loading. Please try the PDF export again in a moment.");
+      return;
+    }
     const reportMembers = db.users
       .filter((member) => member.active)
       .map((member) => {
-        const charge = roundMoney(memberRentShare(member) + memberMealShare(member));
-        const covered = roundMoney(memberRentPaid(member.id) + memberMealPaid(member.id));
+        const roomRent = roundMoney(Number(member.rent || 0));
+        const utilityShare = roundMoney(utilitiesPerMember);
+        const rentCharge = roundMoney(memberRentShare(member));
+        const mealCharge = roundMoney(memberMealShare(member));
+        const rentPayment = roundMoney(memberRentPaid(member.id));
+        const mealPayment = roundMoney(memberMealPaid(member.id));
+        const previousBalance = roundMoney(previousDueByUser[member.id] || 0);
+        const charge = roundMoney(rentCharge + mealCharge);
+        const covered = roundMoney(rentPayment + mealPayment);
+        const currentBalance = roundMoney(charge - covered);
         return {
+          id: member.id,
           name: member.name || "Member",
           username: member.username || "House member",
+          roomRent,
+          utilityShare,
+          rentCharge,
+          mealCharge,
+          rentPaid: rentPayment,
+          mealPaid: mealPayment,
+          previousBalance,
           charge,
           covered,
-          balance: roundMoney(charge - covered),
+          currentBalance,
+          balance: roundMoney(currentBalance + previousBalance),
         };
       });
     const totalCharges = roundMoney(
@@ -5785,6 +7238,95 @@ function App() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
 
+    const reportUtilities = regularUtilityCategories.map((category) => {
+      const total = roundMoney(category.amount);
+      const paid = roundMoney(getUtilityPaidAmount(category.name, total));
+      return {
+        name: category.name,
+        shared: Boolean(category.shared),
+        total,
+        paid,
+        outstanding: roundMoney(Math.max(0, total - paid)),
+        perMember: category.shared && utilityMemberCount > 0
+          ? roundMoney(total / utilityMemberCount)
+          : 0,
+      };
+    });
+    const reportUtilitiesPaid = roundMoney(
+      reportUtilities.reduce((sum, utility) => sum + Number(utility.paid || 0), 0),
+    );
+    const normalizeReportItems = (rawItems) => {
+      let items = rawItems;
+      if (typeof items === "string") {
+        try {
+          const parsed = JSON.parse(items);
+          if (Array.isArray(parsed)) items = parsed;
+        } catch {
+          items = [{ item: items }];
+        }
+      }
+      if (!Array.isArray(items)) return [];
+      return items.map((entry) => {
+        if (typeof entry === "string") return { name: entry, quantity: 0, unit: "", price: 0 };
+        const rawName = entry?.item ?? entry?.name ?? entry?.title ?? "Bazar item";
+        return {
+          name: typeof rawName === "string" ? rawName : rawName?.name || rawName?.item || "Bazar item",
+          quantity: roundMoney(entry?.quantity ?? entry?.qty ?? 0),
+          unit: String(entry?.unit || "").trim(),
+          price: roundMoney(entry?.original_price ?? entry?.price ?? entry?.amount ?? 0),
+        };
+      }).filter((item) => item.name);
+    };
+    const memberName = (memberId) =>
+      db.users.find((member) => member.id === memberId)?.name || "Member";
+    const reportBazarEntries = groupedMonthBazar
+      .map((entry) => ({
+        id: entry.id,
+        date: entry.date || "",
+        amount: roundMoney(entry.amount || entry.totalAmount),
+        payer: entry.isCombined
+          ? `Cash in Hand + ${memberName(entry.memberId)}`
+          : entry.paidFromCash
+            ? "Cash in Hand"
+            : memberName(entry.paidBy),
+        source: entry.isCombined ? "Combined" : entry.paidFromCash ? "Cash" : "Member",
+        items: normalizeReportItems(entry.items),
+      }))
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const reportPayments = monthPayments
+      .map((payment) => ({
+        date: payment.date || "",
+        member: memberName(payment.userId),
+        type: payment.type === "meal" ? "Meal payment" : "Rent payment",
+        note: payment.note || "Payment",
+        amount: roundMoney(payment.amount),
+        status: "Recorded",
+      }))
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const reportContributions = (db.contributions || [])
+      .filter((contribution) => contribution.month === month)
+      .map((contribution) => ({
+        date: contribution.date || "",
+        member: memberName(contribution.paidBy),
+        type: "Cash contribution",
+        note: contribution.note || "Cash contribution",
+        amount: roundMoney(contribution.amount),
+        status: "Deposited",
+      }))
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const reportSettlements = monthSettlements
+      .map((settlement) => ({
+        date: settlement.date || "",
+        member: `${memberName(settlement.fromUserId)} → ${memberName(settlement.toUserId)}`,
+        type: settlement.sourceType === "cash_contribution" ? "Cash refund" : "Direct settlement",
+        note: settlement.note || "Balance settlement",
+        amount: roundMoney(settlement.amount),
+        paid: roundMoney(settlementPaidValue(settlement)),
+        remaining: roundMoney(settlementRemainingValue(settlement)),
+        status: settlementStatusLabel(settlement.status),
+      }))
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
     openOverviewReport({
       month,
       generatedBy: user?.name || "Administrator",
@@ -5803,11 +7345,22 @@ function App() {
           ? roundMoney(bazarTotal / groupedMonthBazar.length)
           : 0,
         mealMemberCount: mealActiveIds.length,
+        utilitiesTotal: roundMoney(utilitiesTotal),
+        utilitiesPaid: reportUtilitiesPaid,
+        cashContributions: roundMoney(cashContributionsTotal),
+        cashBazarSpent: roundMoney(cashBazarSpent),
+        completedCashSettlements: roundMoney(completedCashSettlementTotal),
+        pendingCashSettlements: roundMoney(pendingCashSettlementTotal),
       },
       costMix,
       bazarTrend,
       members: reportMembers,
       costDrivers,
+      utilities: reportUtilities,
+      bazarEntries: reportBazarEntries,
+      payments: reportPayments,
+      contributions: reportContributions,
+      settlements: reportSettlements,
       libraries: { html2canvas, jsPDF },
     });
   }
@@ -5824,7 +7377,16 @@ function App() {
     );
   if (!session || !user)
     return (
-      <div className={`login-wrap${theme === "dark" ? " dark-theme" : ""}`}>
+      <div className="login-wrap">
+        <button
+          type="button"
+          className="theme-toggle login-theme-toggle"
+          onClick={toggleColorMode}
+          aria-label={colorMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={colorMode === "dark" ? "Light mode" : "Dark mode"}
+        >
+          {colorMode === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
         <div className="login-shell">
           <aside className="login-brand-panel">
             <div className="login-brand-name"><Home size={27} /> <strong>Monthly Hisab</strong></div>
@@ -5880,7 +7442,7 @@ function App() {
               </div>
             </label>
           )}
-          {error && <div className="error">{error}</div>}
+          {error && !authBusy && <div className="error">{error}</div>}
           {authMessage && <div className="success-message">{authMessage}</div>}
           <button className={`primary full login-submit${authBusy ? " is-loading" : ""}`} disabled={authBusy}>
             {authBusy
@@ -5911,6 +7473,7 @@ function App() {
     ["my-account", "My Account", Wallet],
     ["settlements", "Meal Settlement", ArrowUpDown],
     ["bazar", "Monthly Bazar", Receipt],
+    ["bazar-report", "Monthly Bazar Report", ChartNoAxesColumn],
     ["contacts", "Contacts", Users],
     ["inbox", "Inbox", MessageCircle],
     ...(!admin ? [["pay-rent", "Pay your rent", Wallet]] : []),
@@ -5931,20 +7494,28 @@ function App() {
   ];
   const headerIconByPage = {
     overview: LayoutDashboard,
+    "my-account": Wallet,
+    settlements: Utensils,
     bazar: ShoppingBasket,
-    monthly: Receipt,
+    "bazar-report": ChartNoAxesColumn,
     contacts: Phone,
+    inbox: MessageCircle,
     "pay-rent": CreditCard,
     members: Users,
     expenses: Zap,
+    payments: Wallet,
     "payment-options": Settings,
     notices: Megaphone,
   };
-  const ActiveHeaderIcon = headerIconByPage[page] || nav.find(([key]) => key === page)?.[2];
-  const hasSpecialHeaderIcon = ["inbox", "payments", "settlements"].includes(page);
-  const showStandardHeaderIcon = page !== "my-account" && !hasSpecialHeaderIcon && Boolean(ActiveHeaderIcon);
+  const ActiveHeaderIcon = headerIconByPage[page] || nav.find(([key]) => key === page)?.[2] || Home;
+  const activeHeaderTitle = page === "settlements"
+    ? "Member meal balances"
+    : nav.find(([key]) => key === page)?.[1] || "My Account";
+  const activeHeaderSubtitle = page === "settlements"
+    ? "Current meal balance of all members"
+    : "Manage your home, one month at a time.";
   return (
-    <div id="app-shell" className={`app premium-theme${theme === "dark" ? " dark-theme" : ""}`}>
+    <div id="app-shell" className="app premium-theme">
       <aside className={menu ? "sidebar open" : "sidebar"}>
         <div className="brand sidebar-property-card">
           <div className="brand-mark sidebar-property-mark">
@@ -6054,8 +7625,8 @@ function App() {
           </section>
         </div>
       )}
-      <main className={page === "overview" ? "main overview-page" : page === "my-account" ? "main my-account-page" : page === "settlements" ? "main settlement-page" : page === "contacts" ? "main contacts-page" : page === "inbox" ? "main inbox-page" : page === "pay-rent" ? "main pay-rent-app-page" : page === "bazar" ? "main bazar-page" : page === "payments" ? "main payments-page" : "main"}>
-        <header className={`${page === "my-account" ? "account-header " : ""}${page === "overview" ? "overview-page-header" : ""}${page === "settlements" ? "settlement-page-header" : ""}`}>
+      <main className={page === "overview" ? "main overview-page" : page === "my-account" ? "main my-account-page" : page === "settlements" ? "main settlement-page" : page === "contacts" ? "main contacts-page" : page === "inbox" ? "main inbox-page" : page === "pay-rent" ? "main pay-rent-app-page" : page === "bazar" ? "main bazar-page" : page === "bazar-report" ? "main bazar-report-page" : page === "payments" ? "main payments-page" : "main"}>
+        <header className={`app-page-header ${page === "my-account" ? "account-header " : ""}${page === "overview" ? "overview-page-header" : ""}${page === "settlements" ? "settlement-page-header" : ""}`}>
           <button
             type="button"
             className="icon-btn menu-btn"
@@ -6064,41 +7635,26 @@ function App() {
           >
             <Menu size={22} strokeWidth={2.25} />
           </button>
-          {page !== "my-account" && (
-            <div className={`${page === "overview" ? "overview-page-heading" : page === "settlements" ? "settlement-page-heading" : "app-page-heading"}${showStandardHeaderIcon ? " page-heading-with-mark" : ""}`}>
-              {showStandardHeaderIcon && (
-                <span className={`page-heading-mark page-heading-mark-${page}`} aria-hidden="true">
-                  <span className="page-heading-mark-inner">
-                    <ActiveHeaderIcon size={21} />
-                  </span>
+          {page !== "my-account" && page !== "overview" && page !== "settlements" && page !== "bazar" && (
+            <div className="app-page-heading page-heading-with-mark header-page-heading">
+              <span className={`page-heading-mark page-heading-mark-${page}`} aria-hidden="true">
+                <span className="page-heading-mark-inner">
+                  <ActiveHeaderIcon size={21} />
                 </span>
-              )}
-              {page === "inbox" && <span className="inbox-page-mark"><MessageCircle size={23} /></span>}
-              {page === "payments" && <span className="payments-page-mark" aria-hidden="true"><span className="payments-page-mark-inner"><Wallet size={20} /></span></span>}
-              {page === "settlements" && (
-                <span className="settlement-page-mark" aria-hidden="true">
-                  <span className="settlement-page-mark-inner">
-                    <Utensils size={21} />
-                  </span>
-                </span>
-              )}
-              <h2>{page === "settlements" ? "Member meal balances" : nav.find((x) => x[0] === page)?.[1] || "My Account"}</h2>
-              <p>
-                {page === "settlements"
-                  ? "Current meal balance of all members"
-                  : "Manage your home, one month at a time."}
-              </p>
+              </span>
+              <h2>{activeHeaderTitle}</h2>
+              <p>{activeHeaderSubtitle}</p>
             </div>
           )}
           <div className="header-actions">
             <button
               type="button"
-              className="icon-btn theme-mode-toggle"
-              aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}
-              title={theme === "dark" ? "Use light theme" : "Use dark theme"}
-              onClick={() => setTheme((currentTheme) => currentTheme === "dark" ? "light" : "dark")}
+              className="icon-btn header-theme-toggle"
+              onClick={toggleColorMode}
+              aria-label={colorMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={colorMode === "dark" ? "Light mode" : "Dark mode"}
             >
-              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+              {colorMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <div className="notice-bell-wrap" ref={noticeBellWrapRef}>
               <button
@@ -6233,7 +7789,9 @@ function App() {
                 }}
               >
                 <CalendarDays size={17} aria-hidden="true" />
-                <span>{month}</span>
+                <span className="month-picker-value">
+                  {isPhoneView ? month.replace(/^([A-Za-z]{3})[A-Za-z]*\s+/, "$1 ") : month}
+                </span>
                 <ChevronRight className={`month-picker-chevron${monthMenuOpen ? " is-open" : ""}`} size={16} aria-hidden="true" />
               </button>
               {monthMenuOpen && (
@@ -6285,29 +7843,149 @@ function App() {
               )}
             </div>
           </div>
+          <div className={`header-page-tools header-page-tools-${page}`}>
+            {page === "bazar" && (
+              <>
+                <div className="app-page-heading page-heading-with-mark header-page-heading bazar-header-heading">
+                  <span className="page-heading-mark page-heading-mark-bazar" aria-hidden="true">
+                    <span className="page-heading-mark-inner">
+                      <ShoppingBasket size={21} />
+                    </span>
+                  </span>
+                  <h2>Monthly Bazar</h2>
+                  <p>Manage your home, one month at a time.</p>
+                </div>
+                <div className="bazar-header-actions">
+                  <button
+                    type="button"
+                    className={`secondary bazar-needed-trigger${showBazarNeeded ? " is-active" : ""}`}
+                    aria-controls="bazar-needed-panel"
+                    aria-expanded={showBazarNeeded}
+                    onClick={toggleBazarNeededPanel}
+                  >
+                    <ShoppingBasket size={16} />
+                    <span>Need to buy</span>
+                    <small>{bazarNeededItems.filter((item) => !item.done).length}</small>
+                  </button>
+                  <button type="button" className="primary bazar-header-add" onClick={() => {
+                    setBazarActionMenuId(null);
+                    setBazarForm((form) => ({ ...form, date: todayForDateInput() }));
+                    setShowAddBazar(true);
+                  }}><Plus size={16}/> Add Bazar</button>
+                </div>
+              </>
+            )}
+            {page === "settlements" && (
+              <div className="app-page-heading page-heading-with-mark header-page-heading settlement-header-heading">
+                <span className="page-heading-mark page-heading-mark-settlements" aria-hidden="true">
+                  <span className="page-heading-mark-inner">
+                    <Utensils size={21} />
+                  </span>
+                </span>
+                <h2>Member meal balances</h2>
+                <p>Current meal balance of all members</p>
+              </div>
+            )}
+            {page === "overview" && admin && (
+              <>
+                <div className="app-page-heading page-heading-with-mark header-page-heading overview-header-heading">
+                  <span className="page-heading-mark page-heading-mark-overview" aria-hidden="true">
+                    <span className="page-heading-mark-inner">
+                      <LayoutDashboard size={21} />
+                    </span>
+                  </span>
+                  <h2>Overview</h2>
+                  <p>Manage your home, one month at a time.</p>
+                </div>
+                <div className="welcome-actions">
+                  <button className="secondary overview-export-btn overview-export-csv" onClick={exportCsv}>
+                    <Download size={16} /> Export CSV
+                  </button>
+                  <button className="primary overview-export-btn overview-export-pdf" onClick={exportPremiumPdf}>
+                    <Download size={16} /> Export PDF
+                  </button>
+                  <button
+                    type="button"
+                    className="danger reset-month-btn overview-export-btn overview-reset-btn"
+                    onClick={resetMonth}
+                  >
+                    <RotateCcw size={16} /> Reset Hisab
+                  </button>
+                </div>
+              </>
+            )}
+            {page === "my-account" && (
+              <>
+                <div className="account-header-welcome">
+                  <span className="eyebrow">PERSONAL ACCOUNT</span>
+                  <h1>Hello, {user.name}<span className="account-wave" aria-hidden="true"> 👋</span></h1>
+                  <p>Your room rent, utilities, and meal cost for {month}.</p>
+                </div>
+                <div className="account-welcome-actions">
+                  <AccountTodayCard />
+                  <button className="btn secondary account-pdf-btn" type="button" onClick={() => exportMemberBill(user)}>
+                    <span className="account-pdf-icon" aria-hidden="true"><Download size={16} /></span>
+                    <span className="account-pdf-copy"><strong>Export PDF</strong><small>Monthly report</small></span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </header>
         {page === "overview" && admin && (
+          <div className="overview-mobile-actions" aria-label="Overview export actions">
+            <button className="secondary overview-export-btn overview-export-csv" onClick={exportCsv}>
+              <Download size={16} /> Export CSV
+            </button>
+            <button className="primary overview-export-btn overview-export-pdf" onClick={exportPremiumPdf}>
+              <Download size={16} /> Export PDF
+            </button>
+            <button
+              type="button"
+              className="danger reset-month-btn overview-export-btn overview-reset-btn"
+              onClick={resetMonth}
+            >
+              <RotateCcw size={16} /> Reset Hisab
+            </button>
+          </div>
+        )}
+        {page === "my-account" && (
+          <div className="account-mobile-actions" aria-label="My Account date and report actions">
+            <AccountTodayCard />
+            <button className="btn secondary account-pdf-btn" type="button" onClick={() => exportMemberBill(user)}>
+              <span className="account-pdf-icon" aria-hidden="true"><Download size={16} /></span>
+              <span className="account-pdf-copy"><strong>Export PDF</strong><small>Monthly report</small></span>
+            </button>
+          </div>
+        )}
+        {page === "bazar" && (
+          <div className="bazar-mobile-actions" aria-label="Bazar quick actions">
+            <button
+              type="button"
+              className={`secondary bazar-needed-trigger${showBazarNeeded ? " is-active" : ""}`}
+              aria-controls="bazar-needed-panel"
+              aria-expanded={showBazarNeeded}
+              onClick={toggleBazarNeededPanel}
+            >
+              <ShoppingBasket size={16} />
+              <span>Need to buy</span>
+              <small>{bazarNeededItems.filter((item) => !item.done).length}</small>
+            </button>
+            <button
+              type="button"
+              className="primary bazar-header-add"
+              onClick={() => {
+                setBazarActionMenuId(null);
+                setBazarForm((form) => ({ ...form, date: todayForDateInput() }));
+                setShowAddBazar(true);
+              }}
+            >
+              <Plus size={16} /> Add Bazar
+            </button>
+          </div>
+        )}
+        {page === "overview" && admin && (
           <>
-            <section className="welcome">
-              <div>
-                <span className="eyebrow">MONTHLY OVERVIEW</span>
-              </div>
-              <div className="welcome-actions">
-                <button className="secondary overview-export-btn overview-export-csv" onClick={exportCsv}>
-                  <Download size={16} /> Export CSV
-                </button>
-                <button className="primary overview-export-btn overview-export-pdf" onClick={exportPremiumPdf}>
-                  <Download size={16} /> Export PDF
-                </button>
-                <button
-                  type="button"
-                  className="danger reset-month-btn overview-export-btn overview-reset-btn"
-                  onClick={resetMonth}
-                >
-                  <RotateCcw size={16} /> Reset Hisab
-                </button>
-              </div>
-            </section>
             <div className="stats overview-stats">
               <Stat
                 title="Total Rent"
@@ -6445,7 +8123,7 @@ function App() {
                   const flatIsPaid = flatRentAmount > 0 && flatPaid >= flatRentAmount;
                   const flatIsPartial = flatPaid > 0 && flatPaid < flatRentAmount;
                   return (
-                    <div className={`break-row utility-payment-row flat-rent-payment-row${flatIsPaid ? " is-paid" : flatIsPartial ? " is-partial" : " is-unpaid"}`}>
+                    <div className={`break-row utility-payment-row flat-rent-payment-row tone-${getUtilityTone(FLAT_RENT_NAME)}${flatIsPaid ? " is-paid" : flatIsPartial ? " is-partial" : " is-unpaid"}`}>
                       <div
                         className="utility-payment-check"
                         role={admin && flatRentAmount > 0 ? "button" : undefined}
@@ -6529,7 +8207,7 @@ function App() {
                   const UtilityIcon = getUtilityIcon(c.name);
                   const tone = getUtilityTone(c.name);
                   return (
-                    <div className={`break-row utility-payment-row${isPaid ? " is-paid" : isPartial ? " is-partial" : " is-unpaid"}`} key={c.id || c.name}>
+                    <div className={`break-row utility-payment-row tone-${tone}${isPaid ? " is-paid" : isPartial ? " is-partial" : " is-unpaid"}`} key={c.id || c.name}>
                       <div
                         className="utility-payment-check"
                         role={admin && catTotal > 0 ? "button" : undefined}
@@ -6613,20 +8291,6 @@ function App() {
         )}
         {page === "my-account" && (
           <>
-            <section className="welcome account-welcome">
-              <div>
-                <span className="eyebrow">PERSONAL ACCOUNT</span>
-                <h1>Hello, {user.name}{<span className="account-wave" aria-hidden="true"> 👋</span>}</h1>
-                <p>Your room rent, utilities, and meal cost for {month}.</p>
-              </div>
-              <div className="account-welcome-actions">
-                <AccountTodayCard />
-                <button className="btn secondary account-pdf-btn" type="button" onClick={() => exportMemberBill(user)}>
-                  <span className="account-pdf-icon" aria-hidden="true"><Download size={16} /></span>
-                  <span className="account-pdf-copy"><strong>Export PDF</strong><small>Monthly report</small></span>
-                </button>
-              </div>
-            </section>
             {activeBulletinNotices.length > 0 && (
               <div className="bulletin-notice-bar" role="region" aria-label="Bulletin notice">
                 <span className="bulletin-notice-badge">
@@ -6724,43 +8388,45 @@ function App() {
                 <span className="overview-panel-icon"><Zap size={20} /></span>
                 <PanelHead title="Your monthly breakdown" sub={month} />
               </div>
-              {dividedUtilityCategories.length > 0 ? (
-                dividedUtilityCategories
-                  .map((c) => (
-                    <div
-                      className="break-row expense-detail-row"
-                      key={c.id || c.name}
-                    >
-                      <span className="account-expense-icon">
-                        {React.createElement(getUtilityIcon(c.name), { size: 17 })}
-                      </span>
-                      <div className="account-expense-info">
-                        {c.name}
-                        <small>Full expense: {money(c.amount)}</small>
+              <div className="account-breakdown-scroll">
+                {dividedUtilityCategories.length > 0 ? (
+                  dividedUtilityCategories
+                    .map((c) => (
+                      <div
+                        className={`break-row expense-detail-row tone-${getUtilityTone(c.name)}`}
+                        key={c.id || c.name}
+                      >
+                        <span className="account-expense-icon">
+                          {React.createElement(getUtilityIcon(c.name), { size: 17 })}
+                        </span>
+                        <div className="account-expense-info">
+                          {c.name}
+                          <small>Full expense: {money(c.amount)}</small>
+                        </div>
+                        <div className="expense-share">
+                          <small>Your share</small>
+                          <b>
+                            {money(
+                              utilityMemberCount > 0
+                                ? Number(c.amount) / utilityMemberCount
+                                : 0,
+                            )}
+                          </b>
+                        </div>
                       </div>
-                      <div className="expense-share">
-                        <small>Your share</small>
-                        <b>
-                          {money(
-                            utilityMemberCount > 0
-                              ? Number(c.amount) / utilityMemberCount
-                              : 0,
-                          )}
-                        </b>
-                      </div>
-                    </div>
-                  ))
-              ) : (
-                <p className="hint">
-                  No utilities have been added by the admin for this month yet.
-                </p>
-              )}
-              <div className="break-row expense-detail-row">
-                <span className="account-expense-icon"><Home size={17} /></span>
-                <div className="account-expense-info">Room rent</div>
-                <div className="expense-share">
-                  <small>Amount</small>
-                  <b>{money(ownRent)}</b>
+                    ))
+                ) : (
+                  <p className="hint">
+                    No utilities have been added by the admin for this month yet.
+                  </p>
+                )}
+                <div className={`break-row expense-detail-row tone-${getUtilityTone(FLAT_RENT_NAME)}`}>
+                  <span className="account-expense-icon"><Home size={17} /></span>
+                  <div className="account-expense-info">Room rent</div>
+                  <div className="expense-share">
+                    <small>Amount</small>
+                    <b>{money(ownRent)}</b>
+                  </div>
                 </div>
               </div>
             </section>
@@ -6902,6 +8568,13 @@ function App() {
             <div className="settlement-balance-row">
               <section className="panel settlement-surface settlement-members-panel">
                 <div className="settlement-section-heading settlement-members-toolbar">
+                  <div className="settlement-heading-main">
+                    <span className="settlement-panel-icon members"><Utensils size={18} /></span>
+                    <div>
+                      <h3>Member Meal Balances</h3>
+                      <p>Current meal balance of all members</p>
+                    </div>
+                  </div>
                   <div className="settlement-heading-actions">
                     <span className="settlement-count-chip">
                       <Users size={14} aria-hidden="true" />
@@ -7052,26 +8725,6 @@ function App() {
                   </div>
                 ) : settlementSuggestions.length > 0 ? (
                   <>
-                    <div className="settlement-plan-overview" aria-label="Suggested settlement plan summary">
-                      <span className="settlement-plan-overview-icon" aria-hidden="true">
-                        <Sparkles size={17} />
-                      </span>
-                      <span className="settlement-plan-overview-copy">
-                        <small>Recommended plan</small>
-                        <strong>
-                          {settlementSuggestions.length} transfer{settlementSuggestions.length === 1 ? "" : "s"} to settle balances
-                        </strong>
-                      </span>
-                      <span className="settlement-plan-overview-total">
-                        <small>Total amount</small>
-                        <strong>
-                          {money(settlementSuggestions.reduce(
-                            (total, suggestion) => total + Number(suggestion.amount || 0),
-                            0,
-                          ))}
-                        </strong>
-                      </span>
-                    </div>
                     <div className="settlement-suggestion-list settlement-plan-list">
                       {settlementSuggestions.map((suggestion, index) => {
                         const fromMember = db.users.find((member) => member.id === suggestion.fromUserId);
@@ -7135,16 +8788,20 @@ function App() {
                       <div className="settlement-plan-actionbar">
                         <button
                           type="button"
-                          className="primary settlement-plan-action"
+                          className="primary settlement-plan-action premium-settlement-plan-action"
                           onClick={createAutoSettlementPlan}
                           disabled={settlementPlanBusy}
                         >
-                          <Sparkles size={15} aria-hidden="true" />
+                          <span className="settlement-plan-action-icon" aria-hidden="true">
+                            <Sparkles size={18} />
+                          </span>
                           <span className="settlement-plan-action-copy">
                             <strong>{settlementPlanBusy ? "Creating plan..." : "Create settlement plan"}</strong>
                             <small>Save all suggested transfers</small>
                           </span>
-                          <ArrowRight size={15} aria-hidden="true" />
+                          <span className="settlement-plan-action-arrow" aria-hidden="true">
+                            <ArrowRight size={18} />
+                          </span>
                         </button>
                       </div>
                     )}
@@ -7181,7 +8838,7 @@ function App() {
                 </div>
                 {monthSettlements.length === 0 ? (
                   <div className="settlement-empty-state">
-                    <span><ArrowUpDown size={24} /></span>
+                    <span className="settlement-empty-state-icon" aria-hidden="true"><ArrowUpDown size={22} /></span>
                     <strong>No settlements yet</strong>
                     <p>Use the suggested plan or add a partial settlement when members are ready.</p>
                   </div>
@@ -8247,35 +9904,6 @@ function App() {
           <>
             <div className="bazar-layout-full">
               <section className="panel bazar-history-panel">
-                <div className="bazar-history-head">
-                <div className="bazar-history-title">
-                  <span className="bazar-history-icon">
-                    <img
-                      className="bazar-cart-artwork-icon"
-                      src="/bazar-grocery-cart-transparent.png"
-                      alt=""
-                    />
-                  </span>
-                  <span className="bazar-history-divider" aria-hidden="true" />
-                  <PanelHead title="Monthly bazar history" sub={`${month} · purchases only`} />
-                </div>
-                <button
-                  type="button"
-                  className={`secondary bazar-needed-trigger${showBazarNeeded ? " is-active" : ""}`}
-                  aria-controls="bazar-needed-panel"
-                  aria-expanded={showBazarNeeded}
-                  onClick={toggleBazarNeededPanel}
-                >
-                  <ShoppingBasket size={16} />
-                  <span>Need to buy</span>
-                  <small>{bazarNeededItems.filter((item) => !item.done).length}</small>
-                </button>
-                <button type="button" className="primary" onClick={() => {
-                  setBazarActionMenuId(null);
-                  setBazarForm((form) => ({ ...form, date: todayForDateInput() }));
-                  setShowAddBazar(true);
-                }}><Plus size={16}/> Add Bazar</button>
-              </div>
                 {showBazarNeeded && (
                   <div
                     className="modal-backdrop bazar-needed-backdrop"
@@ -8318,24 +9946,159 @@ function App() {
                       {bazarNeededItems.filter((item) => !item.done).length} pending
                     </span>
                   </div>
-                  <form className="bazar-needed-form" onSubmit={addBazarNeededItem}>
-                    <input
-                      id="bazar-needed-input"
-                      type="text"
-                      value={bazarNeededDraft}
-                      onChange={(event) => setBazarNeededDraft(event.target.value)}
-                      placeholder="Add an item to buy"
-                      aria-label="Item that needs to be bought"
-                      disabled={bazarNeededBusy}
-                    />
-                    <button
-                      type="submit"
-                      className="primary"
-                      disabled={bazarNeededBusy || !bazarNeededDraft.trim()}
-                    >
-                      <Plus size={16} /> Add item
-                    </button>
+                  <div className="add-bazar-modal bazar-inline-builder-skin">
+                  <form className="bazar-needed-form bazar-simple-builder" onSubmit={addBazarNeededItem}>
+                    <div className="bazar-simple-fields">
+                      <div
+                        className="bazar-simple-field bazar-item-autocomplete"
+                        onBlur={(event) => {
+                          if (!event.currentTarget.contains(event.relatedTarget)) {
+                            setBazarNeededSuggestionOpen(false);
+                          }
+                        }}
+                      >
+                        <div className="bazar-simple-label-row">
+                          <label htmlFor="bazar-needed-item-search">Item</label>
+                          {admin && (
+                            <button type="button" className="bazar-simple-manage-items" onClick={openCommonItemsModal}>
+                              <Pencil size={13} /> Manage items
+                            </button>
+                          )}
+                        </div>
+                        <div className={`bazar-item-search-control${chosenBazarNeededPreset ? " has-selection" : ""}`}>
+                          <span className="bazar-item-search-icon" aria-hidden="true">
+                            {chosenBazarNeededPreset
+                              ? (bazarNeededPicker.catalogEmoji || renderCommonBazarIcon(chosenBazarNeededPreset, 22))
+                              : <Search size={18} />}
+                          </span>
+                          <input
+                            id="bazar-needed-item-search"
+                            type="text"
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-expanded={bazarNeededSuggestionOpen}
+                            aria-controls="bazar-needed-item-suggestions"
+                            autoComplete="off"
+                            placeholder="Search potato, alu, alo..."
+                            value={bazarNeededItemSearch}
+                            onFocus={() => setBazarNeededSuggestionOpen(true)}
+                            onChange={(event) => {
+                              setBazarNeededItemSearch(event.target.value);
+                              setBazarNeededSuggestionOpen(true);
+                              setBazarNeededPickerError("");
+                              setBazarNeededPicker((prev) => ({
+                                ...prev,
+                                itemId: "",
+                                customName: "",
+                                catalogName: "",
+                                catalogEmoji: "",
+                              }));
+                            }}
+                            disabled={bazarNeededBusy}
+                          />
+                          {chosenBazarNeededPreset && <CheckCircle2 className="bazar-item-selected-check" size={17} />}
+                        </div>
+                        {bazarNeededSuggestionOpen && (
+                          <div className="bazar-item-suggestions" id="bazar-needed-item-suggestions" role="listbox">
+                            {bazarNeededSuggestions.map((preset) => (
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={chosenBazarNeededPreset?.id === preset.id}
+                                className="bazar-item-suggestion"
+                                key={preset.suggestionKey || preset.id}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => {
+                                  setBazarNeededItemSearch(preset.name);
+                                  setBazarNeededPicker((prev) => ({
+                                    ...prev,
+                                    ...getBazarPickerSuggestionPatch(preset),
+                                  }));
+                                  setBazarNeededPickerError("");
+                                  setBazarNeededSuggestionOpen(false);
+                                }}
+                              >
+                                <span className="bazar-item-suggestion-icon" aria-hidden="true">
+                                  {renderCommonBazarIcon(preset, 23)}
+                                </span>
+                                <span className="bazar-item-suggestion-copy">
+                                  <strong>{preset.name}</strong>
+                                  <small>{preset.subItem ? preset.parentName : preset.id} · {preset.defaultUnit}</small>
+                                </span>
+                                <ChevronRight size={15} aria-hidden="true" />
+                              </button>
+                            ))}
+                            {bazarNeededItemSearch.trim() && (
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={chosenBazarNeededPreset?.isCustom || false}
+                                className="bazar-item-suggestion is-custom"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => {
+                                  const customPreset = commonBazarItems.find((item) => item.isCustom) || BAZAR_COMMON_ITEMS.find((item) => item.isCustom);
+                                  setBazarNeededPicker((prev) => ({
+                                    ...prev,
+                                    itemId: customPreset.id,
+                                    customName: bazarNeededItemSearch.trim(),
+                                    catalogName: "",
+                                    catalogEmoji: "",
+                                    unit: customPreset.defaultUnit,
+                                  }));
+                                  setBazarNeededPickerError("");
+                                  setBazarNeededSuggestionOpen(false);
+                                }}
+                              >
+                                <span className="bazar-item-suggestion-icon" aria-hidden="true">
+                                  {renderCommonBazarIcon(commonBazarItems.find((item) => item.isCustom), 23)}
+                                </span>
+                                <span className="bazar-item-suggestion-copy">
+                                  <strong>Use “{bazarNeededItemSearch.trim()}”</strong>
+                                  <small>Track as a custom item</small>
+                                </span>
+                                <Plus size={15} aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="bazar-simple-field">
+                        <label htmlFor="bazar-needed-quantity">Quantity</label>
+                        <div className="bazar-simple-quantity">
+                          <input
+                            id="bazar-needed-quantity"
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="1"
+                            value={bazarNeededPicker.qty}
+                            onChange={(event) => {
+                              setBazarNeededPickerError("");
+                              setBazarNeededPicker((prev) => ({ ...prev, qty: event.target.value }));
+                            }}
+                            disabled={bazarNeededBusy}
+                          />
+                          <select
+                            aria-label="Quantity unit"
+                            value={bazarNeededPicker.unit}
+                            onChange={(event) => setBazarNeededPicker((prev) => ({ ...prev, unit: event.target.value }))}
+                            disabled={bazarNeededBusy}
+                          >
+                            <option value="kg">kg</option><option value="gram">gram</option>
+                            <option value="liter">liter</option><option value="pcs">pcs</option>
+                            <option value="pack">pack</option><option value="tray">tray</option><option value="pc">pc</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <button type="submit" className="bazar-simple-add" disabled={bazarNeededBusy}>
+                        <Plus size={17} /> Add item
+                      </button>
+                    </div>
+                    {bazarNeededPickerError && <p className="bazar-simple-error">{bazarNeededPickerError}</p>}
                   </form>
+                  </div>
                   {bazarNeededItems.length ? (
                     <div className="bazar-needed-toolbar">
                       <div className="bazar-needed-toolbar-title">
@@ -8369,9 +10132,20 @@ function App() {
                                 onChange={() => toggleBazarNeededItem(item.id)}
                                 disabled={bazarNeededBusy}
                               />
+                              <span className="bazar-added-item-icon" aria-hidden="true">
+                                {renderBazarItemIcon(item.name, 17)}
+                              </span>
                               <span>
                                 <b>{item.name}</b>
-                                <small>{item.done ? "Bought" : "Need to buy"}</small>
+                                <small>
+                                  {item.done
+                                    ? `Bought${
+                                        item.boughtBy || item.boughtByName
+                                          ? ` by ${db.users.find((u) => u.id === item.boughtBy)?.name || item.boughtByName}`
+                                          : ""
+                                      }`
+                                    : `${Number(item.quantity) || 1} ${item.unit || "pcs"}`}
+                                </small>
                               </span>
                             </label>
                             <button
@@ -8393,110 +10167,38 @@ function App() {
                   </section>
                   </div>
                 )}
-                <label className="history-filter">
-                  <span className="bazar-filter-label"><Filter size={16} aria-hidden="true" /> Member</span>
-                  <span className="bazar-filter-select" ref={bazarFilterRef}>
-                    <Users size={15} aria-hidden="true" />
-                    <button
-                      type="button"
-                      className="bazar-filter-trigger"
-                      ref={bazarFilterTriggerRef}
-                      aria-label="Filter bazar by member"
-                      aria-haspopup="listbox"
-                      aria-expanded={bazarFilterMenuOpen}
-                      aria-controls="bazar-member-filter-options"
-                      onClick={() => setBazarFilterMenuOpen((open) => !open)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") setBazarFilterMenuOpen(false);
-                        if (event.key === "ArrowDown" && !bazarFilterMenuOpen) {
-                          event.preventDefault();
-                          setBazarFilterMenuOpen(true);
-                          requestAnimationFrame(() => bazarFilterRef.current?.querySelector('[role="option"]')?.focus());
-                        }
-                      }}
-                    >
-                      <span>
-                        {bazarFilter === "all"
-                          ? "All members"
-                          : bazarFilter === "cash-in-hand"
-                            ? "Cash in Hand"
-                            : (() => {
-                                const member = allActiveUsers.find((candidate) => candidate.id === bazarFilter);
-                                return member ? `${member.name}${member.role === "admin" ? " (Admin)" : ""}` : "All members";
-                              })()}
-                      </span>
-                    </button>
-                    <ChevronRight className={`bazar-filter-select-chevron${bazarFilterMenuOpen ? " is-open" : ""}`} size={15} aria-hidden="true" />
-                    {bazarFilterMenuOpen && (
-                      <div
-                        className="bazar-filter-menu"
-                        id="bazar-member-filter-options"
-                        role="listbox"
-                        aria-label="Filter by member"
-                        onKeyDown={(event) => {
-                          if (event.key === "Escape") {
-                            event.preventDefault();
-                            setBazarFilterMenuOpen(false);
-                            bazarFilterTriggerRef.current?.focus();
-                            return;
-                          }
-                          if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-                          event.preventDefault();
-                          const options = Array.from(event.currentTarget.querySelectorAll('[role="option"]'));
-                          const currentIndex = options.indexOf(document.activeElement);
-                          const nextIndex = event.key === "Home"
-                            ? 0
-                            : event.key === "End"
-                              ? options.length - 1
-                              : (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
-                          options[nextIndex]?.focus();
-                        }}
-                      >
-                        <span className="bazar-filter-menu-label">FILTER BY MEMBER</span>
-                        {[
-                          { value: "all", label: "All members" },
-                          ...allActiveUsers.map((member) => ({
-                            value: member.id,
-                            label: `${member.name}${member.role === "admin" ? " (Admin)" : ""}`,
-                          })),
-                          { value: "cash-in-hand", label: "Cash in Hand" },
-                        ].map((option) => (
-                          <button
-                            type="button"
-                            role="option"
-                            aria-selected={bazarFilter === option.value}
-                            tabIndex={-1}
-                            className={`bazar-filter-option${bazarFilter === option.value ? " is-selected" : ""}`}
-                            key={option.value}
-                            onClick={() => {
-                              setBazarFilter(option.value);
-                              setBazarFilterMenuOpen(false);
-                              requestAnimationFrame(() => bazarFilterTriggerRef.current?.focus());
-                            }}
-                          >
-                            <Users size={16} aria-hidden="true" />
-                            <span>{option.label}</span>
-                            {bazarFilter === option.value && <CheckCircle2 size={16} aria-hidden="true" />}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </span>
-                </label>
-                <label className="bazar-search">
-                  <Search size={18} aria-hidden="true" />
-                  <input
-                    type="search"
-                    value={bazarSearch}
-                    onChange={(event) => setBazarSearch(event.target.value)}
-                    placeholder="Search items, e.g. rice, oil, dal..."
-                    aria-label="Search bazar items"
-                  />
-                </label>
                 <div className="total-row bazar-total-row">
                   <b>Total bazar purchased</b>
                   <b><span>{money(selectedBazarTotal)}</span></b>
                   <ShoppingBasket className="bazar-total-icon" size={64} aria-hidden="true" />
+                </div>
+                <div className="bazar-mobile-table-tools">
+                  <label className="bazar-search">
+                    <Search size={17} aria-hidden="true" />
+                    <input
+                      type="search"
+                      value={bazarSearch}
+                      onChange={(event) => setBazarSearch(event.target.value)}
+                      placeholder="Search bazar items"
+                      aria-label="Search bazar items"
+                    />
+                  </label>
+                  <label className="bazar-mobile-member-filter">
+                    <Users size={16} aria-hidden="true" />
+                    <select
+                      value={bazarFilter}
+                      onChange={(event) => setBazarFilter(event.target.value)}
+                      aria-label="Filter bazar by member"
+                    >
+                      <option value="all">All members</option>
+                      {allActiveUsers.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name}{member.role === "admin" ? " (Admin)" : ""}
+                        </option>
+                      ))}
+                      <option value="cash-in-hand">Cash in Hand</option>
+                    </select>
+                  </label>
                 </div>
                 <div className="table-wrap">
                   <table>
@@ -8504,8 +10206,103 @@ function App() {
                       <tr>
                         <th className="bazar-date-heading"><CalendarDays size={14} aria-hidden="true" /> Date</th>
                         <th className="bazar-amount-heading"><Wallet size={14} aria-hidden="true" /> Amount</th>
-                        <th className="bazar-items-heading"><ShoppingBasket size={14} aria-hidden="true" /> Items</th>
-                        <th className="bazar-paid-heading"><Users size={14} aria-hidden="true" /> Paid by</th>
+                        <th className="bazar-items-heading">
+                          <div className="bazar-items-header-content">
+                            <span className="bazar-table-heading-label"><ShoppingBasket size={14} aria-hidden="true" /> Items</span>
+                            <label className="bazar-search bazar-table-search">
+                              <Search size={16} aria-hidden="true" />
+                              <input
+                                type="search"
+                                value={bazarSearch}
+                                onChange={(event) => setBazarSearch(event.target.value)}
+                                placeholder="Search items..."
+                                aria-label="Search bazar items"
+                              />
+                            </label>
+                          </div>
+                        </th>
+                        <th className="bazar-paid-heading">
+                          <span className="bazar-filter-select bazar-table-member-filter" ref={bazarFilterRef}>
+                            <button
+                              type="button"
+                              className="bazar-filter-trigger"
+                              ref={bazarFilterTriggerRef}
+                              aria-label="Filter bazar by member"
+                              aria-haspopup="listbox"
+                              aria-expanded={bazarFilterMenuOpen}
+                              aria-controls="bazar-member-filter-options"
+                              onClick={() => setBazarFilterMenuOpen((open) => !open)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Escape") setBazarFilterMenuOpen(false);
+                                if (event.key === "ArrowDown" && !bazarFilterMenuOpen) {
+                                  event.preventDefault();
+                                  setBazarFilterMenuOpen(true);
+                                  requestAnimationFrame(() => bazarFilterRef.current?.querySelector('[role="option"]')?.focus());
+                                }
+                              }}
+                            >
+                              <span className="bazar-paid-trigger-label">
+                                <Users size={14} aria-hidden="true" />
+                                <span>Paid by</span>
+                              </span>
+                              <ChevronDown className={`bazar-filter-select-chevron${bazarFilterMenuOpen ? " is-open" : ""}`} size={14} aria-hidden="true" />
+                            </button>
+                            {bazarFilterMenuOpen && (
+                              <div
+                                className="bazar-filter-menu"
+                                id="bazar-member-filter-options"
+                                role="listbox"
+                                aria-label="Filter by member"
+                                onKeyDown={(event) => {
+                                  if (event.key === "Escape") {
+                                    event.preventDefault();
+                                    setBazarFilterMenuOpen(false);
+                                    bazarFilterTriggerRef.current?.focus();
+                                    return;
+                                  }
+                                  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+                                  event.preventDefault();
+                                  const options = Array.from(event.currentTarget.querySelectorAll('[role="option"]'));
+                                  const currentIndex = options.indexOf(document.activeElement);
+                                  const nextIndex = event.key === "Home"
+                                    ? 0
+                                    : event.key === "End"
+                                      ? options.length - 1
+                                      : (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+                                  options[nextIndex]?.focus();
+                                }}
+                              >
+                                <span className="bazar-filter-menu-label">FILTER BY MEMBER</span>
+                                {[
+                                  { value: "all", label: "All members" },
+                                  ...allActiveUsers.map((member) => ({
+                                    value: member.id,
+                                    label: `${member.name}${member.role === "admin" ? " (Admin)" : ""}`,
+                                  })),
+                                  { value: "cash-in-hand", label: "Cash in Hand" },
+                                ].map((option) => (
+                                  <button
+                                    type="button"
+                                    role="option"
+                                    aria-selected={bazarFilter === option.value}
+                                    tabIndex={-1}
+                                    className={`bazar-filter-option${bazarFilter === option.value ? " is-selected" : ""}`}
+                                    key={option.value}
+                                    onClick={() => {
+                                      setBazarFilter(option.value);
+                                      setBazarFilterMenuOpen(false);
+                                      requestAnimationFrame(() => bazarFilterTriggerRef.current?.focus());
+                                    }}
+                                  >
+                                    <Users size={16} aria-hidden="true" />
+                                    <span>{option.label}</span>
+                                    {bazarFilter === option.value && <CheckCircle2 size={16} aria-hidden="true" />}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </span>
+                        </th>
                         <th className="bazar-actions-heading"><Zap size={14} aria-hidden="true" /> Actions</th>
                       </tr>
                     </thead>
@@ -8666,7 +10463,9 @@ function App() {
                                 </span>
                               </time>
                             </td>
-                            <td className="bazar-history-amount bazar-amount-cell">{money(b.amount)}</td>
+                            <td className="bazar-history-amount bazar-amount-cell">
+                              <span className="bazar-amount-value">{money(b.amount)}</span>
+                            </td>
                             <td className="bazar-items-cell">
                               <span className="bazar-item-summary">
                                 {getBazarItemSummary(b.items)}
@@ -8803,6 +10602,16 @@ function App() {
                   if (event.key === "Escape") setShowAddBazar(false);
                 }}
               >
+                {bazarAddCheckPop && (
+                  <div className="bazar-add-check-overlay" aria-hidden="true">
+                    <div className="bazar-add-check-pop">
+                      <span className="bazar-add-check-circle">
+                        <Check size={34} strokeWidth={3} />
+                      </span>
+                      <span className="bazar-add-check-label">Item added</span>
+                    </div>
+                  </div>
+                )}
                 <div className="panel-head add-bazar-modal-heading">
                   <span className="add-bazar-modal-mark"><ShoppingBasket size={24} /></span>
                   <div>
@@ -8841,15 +10650,570 @@ function App() {
                       />
                     </span>
                   </label>
-                  <div className="bazar-item-list">
-              <div className="bazar-item-heading"><span>Item</span><span>Price (৳)</span></div>
-              {bazarRows.map((row, index) => <div className="bazar-item-row" key={index}>
-                <input aria-label={`Item ${index+1}`} placeholder={`Item ${index + 1}`} value={row.item} onChange={(e)=>updateBazarRow(index,"item",e.target.value)}/>
-                <input aria-label={`Price ${index+1}`} type="number" min="0" step="0.01" placeholder="0.00" value={row.price} onChange={(e)=>updateBazarRow(index,"price",e.target.value)}/>
-              </div>)}
-              <button type="button" className="secondary full" onClick={()=>setBazarRows(rows=>[...rows,{item:"",price:""}])}><Plus size={15}/> Add item</button>
-              <div className="bazar-item-total"><span>Total</span><strong>{money(bazarRows.reduce((sum,row)=>sum+Number(row.price||0),0))}</strong></div>
-            </div>
+                  <div className="bazar-simple-builder">
+                    <div className="bazar-simple-fields">
+                      <div
+                        className="bazar-simple-field bazar-item-autocomplete"
+                        onBlur={(event) => {
+                          if (!event.currentTarget.contains(event.relatedTarget)) {
+                            setBazarSuggestionOpen(false);
+                          }
+                        }}
+                      >
+                        <div className="bazar-simple-label-row">
+                          <label htmlFor="bazar-item-search">Item</label>
+                          {admin && (
+                            <button
+                              type="button"
+                              className="bazar-simple-manage-items"
+                              onClick={openCommonItemsModal}
+                            >
+                              <Pencil size={13} /> Manage items
+                            </button>
+                          )}
+                        </div>
+                        <div className={`bazar-item-search-control${chosenBazarPreset ? " has-selection" : ""}`}>
+                          <span className="bazar-item-search-icon" aria-hidden="true">
+                            {chosenBazarPreset
+                              ? (bazarItemPicker.catalogEmoji || renderCommonBazarIcon(chosenBazarPreset, 22))
+                              : <Search size={18} />}
+                          </span>
+                          <input
+                            id="bazar-item-search"
+                            type="text"
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-expanded={bazarSuggestionOpen}
+                            aria-controls="bazar-item-suggestions"
+                            autoComplete="off"
+                            placeholder="Search potato, alu, alo..."
+                            value={bazarItemSearch}
+                            onFocus={() => setBazarSuggestionOpen(true)}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setBazarItemSearch(value);
+                              setBazarSuggestionOpen(true);
+                              setBazarPickerError("");
+                              setBazarItemPicker((prev) => ({
+                                ...prev,
+                                itemId: "",
+                                customName: "",
+                                catalogName: "",
+                                catalogEmoji: "",
+                              }));
+                            }}
+                          />
+                          {chosenBazarPreset && <CheckCircle2 className="bazar-item-selected-check" size={17} />}
+                        </div>
+                        {bazarSuggestionOpen && (
+                          <div className="bazar-item-suggestions" id="bazar-item-suggestions" role="listbox">
+                            {bazarItemSuggestions.map((preset) => (
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={chosenBazarPreset?.id === preset.id}
+                                className="bazar-item-suggestion"
+                                key={preset.suggestionKey || preset.id}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => {
+                                  setBazarItemSearch(preset.name);
+                                  setBazarItemPicker((prev) => ({
+                                    ...prev,
+                                    ...getBazarPickerSuggestionPatch(preset),
+                                  }));
+                                  setBazarPickerError("");
+                                  setBazarSuggestionOpen(false);
+                                }}
+                              >
+                                <span className="bazar-item-suggestion-icon" aria-hidden="true">
+                                  {renderCommonBazarIcon(preset, 23)}
+                                </span>
+                                <span className="bazar-item-suggestion-copy">
+                                  <strong>{preset.name}</strong>
+                                  <small>{preset.subItem ? preset.parentName : preset.id} · {preset.defaultUnit}</small>
+                                </span>
+                                <ChevronRight size={15} aria-hidden="true" />
+                              </button>
+                            ))}
+                            {normalizedBazarItemSearch && (
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={chosenBazarPreset?.isCustom || false}
+                                className="bazar-item-suggestion is-custom"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => {
+                                  const customPreset = commonBazarItems.find((item) => item.isCustom) || BAZAR_COMMON_ITEMS.find((item) => item.isCustom);
+                                  setBazarItemPicker((prev) => ({
+                                    ...prev,
+                                    itemId: customPreset.id,
+                                    customName: bazarItemSearch.trim(),
+                                    catalogName: "",
+                                    catalogEmoji: "",
+                                    unit: customPreset.defaultUnit,
+                                  }));
+                                  setBazarPickerError("");
+                                  setBazarSuggestionOpen(false);
+                                }}
+                              >
+                                <span className="bazar-item-suggestion-icon" aria-hidden="true">
+                                  {renderCommonBazarIcon(commonBazarItems.find((item) => item.isCustom), 23)}
+                                </span>
+                                <span className="bazar-item-suggestion-copy">
+                                  <strong>Use “{bazarItemSearch.trim()}”</strong>
+                                  <small>Track as a custom item</small>
+                                </span>
+                                <Plus size={15} aria-hidden="true" />
+                              </button>
+                            )}
+                            {!bazarItemSuggestions.length && !normalizedBazarItemSearch && (
+                              <span className="bazar-item-suggestion-empty">Start typing an item name.</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="bazar-simple-field">
+                        <label htmlFor="bazar-simple-quantity">পরিমাণ</label>
+                        <div className="bazar-simple-quantity">
+                          <input
+                            id="bazar-simple-quantity"
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="1"
+                            value={bazarItemPicker.qty}
+                            onChange={(event) => {
+                              setBazarPickerError("");
+                              setBazarItemPicker((prev) => ({ ...prev, qty: event.target.value }));
+                            }}
+                          />
+                          <select
+                            aria-label="Quantity unit"
+                            value={bazarItemPicker.unit}
+                            onChange={(event) => setBazarItemPicker((prev) => ({ ...prev, unit: event.target.value }))}
+                          >
+                            <option value="kg">kg</option>
+                            <option value="gram">gram</option>
+                            <option value="liter">liter</option>
+                            <option value="pcs">pcs</option>
+                            <option value="pack">pack</option>
+                            <option value="tray">tray</option>
+                            <option value="pc">pc</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="bazar-simple-field">
+                        <label htmlFor="bazar-simple-price">দাম (৳)</label>
+                        <input
+                          id="bazar-simple-price"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={bazarItemPicker.unitPrice}
+                          onChange={(event) => {
+                            setBazarPickerError("");
+                            setBazarItemPicker((prev) => ({ ...prev, unitPrice: event.target.value }));
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              addPickerItemToBazarRows();
+                            }
+                          }}
+                        />
+                      </div>
+
+                      <button type="button" className="bazar-simple-add" onClick={addPickerItemToBazarRows}>
+                        <Plus size={17} /> Add item
+                      </button>
+                    </div>
+
+                    {bazarPickerError && <p className="bazar-simple-error">{bazarPickerError}</p>}
+
+                    {bazarRows.length > 0 && (
+                      <div className="bazar-tracked-items">
+                        <div className="bazar-tracked-head">
+                          <span>Item</span><span>পরিমাণ</span><span>দাম</span><span />
+                        </div>
+                        {bazarRows.map((row, index) => (
+                          <div className="bazar-tracked-row" key={`${row.item}-${index}`}>
+                            <span className="bazar-tracked-item">
+                              <span aria-hidden="true">{renderBazarItemIcon(row.item, 19)}</span>
+                              <strong>{row.item}</strong>
+                            </span>
+                            <span className="bazar-tracked-quantity">
+                              <input
+                                aria-label={`Quantity for ${row.item}`}
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={row.quantity ?? ""}
+                                onChange={(event) => updateBazarRow(index, "quantity", event.target.value)}
+                              />
+                              <select
+                                aria-label={`Unit for ${row.item}`}
+                                value={row.unit || "kg"}
+                                onChange={(event) => updateBazarRow(index, "unit", event.target.value)}
+                              >
+                                <option value="kg">kg</option>
+                                <option value="gram">gram</option>
+                                <option value="liter">liter</option>
+                                <option value="pcs">pcs</option>
+                                <option value="pack">pack</option>
+                                <option value="tray">tray</option>
+                                <option value="pc">pc</option>
+                              </select>
+                            </span>
+                            <input
+                              aria-label={`Price for ${row.item}`}
+                              className="bazar-tracked-price"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row.price}
+                              onChange={(event) => updateBazarRow(index, "price", event.target.value)}
+                            />
+                            <button
+                              type="button"
+                              className="icon-btn danger-text bazar-tracked-remove"
+                              aria-label={`Remove ${row.item}`}
+                              onClick={() => removeBazarRow(index)}
+                            >
+                              <X size={15} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="bazar-simple-total">
+                      <span>{bazarRows.length} tracked item{bazarRows.length === 1 ? "" : "s"}</span>
+                      <strong>Total {money(bazarRows.reduce((sum, row) => sum + Number(row.price || 0), 0))}</strong>
+                    </div>
+                  </div>
+
+                  <div className="bazar-item-list bazar-card-builder bazar-legacy-builder-hidden" aria-hidden="true">
+                    <div className="bazar-builder-grid">
+                      <div className="bazar-common-pane">
+                        <div className="bazar-common-head">
+                          <span className="bazar-common-title">Common Items</span>
+                          {admin && (
+                            <button
+                              type="button"
+                              className="bazar-common-edit-btn"
+                              title="Edit common items"
+                              aria-label="Edit common items"
+                              onClick={openCommonItemsModal}
+                            >
+                              <Pencil size={13} strokeWidth={2.2} />
+                            </button>
+                          )}
+                        </div>
+                        <div className="bazar-common-grid" role="radiogroup" aria-label="Common bazar items">
+                          {commonBazarItems.map((preset) => {
+                            const active = bazarItemPicker.itemId === preset.id;
+                            return (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                role="radio"
+                                aria-checked={active}
+                                className={`bazar-common-card${active ? " is-selected" : ""}${preset.isCustom ? " is-others" : ""}`}
+                                onClick={() => {
+                                  setBazarPickerError("");
+                                  setBazarItemPicker((prev) => ({
+                                    ...prev,
+                                    itemId: preset.id,
+                                    unit: preset.defaultUnit,
+                                    catalogName: "",
+                                    catalogEmoji: "",
+                                  }));
+                                }}
+                              >
+                                {active && (
+                                  <span className="bazar-common-check" aria-hidden="true">
+                                    <Check size={12} strokeWidth={3} />
+                                  </span>
+                                )}
+                                <span className={`bazar-common-icon${preset.isCustom ? " is-dots" : ""}`} aria-hidden="true">
+                                  {renderCommonBazarIcon(preset, 24)}
+                                </span>
+                                <span className="bazar-common-name">{preset.name}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="bazar-detail-card">
+                        <div className="bazar-detail-header">
+                          <span className={`bazar-detail-badge${selectedBazarPreset.isCustom ? " is-dots" : ""}`} aria-hidden="true">
+                            {renderCommonBazarIcon(selectedBazarPreset, 22)}
+                          </span>
+                          <div className="bazar-detail-heading">
+                            <strong>{selectedBazarPreset.name}</strong>
+                            <small>{selectedBazarPreset.hint}</small>
+                          </div>
+                        </div>
+
+                        <div className="bazar-detail-body">
+                          {selectedBazarPreset.id === "mosla" && (
+                            <div className="bazar-detail-field">
+                              <label htmlFor="bazar-add-moshla-type">মসলার ধরন</label>
+                              <select
+                                id="bazar-add-moshla-type"
+                                value={bazarItemPicker.moshlaType}
+                                onChange={(e) => {
+                                  setBazarPickerError("");
+                                  setBazarItemPicker((prev) => ({ ...prev, moshlaType: e.target.value }));
+                                }}
+                              >
+                                {BAZAR_MOSHLA_OPTIONS.map((opt) => (
+                                  <option key={opt} value={opt}>
+                                    {opt}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {selectedBazarPreset.id === "sobji" && (
+                            <div className="bazar-detail-field bazar-sobji-field">
+                              <label htmlFor="bazar-add-sobji-name">সবজির নাম</label>
+                              <input
+                                id="bazar-add-sobji-name"
+                                type="text"
+                                autoComplete="off"
+                                placeholder="যেমন: alu, begun, potol..."
+                                value={bazarItemPicker.sobjiName}
+                                onChange={(e) => {
+                                  setBazarPickerError("");
+                                  setBazarItemPicker((prev) => ({ ...prev, sobjiName: e.target.value }));
+                                }}
+                              />
+                              {renderBazarSuggestList(
+                                BAZAR_SHOBJI_SUGGESTIONS,
+                                "🥬",
+                                bazarItemPicker.sobjiName,
+                                (picked) =>
+                                  setBazarItemPicker((prev) => ({ ...prev, sobjiName: picked })),
+                                "সবজির নাম সাজেশন",
+                              )}
+                            </div>
+                          )}
+
+                          {selectedBazarPreset.id === "mangsho" && (
+                            <div className="bazar-detail-field">
+                              <label htmlFor="bazar-add-mangsho-type">মাংসের ধরন</label>
+                              <select
+                                id="bazar-add-mangsho-type"
+                                value={bazarItemPicker.mangshoType}
+                                onChange={(e) => {
+                                  setBazarPickerError("");
+                                  setBazarItemPicker((prev) => ({ ...prev, mangshoType: e.target.value }));
+                                }}
+                              >
+                                {BAZAR_MANGSHO_OPTIONS.map((opt) => (
+                                  <option key={opt} value={opt}>
+                                    {opt}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {selectedBazarPreset.id === "mach" && (
+                            <div className="bazar-detail-field bazar-sobji-field">
+                              <label htmlFor="bazar-add-mach-name">মাছের নাম</label>
+                              <input
+                                id="bazar-add-mach-name"
+                                type="text"
+                                autoComplete="off"
+                                placeholder="যেমন: rui, katla, tilapia..."
+                                value={bazarItemPicker.machName}
+                                onChange={(e) => {
+                                  setBazarPickerError("");
+                                  setBazarItemPicker((prev) => ({ ...prev, machName: e.target.value }));
+                                }}
+                              />
+                              {renderBazarSuggestList(
+                                BAZAR_MACH_SUGGESTIONS,
+                                "🐟",
+                                bazarItemPicker.machName,
+                                (picked) =>
+                                  setBazarItemPicker((prev) => ({ ...prev, machName: picked })),
+                                "মাছের নাম সাজেশন",
+                              )}
+                            </div>
+                          )}
+
+                          {selectedBazarPreset.isCustom && (
+                            <div className="bazar-detail-field">
+                              <label htmlFor="bazar-custom-item-name">আইটেমের নাম</label>
+                              <input
+                                id="bazar-custom-item-name"
+                                type="text"
+                                placeholder="যেমন: দুধ, চিনি, আলু..."
+                                value={bazarItemPicker.customName}
+                                onChange={(e) => {
+                                  setBazarPickerError("");
+                                  setBazarItemPicker((prev) => ({ ...prev, customName: e.target.value }));
+                                }}
+                              />
+                            </div>
+                          )}
+
+                          <div className="bazar-detail-field">
+                            <label htmlFor="bazar-picker-price">দাম (৳)</label>
+                            <input
+                              id="bazar-picker-price"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={bazarItemPicker.unitPrice}
+                              onChange={(e) => {
+                                setBazarPickerError("");
+                                setBazarItemPicker((prev) => ({ ...prev, unitPrice: e.target.value }));
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  addPickerItemToBazarRows();
+                                }
+                              }}
+                            />
+                          </div>
+
+                          <div className="bazar-detail-field">
+                            <label htmlFor="bazar-picker-qty">পরিমান</label>
+                            <div className="bazar-qty-controls">
+                              <input
+                                id="bazar-picker-qty"
+                                className="bazar-qty-direct-input"
+                                type="number"
+                                min="0"
+                                step="any"
+                                placeholder="1"
+                                value={bazarItemPicker.qty}
+                                onChange={(e) =>
+                                  setBazarItemPicker((prev) => ({ ...prev, qty: e.target.value }))
+                                }
+                              />
+                              <select
+                                aria-label="পরিমানের একক"
+                                value={bazarItemPicker.unit}
+                                onChange={(e) =>
+                                  setBazarItemPicker((prev) => ({ ...prev, unit: e.target.value }))
+                                }
+                              >
+                                <option value="kg">kg</option>
+                                <option value="gram">gram</option>
+                                <option value="liter">liter</option>
+                                <option value="pcs">pcs</option>
+                                <option value="pack">pack</option>
+                                <option value="tray">tray</option>
+                                <option value="pc">pc</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {bazarPickerError && (
+                            <p className="bazar-picker-error">{bazarPickerError}</p>
+                          )}
+                        </div>
+
+                        <div className="bazar-detail-subtotal">
+                          <span className="bazar-detail-subtotal-label">
+                            <span className="bazar-detail-calc-badge" aria-hidden="true">
+                              <Calculator size={14} />
+                            </span>
+                            <span>Subtotal</span>
+                          </span>
+                          <strong>{money(bazarPickerSubtotal)}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bazar-builder-footer">
+                      <div className="bazar-quick-summary">
+                        <span className="bazar-quick-summary-icon" aria-hidden="true">
+                          <Info size={14} strokeWidth={2.5} />
+                        </span>
+                        <div>
+                          <strong>Quick Summary</strong>
+                          <small>
+                            {bazarRows.length > 0
+                              ? `${bazarRows.length} item${bazarRows.length > 1 ? "s" : ""} added • Total ${money(bazarRows.reduce((sum, row) => sum + Number(row.price || 0), 0))}`
+                              : "Track your monthly usage of Rice, Oil, Meat and more!"}
+                          </small>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="bazar-add-item-pill-btn"
+                        onClick={addPickerItemToBazarRows}
+                      >
+                        <Check size={16} strokeWidth={2.5} />
+                        <span>Add Item</span>
+                      </button>
+                    </div>
+
+                    {bazarRows.length > 0 && (
+                      <div className="bazar-added-items-wrap">
+                        <div className="bazar-item-heading">
+                          <span>Added Items ({bazarRows.length})</span>
+                          <span>Price (৳)</span>
+                        </div>
+                        {bazarRows.map((row, index) => (
+                          <div className="bazar-item-row bazar-added-row" key={index}>
+                            <div className="bazar-added-item-cell">
+                              <span className="bazar-added-item-icon" aria-hidden="true">
+                                {renderBazarItemIcon(row.item, 18)}
+                              </span>
+                              <input
+                                aria-label={`Item ${index + 1}`}
+                                placeholder={`Item ${index + 1}`}
+                                value={row.item}
+                                onChange={(e) => updateBazarRow(index, "item", e.target.value)}
+                              />
+                            </div>
+                            <input
+                              aria-label={`Price ${index + 1}`}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={row.price}
+                              onChange={(e) => updateBazarRow(index, "price", e.target.value)}
+                            />
+                            <button
+                              type="button"
+                              className="icon-btn danger-text bazar-added-remove"
+                              aria-label={`Remove ${row.item || `item ${index + 1}`}`}
+                              title="Remove item"
+                              onClick={() => removeBazarRow(index)}
+                            >
+                              <X size={15} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="bazar-item-total">
+                      <span>Total</span>
+                      <strong>
+                        {money(
+                          bazarRows.reduce((sum, row) => sum + Number(row.price || 0), 0) ||
+                            bazarPickerSubtotal,
+                        )}
+                      </strong>
+                    </div>
+                  </div>
 
                   <label>
                     Paid by
@@ -9061,39 +11425,294 @@ function App() {
             </div>}
             {bazarEditEntry && (
               <div className="modal-backdrop" role="presentation">
-                <section className="modal panel bazar-edit-modal" role="dialog" aria-modal="true" aria-labelledby="bazar-edit-title" onClick={(e) => e.stopPropagation()}>
-                  <PanelHead title="Edit bazar entry" sub="Update date, items and prices" />
-                  <div className="bazar-edit-fields">
-                    <label>Date<input type="date" value={bazarEditEntry.editDate} onChange={(e) => setBazarEditEntry((old) => ({...old, editDate:e.target.value}))}/></label>
-                    {bazarEditEntry.editItems.map((row, index) => (
-                      <div className="bazar-edit-item-row" key={index}>
-                        <label>Item {index + 1}<input value={row.item} placeholder={`Item ${index + 1}`} onChange={(e) => setBazarEditEntry((old) => ({...old, editItems:old.editItems.map((it,i)=>i===index?{...it,item:e.target.value}:it)}))}/></label>
-                        <label>Price (৳)<input type="number" min="0" step="0.01" value={row.price} placeholder="0.00" onChange={(e) => {
-                          const val = e.target.value;
-                          setBazarEditEntry((old) => {
-                            const nextItems = old.editItems.map((it, i) => i === index ? { ...it, price: val } : it);
-                            const nextTotal = nextItems.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
-                            let combinedMemberAmount = old.combinedMemberAmount;
-                            if (old.editPaidBy === "combine") {
-                              const cashNum = parseFloat(old.combinedCashAmount) || 0;
-                              combinedMemberAmount = String(Math.max(0, roundMoney(nextTotal - cashNum)));
-                            }
-                            return { ...old, editItems: nextItems, combinedMemberAmount };
-                          });
-                        }}/></label>
-                        <button type="button" className="danger-text icon-btn premium-delete-action bazar-action" aria-label={`Remove item ${index+1}`} disabled={bazarEditEntry.editItems.length===1} onClick={() => setBazarEditEntry((old) => {
-                          const nextItems = old.editItems.filter((_,i)=>i!==index);
-                          const nextTotal = nextItems.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
-                          let combinedMemberAmount = old.combinedMemberAmount;
-                          if (old.editPaidBy === "combine") {
-                            const cashNum = parseFloat(old.combinedCashAmount) || 0;
-                            combinedMemberAmount = String(Math.max(0, roundMoney(nextTotal - cashNum)));
-                          }
-                          return { ...old, editItems: nextItems, combinedMemberAmount };
-                        })}><PremiumDeleteIcon size={15}/></button>
+                <section className="modal panel form-panel add-bazar-modal bazar-edit-modal bazar-entry-edit-modal" role="dialog" aria-modal="true" aria-labelledby="bazar-edit-title" onClick={(e) => e.stopPropagation()}>
+                  {bazarEditCheckPop && (
+                    <div className="bazar-add-check-overlay" aria-hidden="true">
+                      <div className="bazar-add-check-pop">
+                        <span className="bazar-add-check-circle">
+                          <Check size={34} strokeWidth={3} />
+                        </span>
+                        <span className="bazar-add-check-label">Item added</span>
                       </div>
-                    ))}
-                    <button type="button" className="secondary full" onClick={() => setBazarEditEntry((old) => ({...old,editItems:[...old.editItems,{item:"",price:""}]}))}>＋ Add item</button>
+                    </div>
+                  )}
+                  <div className="panel-head add-bazar-modal-heading">
+                    <span className="add-bazar-modal-mark"><ShoppingBasket size={24} /></span>
+                    <div>
+                      <h3 id="bazar-edit-title">Edit bazar entry</h3>
+                      <p>Update date, items and prices</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="icon-btn add-bazar-close"
+                      aria-label="Close Edit Bazar"
+                      title="Close"
+                      onClick={() => setBazarEditEntry(null)}
+                    >
+                      <X size={19} />
+                    </button>
+                  </div>
+                  <form
+                    className="bazar-edit-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      saveBazarEdit();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.target.tagName !== "BUTTON") {
+                        e.preventDefault();
+                      }
+                    }}
+                  >
+                    <label>
+                      Date
+                      <span className="add-bazar-date-input">
+                        <CalendarDays size={18} aria-hidden="true" />
+                        <input
+                          type="date"
+                          value={bazarEditEntry.editDate}
+                          onChange={(e) => setBazarEditEntry((old) => ({ ...old, editDate: e.target.value }))}
+                          required
+                        />
+                      </span>
+                    </label>
+                    <div className="bazar-simple-builder bazar-edit-simple-builder">
+                      <div className="bazar-simple-fields">
+                        <div
+                          className="bazar-simple-field bazar-item-autocomplete"
+                          onBlur={(event) => {
+                            if (!event.currentTarget.contains(event.relatedTarget)) {
+                              setBazarEditSuggestionOpen(false);
+                            }
+                          }}
+                        >
+                          <div className="bazar-simple-label-row">
+                            <label htmlFor="bazar-edit-item-search">Item</label>
+                            {admin && (
+                              <button type="button" className="bazar-simple-manage-items" onClick={openCommonItemsModal}>
+                                <Pencil size={13} /> Manage items
+                              </button>
+                            )}
+                          </div>
+                          <div className={`bazar-item-search-control${chosenBazarEditPreset ? " has-selection" : ""}`}>
+                            <span className="bazar-item-search-icon" aria-hidden="true">
+                              {chosenBazarEditPreset
+                                ? (bazarEditPicker.catalogEmoji || renderCommonBazarIcon(chosenBazarEditPreset, 22))
+                                : <Search size={18} />}
+                            </span>
+                            <input
+                              id="bazar-edit-item-search"
+                              type="text"
+                              role="combobox"
+                              aria-autocomplete="list"
+                              aria-expanded={bazarEditSuggestionOpen}
+                              aria-controls="bazar-edit-item-suggestions"
+                              autoComplete="off"
+                              placeholder="Search potato, alu, alo..."
+                              value={bazarEditItemSearch}
+                              onFocus={() => setBazarEditSuggestionOpen(true)}
+                              onChange={(event) => {
+                                setBazarEditItemSearch(event.target.value);
+                                setBazarEditSuggestionOpen(true);
+                                setBazarEditPickerError("");
+                                setBazarEditPicker((prev) => ({
+                                  ...prev,
+                                  itemId: "",
+                                  customName: "",
+                                  catalogName: "",
+                                  catalogEmoji: "",
+                                }));
+                              }}
+                            />
+                            {chosenBazarEditPreset && <CheckCircle2 className="bazar-item-selected-check" size={17} />}
+                          </div>
+                          {bazarEditSuggestionOpen && (
+                            <div className="bazar-item-suggestions" id="bazar-edit-item-suggestions" role="listbox">
+                              {bazarEditSuggestions.map((preset) => (
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected={chosenBazarEditPreset?.id === preset.id}
+                                  className="bazar-item-suggestion"
+                                  key={preset.suggestionKey || preset.id}
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => {
+                                    setBazarEditItemSearch(preset.name);
+                                    setBazarEditPicker((prev) => ({
+                                      ...prev,
+                                      ...getBazarPickerSuggestionPatch(preset),
+                                    }));
+                                    setBazarEditPickerError("");
+                                    setBazarEditSuggestionOpen(false);
+                                  }}
+                                >
+                                  <span className="bazar-item-suggestion-icon" aria-hidden="true">
+                                    {renderCommonBazarIcon(preset, 23)}
+                                  </span>
+                                  <span className="bazar-item-suggestion-copy">
+                                    <strong>{preset.name}</strong>
+                                    <small>{preset.subItem ? preset.parentName : preset.id} · {preset.defaultUnit}</small>
+                                  </span>
+                                  <ChevronRight size={15} aria-hidden="true" />
+                                </button>
+                              ))}
+                              {bazarEditItemSearch.trim() && (
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected={chosenBazarEditPreset?.isCustom || false}
+                                  className="bazar-item-suggestion is-custom"
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => {
+                                    const customPreset = commonBazarItems.find((item) => item.isCustom) || BAZAR_COMMON_ITEMS.find((item) => item.isCustom);
+                                    setBazarEditPicker((prev) => ({
+                                      ...prev,
+                                      itemId: customPreset.id,
+                                      customName: bazarEditItemSearch.trim(),
+                                      catalogName: "",
+                                      catalogEmoji: "",
+                                      unit: customPreset.defaultUnit,
+                                    }));
+                                    setBazarEditPickerError("");
+                                    setBazarEditSuggestionOpen(false);
+                                  }}
+                                >
+                                  <span className="bazar-item-suggestion-icon" aria-hidden="true">
+                                    {renderCommonBazarIcon(commonBazarItems.find((item) => item.isCustom), 23)}
+                                  </span>
+                                  <span className="bazar-item-suggestion-copy">
+                                    <strong>Use “{bazarEditItemSearch.trim()}”</strong>
+                                    <small>Track as a custom item</small>
+                                  </span>
+                                  <Plus size={15} aria-hidden="true" />
+                                </button>
+                              )}
+                              {!bazarEditSuggestions.length && !bazarEditItemSearch.trim() && (
+                                <span className="bazar-item-suggestion-empty">Start typing an item name.</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="bazar-simple-field">
+                          <label htmlFor="bazar-edit-simple-quantity">পরিমাণ</label>
+                          <div className="bazar-simple-quantity">
+                            <input
+                              id="bazar-edit-simple-quantity"
+                              type="number"
+                              min="0"
+                              step="any"
+                              placeholder="1"
+                              value={bazarEditPicker.qty}
+                              onChange={(event) => {
+                                setBazarEditPickerError("");
+                                setBazarEditPicker((prev) => ({ ...prev, qty: event.target.value }));
+                              }}
+                            />
+                            <select
+                              aria-label="Quantity unit"
+                              value={bazarEditPicker.unit}
+                              onChange={(event) => setBazarEditPicker((prev) => ({ ...prev, unit: event.target.value }))}
+                            >
+                              <option value="kg">kg</option><option value="gram">gram</option>
+                              <option value="liter">liter</option><option value="pcs">pcs</option>
+                              <option value="pack">pack</option><option value="tray">tray</option><option value="pc">pc</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="bazar-simple-field">
+                          <label htmlFor="bazar-edit-simple-price">দাম (৳)</label>
+                          <input
+                            id="bazar-edit-simple-price"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={bazarEditPicker.unitPrice}
+                            onChange={(event) => {
+                              setBazarEditPickerError("");
+                              setBazarEditPicker((prev) => ({ ...prev, unitPrice: event.target.value }));
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                addPickerItemToEditBazar();
+                              }
+                            }}
+                          />
+                        </div>
+
+                        <button type="button" className="bazar-simple-add" onClick={addPickerItemToEditBazar}>
+                          <Plus size={17} /> Add item
+                        </button>
+                      </div>
+
+                      {bazarEditPickerError && <p className="bazar-simple-error">{bazarEditPickerError}</p>}
+
+                      {(bazarEditEntry.editItems || []).length > 0 && (
+                        <div className="bazar-tracked-items">
+                          <div className="bazar-tracked-head">
+                            <span>Item</span><span>Quantity</span><span>Price</span><span />
+                          </div>
+                          {(bazarEditEntry.editItems || []).map((row, index) => (
+                            <div className="bazar-tracked-row" key={`${row.item}-${index}`}>
+                              <span className="bazar-tracked-item bazar-edit-tracked-item">
+                                <span aria-hidden="true">{renderBazarItemIcon(row.item, 19)}</span>
+                                <input
+                                  aria-label={`Item ${index + 1}`}
+                                  value={row.item}
+                                  onChange={(event) => updateBazarEditItem(index, "item", event.target.value)}
+                                />
+                              </span>
+                              <span className="bazar-tracked-quantity">
+                                <input
+                                  aria-label={`Quantity for ${row.item}`}
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  value={row.quantity ?? ""}
+                                  onChange={(event) => updateBazarEditItem(index, "quantity", event.target.value)}
+                                />
+                                <select
+                                  aria-label={`Unit for ${row.item}`}
+                                  value={row.unit || "kg"}
+                                  onChange={(event) => updateBazarEditItem(index, "unit", event.target.value)}
+                                >
+                                  <option value="kg">kg</option><option value="gram">gram</option>
+                                  <option value="liter">liter</option><option value="pcs">pcs</option>
+                                  <option value="pack">pack</option><option value="tray">tray</option><option value="pc">pc</option>
+                                </select>
+                              </span>
+                              <input
+                                aria-label={`Price for ${row.item}`}
+                                className="bazar-tracked-price"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={row.price}
+                                onChange={(event) => updateBazarEditItem(index, "price", event.target.value)}
+                              />
+                              <button
+                                type="button"
+                                className="icon-btn danger-text bazar-tracked-remove"
+                                aria-label={`Remove ${row.item}`}
+                                onClick={() => removeBazarEditItem(index)}
+                                disabled={(bazarEditEntry.editItems || []).length === 1}
+                              >
+                                <X size={15} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="bazar-simple-total">
+                        <span>{(bazarEditEntry.editItems || []).length} tracked item{(bazarEditEntry.editItems || []).length === 1 ? "" : "s"}</span>
+                        <strong>Total {money((bazarEditEntry.editItems || []).reduce((sum, row) => sum + Number(row.price || 0), 0))}</strong>
+                      </div>
+                    </div>
+
                     {admin ? (
                       <label>
                         Paid by
@@ -9102,7 +11721,11 @@ function App() {
                           onChange={(e) => {
                             const val = e.target.value;
                             const total = (bazarEditEntry.editItems || []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
-                            const oldCash = bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0;
+                            const oldCash = bazarEditEntry.isCombined
+          ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0)
+          : bazarEditEntry.paidFromCash
+            ? Number(bazarEditEntry.amount || 0)
+            : 0;
                             const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + oldCash));
                             if (val === "combine") {
                               const defaultCash = Math.min(total, avail);
@@ -9131,14 +11754,18 @@ function App() {
                         </select>
                       </label>
                     ) : (
-                      roundMoney(cashInHand - pendingCashSettlementTotal + (bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0)) > 0 && (
+                      roundMoney(cashInHand - pendingCashSettlementTotal + (bazarEditEntry.isCombined ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0) : (bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0))) > 0 && (
                         <label className="bazar-combine-toggle">
                           <input
                             type="checkbox"
                             checked={bazarEditEntry.editPaidBy === "combine"}
                             onChange={(e) => {
                               const total = (bazarEditEntry.editItems || []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
-                              const oldCash = bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0;
+                              const oldCash = bazarEditEntry.isCombined
+          ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0)
+          : bazarEditEntry.paidFromCash
+            ? Number(bazarEditEntry.amount || 0)
+            : 0;
                               const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + oldCash));
                               if (e.target.checked) {
                                 const defaultCash = Math.min(total, avail);
@@ -9168,7 +11795,7 @@ function App() {
                             <strong>Combine payment breakdown</strong>
                           </div>
                           <span className="bazar-combine-avail">
-                            Available Cash: <strong>{money(Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + (bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0))))}</strong>
+                            Available Cash: <strong>{money(Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + (bazarEditEntry.isCombined ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0) : (bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0)))))}</strong>
                           </span>
                         </div>
 
@@ -9240,7 +11867,11 @@ function App() {
                             className="bazar-combine-quick-btn"
                             onClick={() => {
                               const total = (bazarEditEntry.editItems || []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
-                              const oldCash = bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0;
+                              const oldCash = bazarEditEntry.isCombined
+          ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0)
+          : bazarEditEntry.paidFromCash
+            ? Number(bazarEditEntry.amount || 0)
+            : 0;
                               const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + oldCash));
                               const maxCash = Math.min(total, avail);
                               const rem = Math.max(0, roundMoney(total - maxCash));
@@ -9251,7 +11882,7 @@ function App() {
                               }));
                             }}
                           >
-                            Use Max Cash ({money(Math.min((bazarEditEntry.editItems || []).reduce((s, r) => s + (Number(r.price) || 0), 0), Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + (bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0)))))})
+                            Use Max Cash ({money(Math.min((bazarEditEntry.editItems || []).reduce((s, r) => s + (Number(r.price) || 0), 0), Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + (bazarEditEntry.isCombined ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0) : (bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0))))))})
                           </button>
                           <button
                             type="button"
@@ -9276,7 +11907,11 @@ function App() {
                             const cash = Number(bazarEditEntry.combinedCashAmount) || 0;
                             const mem = Number(bazarEditEntry.combinedMemberAmount) || 0;
                             const total = (bazarEditEntry.editItems || []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
-                            const oldCash = bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0;
+                            const oldCash = bazarEditEntry.isCombined
+          ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0)
+          : bazarEditEntry.paidFromCash
+            ? Number(bazarEditEntry.amount || 0)
+            : 0;
                             const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal + oldCash));
                             const memName = db.users.find((u) => u.id === (bazarEditEntry.combinedMemberId || user?.id))?.name || "Member";
 
@@ -9296,12 +11931,12 @@ function App() {
                         </div>
                       </div>
                     )}
-                    <div className="bazar-edit-total"><span>Total</span><strong>{money((bazarEditEntry.editItems||[]).reduce((sum,row)=>sum+(Number(row.price)||0),0))}</strong></div>
-                  </div>
-                  <div className="bazar-edit-actions">
-                    <button type="button" className="secondary bazar-action" onClick={() => setBazarEditEntry(null)}>Cancel</button>
-                    <button type="button" className="primary" onClick={saveBazarEdit}>{bazarEditEntry.editPaidBy === "combine" ? "Save combined changes" : "Save changes"}</button>
-                  </div>
+
+                    <div className="bazar-edit-actions">
+                      <button type="button" className="secondary bazar-action" onClick={() => setBazarEditEntry(null)}>Cancel</button>
+                      <button type="submit" className="primary">{bazarEditEntry.editPaidBy === "combine" ? "Save combined changes" : "Save changes"}</button>
+                    </div>
+                  </form>
                 </section>
               </div>
             )}
@@ -9311,7 +11946,7 @@ function App() {
                   <PanelHead title="Bazar details" sub={bazarDetailsEntry.date} />
                   <div className="table-wrap">
                     <table>
-                      <thead><tr><th>Item</th><th>Price</th></tr></thead>
+                      <thead><tr><th>Item</th><th>Quantity</th><th>Price</th></tr></thead>
                       <tbody>
                         {(() => {
                           let details = Array.isArray(bazarDetailsEntry.items) ? bazarDetailsEntry.items : null;
@@ -9319,16 +11954,19 @@ function App() {
                             try { const parsed=JSON.parse(bazarDetailsEntry.items); details=Array.isArray(parsed)?parsed:null; } catch { details=null; }
                           }
                           const normalize = (entry) => {
-                            if (typeof entry === "string") return { item: entry.trim(), price: null };
-                            if (!entry || typeof entry !== "object") return { item: "", price: null };
+                            if (typeof entry === "string") return { item: entry.trim(), quantity: null, unit: "", price: null };
+                            if (!entry || typeof entry !== "object") return { item: "", quantity: null, unit: "", price: null };
                             const rawItem = entry.item ?? entry.name ?? entry.title;
                             const item = typeof rawItem === "string" ? rawItem : (rawItem?.name ?? rawItem?.item ?? "");
+                            const rawQuantity = entry.quantity ?? entry.qty;
+                            const quantity = rawQuantity === "" || rawQuantity == null || !Number.isFinite(Number(rawQuantity)) ? null : Number(rawQuantity);
+                            const unit = String(entry.unit || "").trim();
                             const rawPrice = entry.price ?? entry.amount ?? rawItem?.price;
                             const price = rawPrice === "" || rawPrice == null || !Number.isFinite(Number(rawPrice)) ? null : Number(rawPrice);
-                            return { item: String(item || "").trim(), price };
+                            return { item: String(item || "").trim(), quantity, unit, price };
                           };
                           const rows = (details || String(bazarDetailsEntry.items||"").split(",")).map(normalize).filter(row=>row.item);
-                          return rows.map((entry,index)=><tr key={`${index}-${entry.item}`}><td>{entry.item}</td><td>{entry.price==null?"—":money(entry.price)}</td></tr>);
+                          return rows.map((entry,index)=><tr key={`${index}-${entry.item}`}><td>{entry.item}</td><td>{entry.quantity==null?"—":`${entry.quantity} ${entry.unit}`}</td><td>{entry.price==null?"—":money(entry.price)}</td></tr>);
                         })()}</tbody>
                     </table>
                   </div>
@@ -9371,6 +12009,210 @@ function App() {
               </div>
             )}
           </>
+        )}
+        {commonItemsModalOpen && admin && (
+          <div
+            className="modal-backdrop bazar-common-manage-backdrop"
+            role="presentation"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !commonItemsBusy) {
+                setCommonItemsModalOpen(false);
+              }
+            }}
+          >
+            <section
+              className="modal panel bazar-common-manage-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Manage common bazar items"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bazar-common-manage-head">
+                <div>
+                  <span className="bazar-common-manage-eyebrow">ADMIN CATALOG</span>
+                  <h3>Manage Common Items</h3>
+                  <p>Add, edit, or delete quick-pick items and icons.</p>
+                </div>
+                <button
+                  type="button"
+                  className="icon-btn bazar-action"
+                  aria-label="Close common items manager"
+                  onClick={() => setCommonItemsModalOpen(false)}
+                  disabled={commonItemsBusy}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form className="bazar-common-manage-form" onSubmit={submitCommonItemForm}>
+                <div className="bazar-common-manage-fields">
+                  <div className="bazar-common-manage-field is-icon">
+                    <span>Icon</span>
+                    <div className="bazar-common-upload-box">
+                      <span className="bazar-common-upload-preview" aria-hidden="true">
+                        {commonItemForm.iconUrl ? (
+                          <img
+                            src={commonItemForm.iconUrl}
+                            alt=""
+                            className="bazar-common-uploaded-icon"
+                            style={{ width: 22, height: 22 }}
+                          />
+                        ) : (
+                          commonItemForm.emoji || "🛒"
+                        )}
+                      </span>
+                      <label className="bazar-common-upload-btn" title="Upload icon image">
+                        <ImagePlus size={14} />
+                        <span>{commonIconUploading ? "..." : "Upload"}</span>
+                        <input
+                          type="file"
+                          accept="image/*,.svg,.png,.webp,.jpg,.jpeg"
+                          onChange={handleCommonItemIconUpload}
+                          disabled={commonItemsBusy || commonIconUploading}
+                          hidden
+                        />
+                      </label>
+                      {commonItemForm.iconUrl && (
+                        <button
+                          type="button"
+                          className="bazar-common-upload-clear"
+                          title="Remove uploaded icon"
+                          aria-label="Remove uploaded icon"
+                          onClick={() =>
+                            setCommonItemForm((prev) => ({ ...prev, iconUrl: "" }))
+                          }
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <label className="bazar-common-manage-field is-name">
+                    <span>Item name</span>
+                    <input
+                      type="text"
+                      required
+                      value={commonItemForm.name}
+                      onChange={(e) =>
+                        setCommonItemForm((prev) => ({ ...prev, name: e.target.value }))
+                      }
+                      placeholder="e.g. আলু, দুধ, চিনি..."
+                    />
+                  </label>
+                  <label className="bazar-common-manage-field is-unit">
+                    <span>Unit</span>
+                    <select
+                      value={commonItemForm.defaultUnit}
+                      onChange={(e) =>
+                        setCommonItemForm((prev) => ({ ...prev, defaultUnit: e.target.value }))
+                      }
+                    >
+                      {["kg", "gram", "liter", "pcs", "pack", "pc"].map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="bazar-common-manage-submit-row">
+                  {commonItemForm.editingId && (
+                    <button
+                      type="button"
+                      className="secondary bazar-action"
+                      onClick={() =>
+                        setCommonItemForm({
+                          editingId: "",
+                          name: "",
+                          emoji: "🛒",
+                          iconUrl: "",
+                          defaultUnit: "kg",
+                        })
+                      }
+                      disabled={commonItemsBusy}
+                    >
+                      Cancel edit
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="primary bazar-action"
+                    disabled={commonItemsBusy || commonIconUploading || !commonItemForm.name.trim()}
+                  >
+                    {commonItemForm.editingId ? (
+                      <>
+                        <Check size={15} /> Save changes
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={15} /> Add item
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+
+              <div className="bazar-common-manage-list" role="list">
+                {commonBazarItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`bazar-common-manage-row${commonItemForm.editingId === item.id ? " is-editing" : ""}`}
+                    role="listitem"
+                  >
+                    <span className="bazar-common-manage-row-icon" aria-hidden="true">
+                      {renderCommonBazarIcon(item, 22)}
+                    </span>
+                    <div className="bazar-common-manage-row-copy">
+                      <strong>{item.name}</strong>
+                      <small>Default unit: {item.defaultUnit || "kg"}</small>
+                    </div>
+                    <div className="bazar-common-manage-row-actions">
+                      <button
+                        type="button"
+                        className="icon-btn bazar-action"
+                        title={`Edit ${item.name}`}
+                        aria-label={`Edit ${item.name}`}
+                        onClick={() => editCommonItemRow(item)}
+                        disabled={commonItemsBusy}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn danger bazar-action"
+                        title={`Delete ${item.name}`}
+                        aria-label={`Delete ${item.name}`}
+                        onClick={() => deleteCommonItemRow(item)}
+                        disabled={commonItemsBusy || commonBazarItems.length <= 1}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bazar-common-manage-footer">
+                <button
+                  type="button"
+                  className="secondary bazar-action"
+                  onClick={resetCommonBazarItems}
+                  disabled={commonItemsBusy}
+                >
+                  <RotateCcw size={14} /> Reset defaults
+                </button>
+                <button
+                  type="button"
+                  className="primary bazar-action"
+                  onClick={() => setCommonItemsModalOpen(false)}
+                  disabled={commonItemsBusy}
+                >
+                  Done
+                </button>
+              </div>
+            </section>
+          </div>
         )}
         {confirmDialog && (
           <div
@@ -9577,6 +12419,545 @@ function App() {
             )}
           </>
         )}
+        {page === "bazar-report" && (admin || user.role === "member") && (() => {
+          const chartColors = ["#0d6f49", "#10b981", "#0ea5e9", "#f59e0b", "#8b5cf6", "#ef4444"];
+          const donutItems = bazarItemUsageReport.items.slice(0, 6);
+          const donutRadius = 52;
+          const donutCircumference = 2 * Math.PI * donutRadius;
+          let donutOffset = 0;
+          const topItem = bazarItemUsageReport.items[0];
+          const monthlySeries = monthlyBazarHistory.length
+            ? monthlyBazarHistory
+            : [{ id: "current", label: month, amount: bazarTotal }];
+          const curMonthIdx = monthlySeries.findIndex((m) => m.label === month);
+          const prevMonthEntry = curMonthIdx > 0 ? monthlySeries[curMonthIdx - 1] : null;
+          const momDiffPct =
+            prevMonthEntry && prevMonthEntry.amount > 0
+              ? Math.round(((bazarTotal - prevMonthEntry.amount) / prevMonthEntry.amount) * 100)
+              : null;
+
+          // Build Expense Trend series for 7D / 30D / 3M / 6M
+          const monthShort = String(month || "").split(" ")[0].slice(0, 3) || "Mo";
+          const dailyPoints = (bazarItemUsageReport.dailyTrend || []).map((d) => ({
+            label: `${monthShort} ${Number(d.dayLabel)}`,
+            amount: Number(d.amount || 0),
+          }));
+          const monthPoints = monthlySeries.map((m) => {
+            const parts = String(m.label || "").split(" ");
+            return {
+              label: parts.length >= 2 ? `${parts[0].slice(0, 3)} '${parts[1].slice(-2)}` : m.label,
+              amount: Number(m.amount || 0),
+            };
+          });
+          let rawTrendPoints = [];
+          if (bazarTrendRange === "7D") {
+            rawTrendPoints = dailyPoints.slice(-7);
+          } else if (bazarTrendRange === "30D") {
+            // Cumulative or daily progression across the month
+            let running = 0;
+            rawTrendPoints = dailyPoints.map((pt) => {
+              running = roundMoney(running + pt.amount);
+              return { label: pt.label, amount: running };
+            });
+          } else if (bazarTrendRange === "3M") {
+            rawTrendPoints = monthPoints.slice(-3);
+          } else {
+            rawTrendPoints = monthPoints.slice(-6);
+          }
+          if (!rawTrendPoints.length) {
+            rawTrendPoints = [{ label: `${monthShort} 1`, amount: 0 }, { label: monthShort, amount: bazarTotal }];
+          } else if (rawTrendPoints.length === 1) {
+            rawTrendPoints = [{ label: `${monthShort} 1`, amount: 0 }, rawTrendPoints[0]];
+          }
+
+          const trendRawMax = rawTrendPoints.reduce((mx, p) => Math.max(mx, p.amount), 0);
+          const stepUnit = trendRawMax <= 1000 ? 250 : trendRawMax <= 4000 ? 1000 : 2000;
+          const yMax = Math.max(stepUnit * 4, Math.ceil((trendRawMax * 1.15) / stepUnit) * stepUnit);
+          const yTicks = [0, 1, 2, 3, 4].map((i) => (yMax / 4) * i);
+          const svgW = 640;
+          const svgH = 184;
+          const padL = 42;
+          const padR = 28;
+          const padT = 38;
+          const padB = 26;
+          const plotW = svgW - padL - padR;
+          const plotH = svgH - padT - padB;
+          const trendCoords = rawTrendPoints.map((pt, idx) => ({
+            ...pt,
+            x: padL + (idx / Math.max(1, rawTrendPoints.length - 1)) * plotW,
+            y: padT + plotH - (pt.amount / yMax) * plotH,
+          }));
+          const trendLinePath = trendCoords.reduce((acc, pt, idx, arr) => {
+            if (idx === 0) return `M ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
+            const prev = arr[idx - 1];
+            const cpX = ((prev.x + pt.x) / 2).toFixed(1);
+            return `${acc} C ${cpX} ${prev.y.toFixed(1)}, ${cpX} ${pt.y.toFixed(1)}, ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
+          }, "");
+          const trendAreaPath = `${trendLinePath} L ${trendCoords[trendCoords.length - 1].x.toFixed(1)} ${(padT + plotH).toFixed(1)} L ${trendCoords[0].x.toFixed(1)} ${(padT + plotH).toFixed(1)} Z`;
+          const activeTrendIdx =
+            bazarTrendFocusIdx !== null && bazarTrendFocusIdx >= 0 && bazarTrendFocusIdx < trendCoords.length
+              ? bazarTrendFocusIdx
+              : trendCoords.length - 1;
+          const activePt = trendCoords[activeTrendIdx];
+          const pillW = 84;
+          const pillX = Math.max(padL + pillW / 2 - 8, Math.min(svgW - padR - pillW / 2 + 8, activePt.x));
+          const pillY = Math.max(4, activePt.y - 38);
+
+          return (
+            <div className="bazar-report-shell">
+              {bazarItemUsageReport.items.length > 0 ? (
+                <>
+                  <div className="bazar-report-charts-grid">
+                    <section className="panel bazar-report-chart-card bazar-trend-card" aria-label="Expense Trend">
+                      <div className="bazar-trend-head">
+                        <div className="bazar-trend-title">
+                          <span className="bazar-trend-icon" aria-hidden="true">
+                            <TrendingUp size={17} />
+                          </span>
+                          <h4>Expense Trend</h4>
+                        </div>
+                        <div className="bazar-trend-tabs" role="tablist" aria-label="Trend range">
+                          {["7D", "30D", "3M", "6M"].map((rng) => (
+                            <button
+                              key={rng}
+                              type="button"
+                              role="tab"
+                              aria-selected={bazarTrendRange === rng}
+                              className={`bazar-trend-tab${bazarTrendRange === rng ? " is-active" : ""}`}
+                              onClick={() => {
+                                setBazarTrendRange(rng);
+                                setBazarTrendFocusIdx(null);
+                              }}
+                            >
+                              {rng}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bazar-trend-svg-wrap">
+                        <svg viewBox={`0 0 ${svgW} ${svgH}`} className="bazar-trend-svg" role="img" aria-label="Expense trend line chart">
+                          <defs>
+                            <linearGradient id="bazarTrendAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#10b981" stopOpacity="0.24" />
+                              <stop offset="100%" stopColor="#10b981" stopOpacity="0.01" />
+                            </linearGradient>
+                          </defs>
+                          {yTicks.map((val) => {
+                            const yPos = padT + plotH - (val / yMax) * plotH;
+                            const tickText = val === 0 ? "0k" : val >= 1000 ? `${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}k` : `${Math.round(val)}`;
+                            return (
+                              <g key={val}>
+                                <line
+                                  x1={padL}
+                                  y1={yPos}
+                                  x2={svgW - padR}
+                                  y2={yPos}
+                                  className="bazar-trend-gridline"
+                                />
+                                <text x={padL - 8} y={yPos + 4} textAnchor="end" className="bazar-trend-ylabel">
+                                  {tickText}
+                                </text>
+                              </g>
+                            );
+                          })}
+                          {trendCoords.map((pt, idx) => (
+                            <line
+                              key={`vg-${idx}`}
+                              x1={pt.x}
+                              y1={padT}
+                              x2={pt.x}
+                              y2={padT + plotH}
+                              className="bazar-trend-vgrid"
+                            />
+                          ))}
+                          <path d={trendAreaPath} fill="url(#bazarTrendAreaGrad)" />
+                          <path d={trendLinePath} fill="none" stroke="#0d7a4f" strokeWidth="2.6" strokeLinecap="round" />
+                          {trendCoords.map((pt, idx) => (
+                            <g
+                              key={`pt-${idx}`}
+                              className="bazar-trend-point-hit"
+                              onMouseEnter={() => setBazarTrendFocusIdx(idx)}
+                              onClick={() => setBazarTrendFocusIdx(idx)}
+                            >
+                              <circle
+                                cx={pt.x}
+                                cy={pt.y}
+                                r={idx === activeTrendIdx ? 5.2 : 4.2}
+                                fill="#ffffff"
+                                stroke="#0d7a4f"
+                                strokeWidth="2.5"
+                              />
+                              <text
+                                x={pt.x}
+                                y={svgH - 8}
+                                textAnchor="middle"
+                                className={`bazar-trend-xlabel${idx === activeTrendIdx ? " is-active" : ""}`}
+                              >
+                                {pt.label}
+                              </text>
+                            </g>
+                          ))}
+                          <g className="bazar-trend-callout" pointerEvents="none">
+                            <rect
+                              x={pillX - pillW / 2}
+                              y={pillY}
+                              width={pillW}
+                              height="24"
+                              rx="8"
+                              fill="#067647"
+                            />
+                            <polygon
+                              points={`${activePt.x - 5},${pillY + 23.5} ${activePt.x + 5},${pillY + 23.5} ${activePt.x},${pillY + 29}`}
+                              fill="#067647"
+                            />
+                            <text
+                              x={pillX}
+                              y={pillY + 15.5}
+                              textAnchor="middle"
+                              fill="#ffffff"
+                              fontSize="12"
+                              fontWeight="800"
+                            >
+                              {money(activePt.amount)}
+                            </text>
+                          </g>
+                        </svg>
+                      </div>
+                    </section>
+
+                    <section className="panel bazar-report-chart-card bazar-top-items-card bazar-top-items-card-grid" aria-label="Top Items This Month">
+                      <div className="bazar-top-items-head">
+                        <div className="bazar-top-items-title">
+                          <span className="bazar-top-items-star" aria-hidden="true">
+                            <Star size={17} fill="currentColor" />
+                          </span>
+                          <h4>Top Items This Month</h4>
+                        </div>
+                        <button
+                          type="button"
+                          className="bazar-top-items-viewall"
+                          onClick={() => {
+                            setShowAllBazarReportItems(true);
+                            document.getElementById("bazar-usage-breakdown")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                          }}
+                        >
+                          <span>View All</span>
+                          <ArrowRight size={14} />
+                        </button>
+                      </div>
+                      <div className="bazar-top-items-grid is-two-column">
+                        {donutItems.map((item) => (
+                          <div
+                            className="bazar-top-item-tile bazar-top-item-wide"
+                            style={{ "--spending-color": chartColors[item.colorIndex] }}
+                            key={item.key}
+                          >
+                            <span className="bazar-top-item-emoji is-large" aria-hidden="true">
+                              {renderBazarItemIcon(item.name, 38)}
+                            </span>
+                            <span className="bazar-top-item-copy">
+                              <strong className="bazar-top-item-name">{item.name}</strong>
+                              <small className="bazar-top-item-pct">{item.sharePct.toFixed(1)}% of spending</small>
+                            </span>
+                            <strong className="bazar-top-item-amount">{money(item.totalSpent)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="panel bazar-report-chart-card bazar-cat-card bazar-legacy-category-card" aria-label="Category wise total spending chart">
+                      <div className="bazar-report-card-head">
+                        <h4>Category-Wise Total Spending</h4>
+                        <span>{money(bazarTotal)} total</span>
+                      </div>
+                      <div className="bazar-cat-visual">
+                        <div className="bazar-donut-wrap">
+                          <svg viewBox="0 0 144 144" className="bazar-donut-svg" role="img" aria-label="Category wise total spending donut chart">
+                            <circle
+                              cx="72"
+                              cy="72"
+                              r={donutRadius}
+                              fill="none"
+                              stroke="rgba(16, 185, 129, 0.12)"
+                              strokeWidth="20"
+                            />
+                            {donutItems.map((item) => {
+                              const pct = Math.max(0, item.sharePct) / 100;
+                              const segLen = pct * donutCircumference;
+                              const dashArray = `${segLen} ${donutCircumference - segLen}`;
+                              const dashOffset = -donutOffset;
+                              donutOffset += segLen;
+                              return (
+                                <circle
+                                  key={item.key}
+                                  cx="72"
+                                  cy="72"
+                                  r={donutRadius}
+                                  fill="none"
+                                  stroke={chartColors[item.colorIndex]}
+                                  strokeWidth="20"
+                                  strokeDasharray={dashArray}
+                                  strokeDashoffset={dashOffset}
+                                  transform="rotate(-90 72 72)"
+                                />
+                              );
+                            })}
+                          </svg>
+                          <div className="bazar-donut-center">
+                            <small>Categories</small>
+                            <strong>{bazarItemUsageReport.items.length}</strong>
+                          </div>
+                        </div>
+                        <div className="bazar-cat-bars is-clear">
+                          {donutItems.map((item) => {
+                            const wPct = bazarItemUsageReport.maxSpent > 0
+                              ? Math.max(6, Math.round((item.totalSpent / bazarItemUsageReport.maxSpent) * 100))
+                              : 6;
+                            return (
+                              <div
+                                className="bazar-cat-bar-item"
+                                style={{ "--spending-color": chartColors[item.colorIndex] }}
+                                key={item.key}
+                              >
+                                <div className="bazar-cat-bar-top">
+                                  <span className="bazar-cat-label-wrap">
+                                    <i style={{ background: chartColors[item.colorIndex] }} aria-hidden="true" />
+                                    <span className="bazar-cat-emoji" aria-hidden="true">
+                                      {renderBazarItemIcon(item.name, 14)}
+                                    </span>
+                                    <b>{item.name}</b>
+                                  </span>
+                                  <span className="bazar-cat-val-wrap">
+                                    <strong>{money(item.totalSpent)}</strong>
+                                    <small>{item.sharePct.toFixed(1)}%</small>
+                                  </span>
+                                </div>
+                                <div className="bazar-cat-bar-track">
+                                  <span
+                                    className="bazar-cat-bar-fill"
+                                    style={{ width: `${wPct}%`, background: chartColors[item.colorIndex] }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+
+                  <section className="panel bazar-top-items-card bazar-legacy-top-items-card" aria-label="Top Items This Month">
+                    <div className="bazar-top-items-head">
+                      <div className="bazar-top-items-title">
+                        <span className="bazar-top-items-star" aria-hidden="true">
+                          <Star size={17} fill="currentColor" />
+                        </span>
+                        <h4>Top Items This Month</h4>
+                      </div>
+                      <button
+                        type="button"
+                        className="bazar-top-items-viewall"
+                        onClick={() => {
+                          setShowAllBazarReportItems(true);
+                          document.getElementById("bazar-usage-breakdown")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }}
+                      >
+                        <span>View All</span>
+                        <ArrowRight size={14} />
+                      </button>
+                    </div>
+                    <div className="bazar-top-items-grid">
+                      {donutItems.map((item) => (
+                        <div
+                          className="bazar-top-item-tile"
+                          style={{ "--spending-color": chartColors[item.colorIndex] }}
+                          key={item.key}
+                        >
+                          <span className="bazar-top-item-emoji" aria-hidden="true">
+                            {renderBazarItemIcon(item.name, 26)}
+                          </span>
+                          <span className="bazar-top-item-name">{item.name}</span>
+                          <strong className="bazar-top-item-amount">{money(item.totalSpent)}</strong>
+                          <small className="bazar-top-item-pct">{item.sharePct.toFixed(1)}%</small>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section id="bazar-usage-breakdown" className="panel bazar-usage-dashboard is-minimal" aria-label="Detailed item usage breakdown">
+                    <div className="bazar-usage-min-head">
+                      <div className="bazar-usage-min-title">
+                        <h4>Item Usage Breakdown</h4>
+                        <span>{bazarItemUsageReport.items.length} categories · tap Details for sub-items</span>
+                      </div>
+                      {bazarItemUsageReport.items.length > 6 && (
+                        <button
+                          type="button"
+                          className="bazar-usage-min-toggle"
+                          onClick={() => setShowAllBazarReportItems((prev) => !prev)}
+                        >
+                          {showAllBazarReportItems
+                            ? "Show top 6"
+                            : `View all (${bazarItemUsageReport.items.length})`}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="bazar-usage-bars is-two-col is-minimal-grid">
+                      {(showAllBazarReportItems
+                        ? bazarItemUsageReport.items
+                        : bazarItemUsageReport.items.slice(0, 6)
+                      ).map((item) => {
+                        return (
+                          <div
+                            className="bazar-usage-row-wrap"
+                            style={{ "--spending-color": chartColors[item.colorIndex] }}
+                            key={item.key}
+                          >
+                            <div className="bazar-usage-row">
+                              <div className="bazar-usage-item-info">
+                                <span className="bazar-usage-item-emoji" aria-hidden="true">
+                                  {renderBazarReportIcon(item.name, 70)}
+                                </span>
+                              </div>
+                              <div className="bazar-usage-amount">
+                                <strong>{money(item.totalSpent)}</strong>
+                                <small className="bazar-usage-quantity">
+                                  {item.count}× bought
+                                  {item.qtySummary ? ` • ${item.qtySummary}` : ""}
+                                </small>
+                              </div>
+                              <div className="bazar-usage-item-copy">
+                                <strong>
+                                  <span className="bazar-usage-item-name">{item.name}</span>
+                                  <button
+                                    type="button"
+                                    className="bazar-usage-details-chip"
+                                    aria-haspopup="dialog"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setBazarUsageDetailsItem(item);
+                                    }}
+                                  >
+                                    Details
+                                  </button>
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {bazarItemUsageReport.items.length > 6 && (
+                      <div className="bazar-usage-more">
+                        <button
+                          type="button"
+                          className="bazar-usage-more-btn"
+                          onClick={() => setShowAllBazarReportItems((prev) => !prev)}
+                        >
+                          {showAllBazarReportItems
+                            ? "Show top 6 items"
+                            : `Show all ${bazarItemUsageReport.items.length} items`}
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                  {bazarUsageDetailsItem && (
+                    <div
+                      className="modal-backdrop bazar-usage-details-backdrop"
+                      role="presentation"
+                      onClick={() => setBazarUsageDetailsItem(null)}
+                    >
+                      <section
+                        className="modal panel bazar-usage-details-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="bazar-usage-details-title"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          className="bazar-usage-details-close-icon"
+                          aria-label="Close item details"
+                          onClick={() => setBazarUsageDetailsItem(null)}
+                        >
+                          <X size={19} />
+                        </button>
+                        <div className="bazar-usage-details-head">
+                          <span className="bazar-usage-details-icon" aria-hidden="true">
+                            {renderBazarReportIcon(bazarUsageDetailsItem.name, 58)}
+                          </span>
+                          <div>
+                            <small>Monthly bazar item</small>
+                            <h3 id="bazar-usage-details-title">{bazarUsageDetailsItem.name}</h3>
+                            <p>
+                              {bazarUsageDetailsItem.count}× bought
+                              {bazarUsageDetailsItem.qtySummary
+                                ? ` • ${bazarUsageDetailsItem.qtySummary}`
+                                : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="bazar-usage-details-summary">
+                          <div>
+                            <span>Total amount</span>
+                            <strong>{money(bazarUsageDetailsItem.totalSpent)}</strong>
+                          </div>
+                          <div>
+                            <span>Total quantity</span>
+                            <strong>{bazarUsageDetailsItem.qtySummary || "—"}</strong>
+                          </div>
+                        </div>
+                        {Array.isArray(bazarUsageDetailsItem.subItems) &&
+                        bazarUsageDetailsItem.subItems.length > 0 ? (
+                          <div className="bazar-usage-details-list">
+                            {bazarUsageDetailsItem.subItems.map((sub) => (
+                              <article className="bazar-usage-details-row" key={sub.key}>
+                                <span className="bazar-usage-details-row-icon" aria-hidden="true">
+                                  {renderBazarItemIcon(
+                                    `${bazarUsageDetailsItem.name} - ${sub.name}`,
+                                    28,
+                                  )}
+                                </span>
+                                <div>
+                                  <strong>{sub.name}</strong>
+                                  <small>
+                                    {sub.count}× bought
+                                    {sub.qtySummary ? ` • ${sub.qtySummary}` : ""}
+                                  </small>
+                                </div>
+                                <b>{money(sub.totalSpent)}</b>
+                              </article>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="bazar-usage-details-empty">
+                            No separate sub-item breakdown was recorded for this item.
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          className="secondary full bazar-usage-details-close"
+                          onClick={() => setBazarUsageDetailsItem(null)}
+                        >
+                          Close
+                        </button>
+                      </section>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <section className="panel bazar-report-chart-card">
+                  <p className="bazar-usage-empty">
+                    No bazar items recorded for {month} yet. Add a bazar entry on Monthly Bazar to see charts and detailed reports.
+                  </p>
+                </section>
+              )}
+            </div>
+          );
+        })()}
         {page === "contacts" && (
           <section className="panel contacts-directory">
             <div className="contacts-directory-heading">
@@ -9594,11 +12975,7 @@ function App() {
           </section>
         )}
         {page === "inbox" && (
-          <section className="panel inbox-panel">
-            <div className="inbox-panel-heading">
-              <span className="inbox-panel-mark"><MessageCircle size={23} /></span>
-              <div><h3>Inbox</h3><p>Private messages between household members</p></div>
-            </div>
+          <section className="inbox-panel">
             {inboxError && <div className="error inbox-error" role="alert">{inboxError}</div>}
             <div className={`inbox-layout${mobileInboxView === "conversation" ? " mobile-conversation-open" : ""}`}>
               <aside className="inbox-member-list" aria-label="Member conversations">
@@ -9936,7 +13313,11 @@ function App() {
                                 if (!(await askConfirm(`Delete ${contact.name || "this contact"}? This cannot be undone.`, "Delete contact?"))) return;
                                 const { error } = await supabase.from("member_contacts").delete().eq("id", contact.id);
                                 if (error) alert("Could not delete contact: " + error.message);
-                                else setContactRows((rows) => rows.filter((row) => row.id !== contact.id));
+                                else {
+                                  setContactRows((rows) => rows.filter((row) => row.id !== contact.id));
+                                  setBazarSuccessToast("Contact deleted successfully");
+                                  window.setTimeout(() => setBazarSuccessToast(""), 2600);
+                                }
                               }}>
                                 <PremiumDeleteIcon size={15} />
                               </button>
@@ -10310,6 +13691,123 @@ function App() {
               </section>
             </div>
           )}
+        {showBazarNeededLoginPopup &&
+          user?.role === "member" &&
+          bazarNeededItems.length > 0 && (
+            <div
+              className="bazar-needed-login-backdrop"
+              role="presentation"
+              onClick={(event) => {
+                if (event.target === event.currentTarget && !bazarNeededBusy) {
+                  setShowBazarNeededLoginPopup(false);
+                }
+              }}
+            >
+              <section
+                className="bazar-needed-login-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="bazar-needed-login-title"
+                aria-describedby="bazar-needed-login-description"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  className="bazar-needed-login-close"
+                  aria-label="Close essentials to buy"
+                  onClick={() => setShowBazarNeededLoginPopup(false)}
+                  disabled={bazarNeededBusy}
+                >
+                  <X size={21} />
+                </button>
+                <header className="bazar-needed-login-hero">
+                  <span className="bazar-needed-login-mark" aria-hidden="true">
+                    <ShoppingBasket size={34} />
+                    <Sparkles size={18} />
+                  </span>
+                  <span className="bazar-needed-login-divider" aria-hidden="true" />
+                  <span className="bazar-needed-login-heading">
+                    <span className="bazar-needed-login-eyebrow">SHARED SHOPPING LIST</span>
+                    <h2 id="bazar-needed-login-title">Essentials to Buy</h2>
+                    <p id="bazar-needed-login-description">
+                      Here are the items needed for the flat.
+                    </p>
+                  </span>
+                  <span className="bazar-needed-login-count">
+                    {pendingBazarNeededItems.length > 0
+                      ? `${pendingBazarNeededItems.length} pending`
+                      : "All bought"}
+                  </span>
+                </header>
+                <div className="bazar-needed-login-list">
+                  {[...bazarNeededItems]
+                    .sort((a, b) => Number(a.done) - Number(b.done))
+                    .map((item, index) => {
+                      const buyerName = item.done
+                        ? db.users.find((u) => u.id === item.boughtBy)?.name ||
+                          item.boughtByName ||
+                          "Member"
+                        : "";
+                      return (
+                        <article
+                          className={`bazar-needed-login-item${item.done ? " is-bought" : ""}`}
+                          key={item.id}
+                        >
+                          <div className="bazar-needed-login-item-main">
+                            <span className="bazar-needed-login-item-number" aria-hidden="true">
+                              {String(index + 1).padStart(2, "0")}
+                            </span>
+                            <span className="bazar-needed-login-item-icon" aria-hidden="true">
+                              {renderBazarItemIcon(item.name, 20)}
+                            </span>
+                            <span className="bazar-needed-login-item-copy">
+                              <strong>{item.name}</strong>
+                              <small>
+                                {item.done
+                                  ? "Bought"
+                                  : `${Number(item.quantity) || 1} ${item.unit || "pcs"}`}
+                              </small>
+                            </span>
+                            {item.done ? (
+                              <span className="bazar-needed-login-buyer-pill">
+                                <Check size={14} aria-hidden="true" />
+                                <span>Bought by {buyerName}</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="bazar-needed-login-mark-bought"
+                                onClick={() => void toggleBazarNeededItem(item.id)}
+                                disabled={bazarNeededBusy}
+                                aria-label={`Mark ${item.name} as bought`}
+                              >
+                                <Check size={15} />
+                                <span>Bought</span>
+                              </button>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })}
+                </div>
+                <footer className="bazar-needed-login-footer">
+                  <span className="bazar-needed-login-note">
+                    <CheckCircle2 size={17} aria-hidden="true" />
+                    Mark an item bought when it has been collected.
+                  </span>
+                  <button
+                    type="button"
+                    className="bazar-needed-login-got-it"
+                    onClick={() => setShowBazarNeededLoginPopup(false)}
+                    disabled={bazarNeededBusy}
+                  >
+                    <ShoppingBasket size={17} />
+                    Got it
+                  </button>
+                </footer>
+              </section>
+            </div>
+          )}
         {bazarSuccessToast && (
           <div
             className="app-success-layer"
@@ -10317,18 +13815,30 @@ function App() {
             aria-live="polite"
             aria-atomic="true"
           >
-            <div className="app-success-popup">
-              <span className="app-success-visual" aria-hidden="true">
-                <span className="app-success-halo" />
-                <svg viewBox="0 0 48 48">
-                  <circle cx="24" cy="24" r="21" />
-                  <path d="m14.5 24.5 6.1 6.2 13-14" />
-                </svg>
-              </span>
+            <div className={`app-success-popup${isDeleteSuccessToast ? " app-delete-success-popup" : ""}`}>
+              {isDeleteSuccessToast ? (
+                <span className="app-success-visual app-delete-visual" aria-hidden="true">
+                  <span className="app-delete-trash">
+                    <span className="app-delete-trash-lid" />
+                    <span className="app-delete-trash-bin"><i /><i /><i /></span>
+                  </span>
+                  <i className="app-delete-piece app-delete-piece-one" />
+                  <i className="app-delete-piece app-delete-piece-two" />
+                  <i className="app-delete-piece app-delete-piece-three" />
+                </span>
+              ) : (
+                <span className="app-success-visual" aria-hidden="true">
+                  <span className="app-success-halo" />
+                  <svg viewBox="0 0 48 48">
+                    <circle cx="24" cy="24" r="21" />
+                    <path d="m14.5 24.5 6.1 6.2 13-14" />
+                  </svg>
+                </span>
+              )}
               <span className="app-success-copy">
-                <small><i /> Action completed</small>
+                <small><i /> {isDeleteSuccessToast ? "Delete completed" : "Action completed"}</small>
                 <strong>{bazarSuccessToast}</strong>
-                <span>Your latest changes are now up to date.</span>
+                <span>{isDeleteSuccessToast ? "The selected data has been safely removed." : "Your latest changes are now up to date."}</span>
               </span>
               <span className="app-success-progress" aria-hidden="true" />
             </div>
@@ -10411,7 +13921,7 @@ function App() {
           </div>
             )}
 
-        <footer>
+        <footer className="app-footer">
           <span className="footer-credit">
             Designed &amp; developed by <strong>Rahat</strong> · Monthly Hisab
           </span>
@@ -10470,4 +13980,8 @@ function getUtilityTone(name) {
   if (category.includes("bua") || category.includes("maid") || category.includes("clean")) return "teal";
   return "amber";
 }
-createRoot(document.getElementById("root")).render(<App />);
+createRoot(document.getElementById("root")).render(
+  <AppErrorBoundary>
+    <App />
+  </AppErrorBoundary>,
+);

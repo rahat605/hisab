@@ -62,6 +62,11 @@ export function openOverviewReport({
   bazarTrend = [],
   members = [],
   costDrivers = [],
+  utilities = [],
+  bazarEntries = [],
+  payments = [],
+  contributions = [],
+  settlements = [],
   libraries = {},
 }) {
   const reportWindow = window.open("", "_blank", "width=1280,height=920");
@@ -82,6 +87,7 @@ export function openOverviewReport({
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "Asia/Dhaka",
   });
   const totalCharges = numberValue(metrics.totalCharges);
   const totalCovered = numberValue(metrics.totalCovered);
@@ -204,6 +210,181 @@ export function openOverviewReport({
     },
   ].map((item) => `<div class="insight-item"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong></div>`).join("");
 
+  const chunks = (items, size) => {
+    const result = [];
+    for (let index = 0; index < items.length; index += size) {
+      result.push(items.slice(index, index + size));
+    }
+    return result.length ? result : [[]];
+  };
+  const displayDate = (value) => {
+    const raw = String(value || "");
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00`) : new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw || "—";
+    return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  };
+  const balanceMarkup = (value) => {
+    const amount = numberValue(value);
+    const tone = amount > 0 ? "due" : amount < 0 ? "credit" : "settled";
+    const label = amount < 0 ? `${formatMoney(Math.abs(amount))} credit` : amount > 0 ? formatMoney(amount) : "Settled";
+    return `<strong class="detail-money ${tone}">${escapeHtml(label)}</strong>`;
+  };
+  const memberDetailRows = members.map((member) => `
+    <tr>
+      <td><b>${escapeHtml(member.name || "Member")}</b><small>${escapeHtml(member.username || "House member")}</small></td>
+      <td>${escapeHtml(formatMoney(member.roomRent))}</td>
+      <td>${escapeHtml(formatMoney(member.utilityShare))}</td>
+      <td>${escapeHtml(formatMoney(member.mealCharge))}</td>
+      <td>${balanceMarkup(member.previousBalance)}</td>
+      <td class="paid">${escapeHtml(formatMoney(member.rentPaid))}</td>
+      <td class="paid">${escapeHtml(formatMoney(member.mealPaid))}</td>
+      <td>${balanceMarkup(member.balance)}</td>
+    </tr>`);
+  const utilityDetailRows = utilities.map((utility) => `
+    <tr>
+      <td><b>${escapeHtml(utility.name || "Utility")}</b></td>
+      <td><span class="status-pill ${utility.shared ? "shared" : "individual"}">${utility.shared ? "Shared" : "Individual"}</span></td>
+      <td>${escapeHtml(formatMoney(utility.total))}</td>
+      <td class="paid">${escapeHtml(formatMoney(utility.paid))}</td>
+      <td>${balanceMarkup(utility.outstanding)}</td>
+      <td>${utility.shared ? escapeHtml(formatMoney(utility.perMember)) : "—"}</td>
+    </tr>`);
+  const bazarItemRows = bazarEntries.flatMap((entry) => {
+    const items = Array.isArray(entry.items) && entry.items.length
+      ? entry.items
+      : [{ name: "Bazar purchase", quantity: 0, unit: "", price: 0 }];
+    return items.map((item, itemIndex) => ({
+      date: entry.date,
+      name: item.name || "Bazar item",
+      quantity: numberValue(item.quantity),
+      unit: item.unit || "",
+      price: numberValue(item.price),
+      payer: entry.payer || "Member",
+      source: entry.source || "Member",
+      entryTotal: numberValue(entry.amount),
+      showEntry: itemIndex === 0,
+      itemCount: items.length,
+    }));
+  });
+  const bazarDetailRows = bazarItemRows.map((row) => `
+    <tr>
+      <td>${escapeHtml(displayDate(row.date))}</td>
+      <td><b>${escapeHtml(row.name)}</b></td>
+      <td>${row.quantity > 0 ? `${escapeHtml(row.quantity)} ${escapeHtml(row.unit || "unit")}` : "—"}</td>
+      <td>${row.price > 0 ? escapeHtml(formatMoney(row.price)) : "—"}</td>
+      <td>${escapeHtml(row.payer)}</td>
+      <td><span class="status-pill source">${escapeHtml(row.source)}</span></td>
+      <td>${row.showEntry ? `<b>${escapeHtml(formatMoney(row.entryTotal))}</b>${row.itemCount > 1 ? `<small>${row.itemCount} tracked items</small>` : ""}` : '<span class="continued">same entry</span>'}</td>
+    </tr>`);
+  const activityRows = [
+    ...payments.map((entry) => ({ ...entry, paid: entry.amount, remaining: 0 })),
+    ...contributions.map((entry) => ({ ...entry, paid: entry.amount, remaining: 0 })),
+    ...settlements.map((entry) => ({ ...entry, paid: entry.paid, remaining: entry.remaining })),
+  ].sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+  const activityDetailRows = activityRows.map((entry) => `
+    <tr>
+      <td>${escapeHtml(displayDate(entry.date))}</td>
+      <td><b>${escapeHtml(entry.type || "Activity")}</b></td>
+      <td>${escapeHtml(entry.member || "—")}</td>
+      <td>${escapeHtml(entry.note || "—")}</td>
+      <td>${escapeHtml(formatMoney(entry.amount))}</td>
+      <td><span class="paid-line">Paid ${escapeHtml(formatMoney(entry.paid))}</span>${numberValue(entry.remaining) > 0 ? `<small>Remaining ${escapeHtml(formatMoney(entry.remaining))}</small>` : ""}</td>
+      <td><span class="status-pill activity">${escapeHtml(entry.status || "Recorded")}</span></td>
+    </tr>`);
+
+  const detailPages = [];
+  chunks(memberDetailRows, 12).forEach((rows, index, pages) => {
+    detailPages.push({
+      title: "Complete member ledger",
+      subtitle: "Every charge, payment, previous balance, and final member position",
+      badge: `${members.length} members`,
+      summary: [
+        ["Current charges", formatMoney(totalCharges)],
+        ["Covered", formatMoney(totalCovered)],
+        ["Outstanding", formatMoney(outstanding)],
+        ["Collection rate", `${collectionRate.toFixed(1)}%`],
+      ],
+      tableClass: "member-detail-table",
+      columns: ["Member", "Room rent", "Utility share", "Meal cost", "Previous", "Rent paid", "Meal paid", "Final balance"],
+      rows,
+      empty: "No active members",
+      continuation: pages.length > 1 ? `Member ledger ${index + 1} of ${pages.length}` : "Member ledger",
+    });
+  });
+  chunks(utilityDetailRows, 15).forEach((rows, index, pages) => {
+    detailPages.push({
+      title: "Utility reconciliation",
+      subtitle: "Configured bills, paid amounts, outstanding balances, and shared cost",
+      badge: `${utilities.length} utilities`,
+      summary: [
+        ["Utility bills", formatMoney(metrics.utilitiesTotal)],
+        ["Utility paid", formatMoney(metrics.utilitiesPaid)],
+        ["Unpaid utilities", formatMoney(Math.max(0, numberValue(metrics.utilitiesTotal) - numberValue(metrics.utilitiesPaid)))],
+        ["Per member share", formatMoney(members[0]?.utilityShare || 0)],
+      ],
+      tableClass: "utility-detail-table",
+      columns: ["Utility", "Allocation", "Total bill", "Paid", "Outstanding", "Per member"],
+      rows,
+      empty: "No utilities configured",
+      continuation: pages.length > 1 ? `Utility ledger ${index + 1} of ${pages.length}` : "Utility ledger",
+    });
+  });
+  chunks(bazarDetailRows, 10).forEach((rows, index, pages) => {
+    detailPages.push({
+      title: "Item-level bazar ledger",
+      subtitle: "Every tracked item with quantity, cost, payer, funding source, and entry total",
+      badge: `${bazarEntries.length} purchases · ${bazarItemRows.length} items`,
+      summary: [
+        ["Total bazar", formatMoney(metrics.bazarTotal)],
+        ["Average purchase", formatMoney(metrics.averageBazar)],
+        ["Purchases", numberValue(metrics.bazarCount).toLocaleString("en-BD")],
+        ["Meal members", numberValue(metrics.mealMemberCount).toLocaleString("en-BD")],
+      ],
+      tableClass: "bazar-detail-table",
+      columns: ["Date", "Item", "Quantity", "Item cost", "Paid by", "Source", "Entry total"],
+      rows,
+      empty: "No bazar purchases recorded",
+      continuation: pages.length > 1 ? `Bazar ledger ${index + 1} of ${pages.length}` : "Bazar ledger",
+    });
+  });
+  chunks(activityDetailRows, 10).forEach((rows, index, pages) => {
+    detailPages.push({
+      title: "Payments, cash & settlement activity",
+      subtitle: "Complete money movement history for the selected month",
+      badge: `${activityRows.length} records`,
+      summary: [
+        ["Recorded payments", formatMoney(metrics.recordedPayments)],
+        ["Cash contributions", formatMoney(metrics.cashContributions)],
+        ["Cash bazar spent", formatMoney(metrics.cashBazarSpent)],
+        ["Cash in hand", formatMoney(metrics.cashInHand)],
+      ],
+      tableClass: "activity-detail-table",
+      columns: ["Date", "Activity", "Member / flow", "Details", "Amount", "Progress", "Status"],
+      rows,
+      empty: "No payments, contributions, or settlements recorded",
+      continuation: pages.length > 1 ? `Activity ledger ${index + 1} of ${pages.length}` : "Activity ledger",
+    });
+  });
+  const totalReportPages = 1 + detailPages.length;
+  const detailPageHtml = detailPages.map((page, index) => `
+    <div class="report-sheet">
+      <main class="report-page detail-report-page">
+        <header class="detail-report-header">
+          <div class="detail-brand"><span class="detail-brand-mark">MH</span><div><strong>${escapeHtml(propertyName)}</strong><small>${escapeHtml(month)} · Complete financial report</small></div></div>
+          <div class="detail-title"><span>${escapeHtml(page.continuation)}</span><h1>${escapeHtml(page.title)}</h1><p>${escapeHtml(page.subtitle)}</p></div>
+          <div class="detail-meta"><span>${escapeHtml(page.badge)}</span><strong>Page ${index + 2} of ${totalReportPages}</strong><small>${escapeHtml(generatedDate)}</small></div>
+        </header>
+        <section class="detail-summary-grid">${page.summary.map(([label, value]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join("")}</section>
+        <section class="detail-table-panel">
+          <table class="detail-table ${escapeHtml(page.tableClass)}">
+            <thead><tr>${page.columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr></thead>
+            <tbody>${page.rows.length ? page.rows.join("") : `<tr><td colspan="${page.columns.length}" class="detail-empty">${escapeHtml(page.empty)}</td></tr>`}</tbody>
+          </table>
+        </section>
+        <footer class="report-footer"><span>Monthly Hisab · ${escapeHtml(page.continuation)} · ${escapeHtml(month)}</span><span class="confidential"><i></i>Private household financial report</span></footer>
+      </main>
+    </div>`).join("");
+
   const fileName = `Monthly-Overview-${slugify(month)}.pdf`;
   reportDocument.open();
   reportDocument.write(`<!doctype html>
@@ -222,8 +403,9 @@ export function openOverviewReport({
     .report-toolbar button.primary{border-color:#0c7650;background:linear-gradient(135deg,#13855d,#086542);color:#fff;box-shadow:0 7px 18px rgba(9,105,69,.18)}
     .report-toolbar button:disabled{opacity:.68;cursor:wait}
     .report-toolbar svg{width:15px;height:15px}
-    .report-stage{position:relative;margin:18px auto 28px}
-    .report-page{position:absolute;top:0;left:0;display:grid;width:${REPORT_WIDTH}px;height:${REPORT_HEIGHT}px;grid-template-rows:66px 80px 212px minmax(0,1fr) 20px;gap:12px;padding:21px 26px 17px;overflow:hidden;border:1px solid #dce6df;border-radius:22px;background:linear-gradient(155deg,#fbfdfb 0%,#f6faf7 100%);box-shadow:0 24px 70px rgba(22,64,43,.14);transform-origin:top left}
+    .report-stage{display:grid;gap:18px;margin:18px auto 28px}
+    .report-sheet{position:relative;width:${REPORT_WIDTH}px;height:${REPORT_HEIGHT}px}
+    .report-page{position:absolute;top:0;left:0;display:grid;width:${REPORT_WIDTH}px;height:${REPORT_HEIGHT}px;grid-template-rows:66px 80px 212px minmax(0,1fr) 20px;gap:12px;padding:21px 26px 17px;overflow:hidden;border:1px solid #dce6df;border-radius:22px;background:linear-gradient(145deg,rgba(251,253,251,.72),rgba(246,250,247,.76)),url("/overview-report-leaves.jpg") center/cover no-repeat;box-shadow:0 24px 70px rgba(22,64,43,.14);transform-origin:top left}
     .report-header{display:grid;grid-template-columns:310px minmax(0,1fr) 230px;align-items:center;gap:18px;padding-bottom:12px;border-bottom:1px solid #dce5df}
     .brand-lockup{display:flex;align-items:center;gap:11px;min-width:0}
     .brand-mark{display:grid;width:46px;height:46px;flex:0 0 46px;place-items:center;border-radius:14px;background:linear-gradient(145deg,#159467,#086544);color:#fff;box-shadow:0 8px 18px rgba(8,101,68,.2)}
@@ -249,12 +431,22 @@ export function openOverviewReport({
     .collection-body{display:grid;grid-template-columns:118px minmax(0,1fr);align-items:center;gap:4px;padding:1px 12px 12px}.progress-ring{position:relative;width:112px;height:112px}.progress-ring svg{width:112px;height:112px}.progress-copy{position:absolute;inset:0;display:grid;place-content:center;text-align:center}.progress-copy strong{font-size:20px;line-height:1}.progress-copy span{margin-top:4px;color:#7f8d85;font-size:7.5px;font-weight:800;text-transform:uppercase}.collection-list{display:grid;gap:8px}.collection-item{padding-bottom:7px;border-bottom:1px solid #edf1ee}.collection-item:last-child{padding-bottom:0;border-bottom:0}.collection-item span{display:block;color:#829087;font-size:8px;text-transform:uppercase}.collection-item strong{display:block;margin-top:2px;font-size:10.5px}.collection-item strong.due{color:#b66c17}.collection-item strong.credit{color:#0a8057}
     .members-panel{display:flex;min-height:0;flex-direction:column}.members-table-wrap{min-height:0;flex:1;padding:0 13px 10px}table{width:100%;border-collapse:collapse;table-layout:fixed}th{padding:6px 8px;border-bottom:1px solid #e3eae5;color:#7d8b83;font-size:8px;font-weight:800;text-align:right;text-transform:uppercase}th:first-child{width:46%;text-align:left}td{height:38px;padding:5px 8px;border-bottom:1px solid #edf1ee;font-size:9.5px;text-align:right;vertical-align:middle}tbody tr:last-child td{border-bottom:0}.member-cell{display:flex;align-items:center;gap:8px;text-align:left}.member-avatar{display:grid;width:27px;height:27px;flex:0 0 27px;place-items:center;border-radius:9px;background:#edf5f0;color:#0f7953;font-size:8px;font-weight:800}.member-copy{display:block;min-width:0;flex:1}.member-copy b,.member-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.member-copy b{font-size:9.5px}.member-copy small{margin-top:1px;color:#8a968f;font-size:7.5px}.member-balance-track{display:block;height:3px;margin-top:3px;overflow:hidden;border-radius:99px;background:#eef2ef}.member-balance-track i{display:block;height:100%;border-radius:inherit}.member-balance-track i.due{background:#d99a45}.member-balance-track i.credit{background:#1a9a6c}.balance-value{font-size:9px}.balance-value.due{color:#ad681d}.balance-value.credit{color:#087a54}.balance-value.settled{color:#718078}.table-empty{height:130px;color:#89958e;text-align:center}
     .insights-panel{display:grid;min-height:0;grid-template-rows:auto auto 1px minmax(0,1fr)}.drivers{display:grid;gap:7px;padding:0 14px 10px}.driver-label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px;color:#5f7066;font-size:8.5px}.driver-label b{color:#273b30;font-size:9px}.driver-track{height:5px;overflow:hidden;border-radius:99px;background:#edf2ee}.driver-track i{display:block;height:100%;border-radius:inherit}.panel-divider{margin:0 14px;background:#e5ebe7}.insight-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:10px 14px 13px}.insight-item{min-width:0;padding:8px;border:1px solid #e6ece8;border-radius:10px;background:#f8faf8}.insight-item span{display:block;color:#839087;font-size:7.3px;font-weight:800;letter-spacing:.035em;text-transform:uppercase}.insight-item strong{display:block;margin-top:4px;overflow:hidden;font-size:8.7px;line-height:1.25;text-overflow:ellipsis;white-space:nowrap}
+    .detail-report-page{grid-template-rows:68px 64px minmax(0,1fr) 20px;gap:13px;padding:22px 27px 17px;background:linear-gradient(145deg,rgba(251,253,251,.8),rgba(247,251,248,.84)),url("/overview-report-leaves.jpg") center/cover no-repeat}
+    .detail-report-header{display:grid;grid-template-columns:270px minmax(0,1fr) 210px;align-items:center;gap:18px;padding-bottom:12px;border-bottom:1px solid #dce5df}
+    .detail-brand{display:flex;align-items:center;gap:10px;min-width:0}.detail-brand-mark{display:grid;width:42px;height:42px;flex:0 0 42px;place-items:center;border-radius:13px;background:linear-gradient(145deg,#159467,#086544);color:#fff;font-size:11px;font-weight:900;letter-spacing:.04em;box-shadow:0 7px 17px rgba(8,101,68,.18)}.detail-brand div{min-width:0}.detail-brand strong,.detail-brand small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.detail-brand strong{font-size:14px}.detail-brand small{margin-top:3px;color:#7e8c84;font-size:8.5px}
+    .detail-title{text-align:center}.detail-title>span{color:#16815b;font-size:8px;font-weight:850;letter-spacing:.12em;text-transform:uppercase}.detail-title h1{margin:2px 0 0;font-size:20px;line-height:1.1;letter-spacing:-.025em}.detail-title p{margin:4px 0 0;color:#7d8b83;font-size:8.5px}
+    .detail-meta{text-align:right}.detail-meta span{display:inline-block;padding:4px 7px;border-radius:999px;background:#edf5f0;color:#177653;font-size:8px;font-weight:800;text-transform:uppercase}.detail-meta strong,.detail-meta small{display:block}.detail-meta strong{margin-top:5px;font-size:10px}.detail-meta small{margin-top:2px;color:#849188;font-size:8px}
+    .detail-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.detail-summary-grid article{min-width:0;padding:10px 12px;border:1px solid #e0e8e2;border-radius:13px;background:#fff;box-shadow:0 4px 12px rgba(29,65,45,.04)}.detail-summary-grid span{display:block;color:#7a8980;font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}.detail-summary-grid strong{display:block;margin-top:4px;overflow:hidden;color:#17382b;font-size:15px;line-height:1.1;text-overflow:ellipsis;white-space:nowrap}
+    .detail-table-panel{min-height:0;overflow:hidden;border:1px solid #dce6df;border-radius:15px;background:#fff;box-shadow:0 6px 18px rgba(31,65,46,.04)}.detail-table{width:100%;height:auto;border-collapse:collapse;table-layout:fixed}.detail-table th{height:34px;padding:7px 9px;border-bottom:1px solid #dfe7e2;background:#eff5f1;color:#65766c;font-size:7.5px;font-weight:850;letter-spacing:.035em;text-align:right;text-transform:uppercase}.detail-table th:first-child,.detail-table td:first-child{text-align:left}.detail-table td{height:38px;padding:6px 9px;border-bottom:1px solid #edf1ee;color:#33463b;font-size:8.7px;line-height:1.25;text-align:right;vertical-align:middle}.detail-table tbody tr:nth-child(even){background:#fafcfb}.detail-table tbody tr:last-child td{border-bottom:0}.detail-table td b,.detail-table td small{display:block}.detail-table td b{color:#1f3429;font-size:9px}.detail-table td small{margin-top:2px;color:#87948d;font-size:7.3px}.detail-table td.paid,.paid-line{color:#087a54;font-weight:800}.detail-money{font-size:8.6px}.detail-money.due{color:#ad681d}.detail-money.credit{color:#087a54}.detail-money.settled{color:#6f7f76}.status-pill{display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:2px 6px;border-radius:999px;background:#eef4f0;color:#4e665a;font-size:7px;font-weight:850;white-space:nowrap;text-transform:uppercase}.status-pill.shared{background:#e9f6ef;color:#087651}.status-pill.individual{background:#f4f1ea;color:#7c6843}.status-pill.source{background:#edf3f8;color:#476c85}.status-pill.activity{background:#edf5f0;color:#177653}.continued{color:#98a39d;font-size:7.3px;font-style:italic}.detail-empty{height:350px!important;color:#89958e!important;text-align:center!important}
+    .member-detail-table th:first-child{width:20%}.member-detail-table th:nth-child(n+2){width:11.42%}.utility-detail-table th:first-child{width:27%}.bazar-detail-table th:nth-child(1){width:13%}.bazar-detail-table th:nth-child(2){width:26%}.bazar-detail-table th:nth-child(5){width:18%}.activity-detail-table th:nth-child(1){width:12%}.activity-detail-table th:nth-child(2){width:16%}.activity-detail-table th:nth-child(3){width:19%}.activity-detail-table th:nth-child(4){width:25%}
     .report-footer{display:flex;align-items:center;justify-content:space-between;color:#8a968f;font-size:8px}.report-footer strong{color:#167653}.confidential{display:flex;align-items:center;gap:5px}.confidential i{width:5px;height:5px;border-radius:50%;background:#24a976}
     @page{size:A4 landscape;margin:0}
     @media print{
       html,body{width:297mm!important;height:210mm!important;min-height:0!important;overflow:hidden!important;background:#fff!important}
       .report-toolbar{display:none!important}
-      .report-stage{position:static!important;width:297mm!important;height:210mm!important;margin:0!important}
+      .report-stage{display:block!important;width:297mm!important;height:auto!important;margin:0!important}
+      .report-sheet{position:relative!important;width:297mm!important;height:210mm!important;break-after:page!important;page-break-after:always!important}
+      .report-sheet:last-child{break-after:auto!important;page-break-after:auto!important}
       .report-page{position:static!important;width:297mm!important;height:210mm!important;border:0!important;border-radius:0!important;box-shadow:none!important;transform:none!important}
     }
   </style>
@@ -266,7 +458,8 @@ export function openOverviewReport({
     <button class="primary" type="button" onclick="window.downloadOverviewPdf(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 20h14"/></svg>Download PDF</button>
   </div>
   <div class="report-stage" id="reportStage">
-    <main class="report-page" id="overviewReportPage">
+    <div class="report-sheet">
+      <main class="report-page" id="overviewReportPage">
       <header class="report-header">
         <div class="brand-lockup">
           <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg></span>
@@ -315,12 +508,15 @@ export function openOverviewReport({
         </article>
       </section>
 
-      <footer class="report-footer"><span>Monthly Hisab · Insight dashboard · ${escapeHtml(month)}</span><span class="confidential"><i></i>Private household financial report</span></footer>
-    </main>
+        <footer class="report-footer"><span>Monthly Hisab · Insight dashboard · ${escapeHtml(month)}</span><span class="confidential"><i></i>Page 1 of ${totalReportPages} · Private household financial report</span></footer>
+      </main>
+    </div>
+    ${detailPageHtml}
   </div>
   <script>
     (function(){
-      var page = document.getElementById("overviewReportPage");
+      var pages = Array.prototype.slice.call(document.querySelectorAll(".report-page"));
+      var sheets = Array.prototype.slice.call(document.querySelectorAll(".report-sheet"));
       var stage = document.getElementById("reportStage");
       var reportWidth = ${REPORT_WIDTH};
       var reportHeight = ${REPORT_HEIGHT};
@@ -330,9 +526,12 @@ export function openOverviewReport({
         var availableWidth = Math.max(320, window.innerWidth - 32);
         var availableHeight = Math.max(320, window.innerHeight - 92);
         var scale = Math.min(1, availableWidth / reportWidth, availableHeight / reportHeight);
-        page.style.transform = "scale(" + scale + ")";
+        pages.forEach(function(page){ page.style.transform = "scale(" + scale + ")"; });
+        sheets.forEach(function(sheet){
+          sheet.style.width = (reportWidth * scale) + "px";
+          sheet.style.height = (reportHeight * scale) + "px";
+        });
         stage.style.width = (reportWidth * scale) + "px";
-        stage.style.height = (reportHeight * scale) + "px";
       }
 
       function resolveHtml2Canvas(){
@@ -354,24 +553,30 @@ export function openOverviewReport({
             button.disabled = true;
             button.textContent = "Preparing PDF…";
           }
-          page.style.transform = "none";
-          stage.style.width = reportWidth + "px";
-          stage.style.height = reportHeight + "px";
-          await new Promise(function(resolve){ requestAnimationFrame(function(){ requestAnimationFrame(resolve); }); });
-          var canvas = await canvasLibrary(page, {
-            backgroundColor: "#f7faf8",
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            width: reportWidth,
-            height: reportHeight,
-            windowWidth: reportWidth,
-            windowHeight: reportHeight,
+          pages.forEach(function(page){ page.style.transform = "none"; });
+          sheets.forEach(function(sheet){
+            sheet.style.width = reportWidth + "px";
+            sheet.style.height = reportHeight + "px";
           });
+          stage.style.width = reportWidth + "px";
+          await new Promise(function(resolve){ requestAnimationFrame(function(){ requestAnimationFrame(resolve); }); });
           var pdf = new PdfLibrary({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
           var pageWidth = pdf.internal.pageSize.getWidth();
           var pageHeight = pdf.internal.pageSize.getHeight();
-          pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
+          for (var pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+            var canvas = await canvasLibrary(pages[pageIndex], {
+              backgroundColor: "#f7faf8",
+              scale: 2,
+              useCORS: true,
+              logging: false,
+              width: reportWidth,
+              height: reportHeight,
+              windowWidth: reportWidth,
+              windowHeight: reportHeight,
+            });
+            if (pageIndex > 0) pdf.addPage("a4", "landscape");
+            pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
+          }
           pdf.save(${JSON.stringify(fileName)});
         } catch (error) {
           console.error("Overview PDF export failed:", error);
