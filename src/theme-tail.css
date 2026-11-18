@@ -1,3 +1,8 @@
+/* Monthly Bazar Total pill: center amount text across all breakpoints */
+:root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel.bazar-history-panel > .bazar-total-row > b:nth-of-type(2) {
+  justify-content: center !important;
+}
+
 @media (max-width: 700px) {
   html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme > .main.inbox-page .inbox-conversation-header small {
     color: #8eb5a6 !important;
@@ -533,37 +538,121 @@ html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-
 }
 
 @media (max-width: 700px) {
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel,
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 9px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
   :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1.08fr) minmax(136px, .92fr) !important;
+    box-sizing: border-box !important;
+    display: flex !important;
     align-items: center !important;
     gap: 8px !important;
+    width: 100% !important;
+    height: 44px !important;
+    min-height: 44px !important;
     margin: 0 !important;
-    padding: 0 0 10px !important;
+    padding: 4px 5px 4px 12px !important;
+    border: 1px solid rgba(202, 224, 212, .94) !important;
+    border-radius: 15px !important;
+    background: rgba(255, 255, 255, .96) !important;
+    box-shadow: 0 6px 18px rgba(17, 56, 40, .07) !important;
+    backdrop-filter: blur(12px) !important;
     order: 1 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools:focus-within {
+    border-color: #278f69 !important;
+    box-shadow: 0 0 0 3px rgba(39, 143, 105, .12), 0 6px 18px rgba(17, 56, 40, .08) !important;
   }
 
   :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-search {
     order: 1 !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    border: 0 !important;
+    border-radius: 10px !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 
   :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter {
     order: 2 !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: 46% !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    border: 1px solid rgba(11, 151, 96, .16) !important;
+    border-radius: 11px !important;
+    background: #eef8f2 !important;
+    box-shadow: none !important;
   }
 
-  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools :is(.bazar-search, .bazar-mobile-member-filter) {
-    height: 40px !important;
-    min-height: 40px !important;
-    border: 1px solid #d1e2d9 !important;
-    border-radius: 11px !important;
-    background: #f8fcfa !important;
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter .premium-select-wrap {
+    width: auto !important;
+    max-width: 100% !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter .premium-select-trigger {
+    width: auto !important;
+    max-width: 100% !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 9px 0 28px !important;
+    gap: 5px !important;
+    border: 0 !important;
+    border-radius: 10px !important;
+    background: transparent !important;
     box-shadow: none !important;
+    color: #0e6b48 !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-search > svg {
+    left: 0 !important;
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter > svg {
+    left: 9px !important;
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-search > input {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 4px 0 24px !important;
+    font-size: 13px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined),
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr.bazar-row-combined,
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr.bazar-history-empty-row {
+    border: 1px solid rgba(212, 231, 221, .94) !important;
+    border-radius: 18px !important;
+    background: rgba(255, 255, 255, .97) !important;
+    box-shadow: 0 8px 22px rgba(18, 58, 42, .08) !important;
   }
 
   :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-search > svg,
   :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter > svg {
     position: absolute !important;
-    left: 9px !important;
+    left: 10px !important;
     width: 14px !important;
     height: 14px !important;
     color: #217354 !important;
@@ -573,7 +662,7 @@ html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-
   :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-search > input {
     height: 38px !important;
     min-height: 38px !important;
-    padding: 0 8px 0 30px !important;
+    padding: 0 10px 0 32px !important;
     border: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
@@ -583,12 +672,18 @@ html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-
   }
 
   :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter > select {
+    -webkit-appearance: none !important;
+    appearance: none !important;
     width: 100% !important;
     height: 38px !important;
     min-height: 38px !important;
-    padding: 0 18px 0 28px !important;
+    padding: 0 26px 0 30px !important;
     border: 0 !important;
-    background: transparent !important;
+    background-color: transparent !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23217354' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 9px center !important;
+    background-size: 14px 14px !important;
     box-shadow: none !important;
     color: #1a352b !important;
     font-size: 12px !important;
@@ -596,26 +691,108 @@ html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-
     text-overflow: ellipsis !important;
   }
 
-  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools :is(.bazar-search, .bazar-mobile-member-filter) {
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel.bazar-history-panel > .bazar-total-row {
+    position: relative !important;
+    top: auto !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    width: 100% !important;
+    height: 54px !important;
+    min-height: 54px !important;
+    margin: 0 !important;
+    padding: 7px 7px 7px 14px !important;
+    box-sizing: border-box !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel.bazar-history-panel > .bazar-total-row::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel.bazar-history-panel > .bazar-total-row > b:first-child {
+    margin: 0 !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    text-align: left !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel.bazar-history-panel > .bazar-total-row > b:nth-of-type(2) {
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+    margin: 0 !important;
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools {
     border-color: rgba(82, 146, 124, .34) !important;
-    background: #0c1814 !important;
+    background: rgba(14, 32, 26, .95) !important;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .32) !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools:focus-within {
+    border-color: rgba(101, 237, 180, .54) !important;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, .16), 0 8px 22px rgba(0, 0, 0, .34) !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-search {
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
     color: #eaf6f1 !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter {
+    border-color: rgba(82, 168, 130, .32) !important;
+    background: rgba(23, 62, 48, .86) !important;
     box-shadow: none !important;
   }
 
-  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools :is(.bazar-search, .bazar-mobile-member-filter):focus-within {
-    border-color: rgba(101, 237, 180, .54) !important;
-    box-shadow: 0 0 0 3px rgba(34, 197, 94, .16) !important;
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter .premium-select-trigger {
+    color: #9ff0cd !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined),
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr.bazar-row-combined,
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr.bazar-history-empty-row {
+    border-color: rgba(82, 146, 124, .32) !important;
+    background: linear-gradient(155deg, rgba(16, 37, 30, .96) 0%, rgba(11, 25, 20, .98) 100%) !important;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, .36) !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-search:focus-within {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter:focus-within {
+    border-color: rgba(101, 237, 180, .5) !important;
+    box-shadow: none !important;
   }
 
   html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools :is(.bazar-search > svg, .bazar-mobile-member-filter > svg) {
     color: #79efc0 !important;
   }
 
-  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-search > input,
-  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter > select {
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-search > input {
     border: 0 !important;
     background: transparent !important;
+    box-shadow: none !important;
+    color: #eaf6f1 !important;
+    color-scheme: dark !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter > select {
+    border: 0 !important;
+    background-color: transparent !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2379efc0' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
     box-shadow: none !important;
     color: #eaf6f1 !important;
     color-scheme: dark !important;
@@ -634,5 +811,1008 @@ html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-
 @media (max-width: 340px) {
   :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* Meal Settlement: aligned layout, flush card gutters, & premium dark/light chips */
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-count-chip,
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-plan-panel .settlement-count-chip,
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-ledger-panel .settlement-count-chip {
+  border-color: rgba(82, 168, 130, .34) !important;
+  background: rgba(20, 58, 44, .78) !important;
+  color: #79efc0 !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-add-action {
+  border-color: rgba(101, 237, 180, .38) !important;
+  background: linear-gradient(145deg, rgba(22, 74, 54, .92), rgba(16, 54, 39, .96)) !important;
+  color: #79efc0 !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-section-heading p {
+  color: #93b5a7 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-footer {
+  border-color: rgba(82, 146, 124, .24) !important;
+  background: rgba(13, 30, 24, .88) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-footer > small {
+  color: #8eb5a6 !important;
+}
+
+@media (max-width: 700px) {
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-members-panel > .settlement-members-toolbar,
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-plan-panel > .settlement-section-heading,
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-ledger-panel > .settlement-section-heading {
+    padding: 13px 12px 11px !important;
+    gap: 10px !important;
+    min-height: 0 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-members-panel .settlement-heading-main {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-members-panel .settlement-panel-icon {
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    flex: 0 0 38px !important;
+    border-radius: 11px !important;
+    box-shadow: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-members-panel .settlement-heading-main h3 {
+    font-size: 16.5px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    letter-spacing: -.015em !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-members-panel .settlement-heading-main p {
+    display: block !important;
+    margin: 2px 0 0 !important;
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+    color: #5e776b !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-members-panel .settlement-heading-main p {
+    color: #93b5a7 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-members-panel .settlement-heading-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-members-panel .settlement-heading-actions > .settlement-count-chip {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 11px !important;
+    border-radius: 999px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    box-shadow: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-members-panel .settlement-heading-actions > .settlement-add-action {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    margin-left: auto !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 13px !important;
+    border-radius: 10px !important;
+    font-size: 12.5px !important;
+    font-weight: 750 !important;
+    box-shadow: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-members-panel .settlement-table-wrap {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 10px 12px 10px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody {
+    gap: 9px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody tr,
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody tr.balance-row-pay,
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody tr.balance-row-receive,
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody tr.balance-row-settled {
+    grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr) !important;
+    width: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    border-radius: 14px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:first-child {
+    padding: 10px 12px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(n+2) {
+    padding: 9px 12px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-balance-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 28px !important;
+    padding: 4px 10px !important;
+    border-radius: 9px !important;
+    font-size: 11.5px !important;
+    font-weight: 750 !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-footer {
+    margin: 0 12px 12px !important;
+    padding: 10px !important;
+    border-radius: 12px !important;
+    gap: 8px !important;
+    box-shadow: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-footer > .is-paying,
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-footer > .is-receiving {
+    min-height: 32px !important;
+    padding: 5px 8px !important;
+    border-radius: 9px !important;
+    font-size: 12px !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-footer {
+    border: 1px solid rgba(82, 146, 124, .24) !important;
+    background: rgba(13, 30, 24, .88) !important;
+    box-shadow: none !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-footer > .is-paying,
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-footer > .is-receiving {
+    border: 1px solid rgba(82, 146, 124, .28) !important;
+    background: rgba(19, 44, 36, .92) !important;
+    color: #eaf6f1 !important;
+    box-shadow: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-plan-list {
+    padding: 10px 12px 12px !important;
+  }
+}
+
+/* Monthly Bazar Report & Food Icons: transparent icon tiles (no white background boxes) */
+:root body #app-shell#app-shell.app.premium-theme .main.bazar-report-page :is(
+  .bazar-top-item-emoji,
+  .bazar-top-item-emoji.is-large,
+  .bazar-usage-bars.is-minimal-grid .bazar-usage-item-emoji,
+  .bazar-usage-row-wrap .bazar-usage-item-emoji
+),
+:root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-icon,
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-report-page :is(
+  .bazar-top-item-emoji,
+  .bazar-top-item-emoji.is-large,
+  .bazar-usage-bars.is-minimal-grid .bazar-usage-item-emoji,
+  .bazar-usage-row-wrap .bazar-usage-item-emoji
+),
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .bazar-usage-details-icon {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-common-uploaded-icon,
+:root body #app-shell#app-shell.app.premium-theme :is(
+  .bazar-top-item-emoji,
+  .bazar-usage-item-emoji,
+  .bazar-usage-details-icon,
+  .bazar-item-suggestion-icon,
+  .bazar-tracked-item > span,
+  .bazar-added-item-icon,
+  .bazar-common-icon,
+  .bazar-common-upload-preview
+) > :is(img, svg) {
+  background: transparent !important;
+}
+
+html:not([data-theme="dark"]) body #app-shell#app-shell.app.premium-theme .bazar-common-uploaded-icon {
+  mix-blend-mode: multiply;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .bazar-common-uploaded-icon {
+  mix-blend-mode: normal;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme :is(
+  .bazar-item-suggestion-icon,
+  .bazar-tracked-item > span,
+  .bazar-added-item-icon,
+  .bazar-common-icon,
+  .bazar-common-upload-preview
+) {
+  background: rgba(20, 48, 39, .78) !important;
+  border-color: rgba(82, 146, 124, .3) !important;
+}
+
+/* Monthly Bazar Report footer: sit on the illustrated page without a top hr divider */
+:root body #app-shell#app-shell.app.premium-theme > .main.bazar-report-page > footer.app-footer,
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme > .main.bazar-report-page > footer.app-footer {
+  border-top: 0 !important;
+}
+
+/* ==========================================================================
+ * Premium Custom Dropdown (mirrors Month dropdown across bazar forms & filters)
+ * ========================================================================== */
+:root body #app-shell#app-shell.app.premium-theme .premium-select-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .premium-select-trigger {
+  display: inline-flex !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+  padding: 0 11px !important;
+  border: 1px solid #d3e2da !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #1a352b !important;
+  font-family: inherit !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  box-shadow: 0 1px 2px rgba(17, 50, 36, .04) !important;
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .premium-select-trigger:hover:not(:disabled),
+:root body #app-shell#app-shell.app.premium-theme .premium-select-trigger.is-open,
+:root body #app-shell#app-shell.app.premium-theme .premium-select-trigger:focus-visible {
+  outline: none !important;
+  border-color: #278f69 !important;
+  background: #f9fcfb !important;
+  box-shadow: 0 0 0 3px rgba(39, 143, 105, .13) !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .premium-select-trigger:disabled {
+  opacity: .62 !important;
+  cursor: not-allowed !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .premium-select-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .premium-select-leading-icon {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: #206e51;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .premium-select-chevron {
+  flex: 0 0 auto !important;
+  color: #206e51 !important;
+  transition: transform .16s ease !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .premium-select-chevron.is-open {
+  transform: rotate(180deg) !important;
+}
+
+/* Fit seamlessly inside tracked rows and compact quantity controls */
+:root body #app-shell#app-shell.app.premium-theme :is(.bazar-simple-quantity, .bazar-qty-controls) {
+  align-items: stretch !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme :is(.bazar-simple-quantity, .bazar-qty-controls) .premium-select-wrap {
+  height: 100% !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme :is(.bazar-simple-quantity, .bazar-qty-controls) .bazar-unit-select .premium-select-trigger {
+  height: 100% !important;
+  min-height: 42px !important;
+  padding: 0 10px !important;
+  font-weight: 700 !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-tracked-quantity .premium-select-trigger {
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 8px !important;
+  border-radius: 9px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+/* Mobile member filter pill keeps a single outer pill border */
+:root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter .bazar-mobile-member-select,
+:root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter .premium-select-wrap {
+  height: 100% !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter .premium-select-trigger {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 10px 0 30px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #1a352b !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter .premium-select-trigger:focus-visible,
+:root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter .premium-select-trigger.is-open {
+  border: 0 !important;
+  background: rgba(11, 151, 96, .06) !important;
+  box-shadow: none !important;
+}
+
+/* Dark theme trigger surfaces */
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .premium-select-trigger {
+  border-color: rgba(82, 146, 124, .36) !important;
+  background: #0c1814 !important;
+  color: #eaf6f1 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .24) !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .premium-select-trigger:hover:not(:disabled),
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .premium-select-trigger.is-open,
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .premium-select-trigger:focus-visible {
+  border-color: rgba(101, 237, 180, .58) !important;
+  background: #10251e !important;
+  box-shadow: 0 0 0 3px rgba(32, 226, 154, .14) !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .premium-select-chevron,
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .premium-select-leading-icon {
+  color: #79efc0 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel .bazar-mobile-table-tools .bazar-mobile-member-filter .premium-select-trigger {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #eaf6f1 !important;
+}
+
+@media (max-width: 420px) {
+  :root body #app-shell#app-shell.app.premium-theme .add-bazar-modal:not(.bazar-inline-builder-skin) :is(.bazar-simple-quantity, .bazar-qty-controls) .premium-select-trigger,
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-modal :is(.bazar-simple-quantity) .premium-select-trigger {
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 8px !important;
+    font-size: 13.5px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .add-bazar-modal:not(.bazar-inline-builder-skin) form > label .premium-select-trigger,
+  :root body #app-shell#app-shell.app.premium-theme .add-bazar-modal:not(.bazar-inline-builder-skin) .bazar-combine-member-select .premium-select-trigger {
+    height: 40px !important;
+    min-height: 40px !important;
+    font-size: 13.5px !important;
+  }
+}
+
+/* Portaled popover menu rendered on document.body (matches .month-picker-menu) */
+.premium-select-menu {
+  z-index: 2147483647;
+  display: flex;
+  flex-direction: column;
+  padding: 7px;
+  border: 1px solid rgba(77, 132, 108, .28);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, .98);
+  color: #223247;
+  font-family: "Plus Jakarta Sans", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 22px 58px rgba(16, 46, 35, .20), 0 4px 14px rgba(16, 46, 35, .08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-sizing: border-box;
+  overflow: hidden;
+  animation: premium-select-enter .14s cubic-bezier(.16, 1, .3, 1);
+}
+
+.premium-select-menu.is-upward {
+  animation-name: premium-select-enter-up;
+}
+
+.premium-select-label {
+  display: block;
+  flex: 0 0 auto;
+  padding: 3px 9px 5px;
+  color: #76837a;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.premium-select-options {
+  display: flex;
+  flex: 0 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(77, 132, 108, .28) transparent;
+}
+
+.premium-select-option {
+  display: flex;
+  width: 100%;
+  min-height: 33px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 10px;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #36463c;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background-color .14s ease, color .14s ease, border-color .14s ease;
+}
+
+.premium-select-option-icon {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: #839187;
+}
+
+.premium-select-option-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.premium-select-option-check {
+  flex: 0 0 auto;
+  color: #127b54;
+}
+
+.premium-select-option:hover,
+.premium-select-option:focus-visible {
+  outline: none;
+  border-color: #d8e9e3;
+  background: #f2f7f3;
+  color: #1b5842;
+}
+
+.premium-select-option.is-selected {
+  border-color: #cfe8df;
+  background: #ecf5ee;
+  color: #195e45;
+  font-weight: 700;
+}
+
+html[data-theme="dark"] .premium-select-menu {
+  border-color: rgba(89, 165, 136, .46);
+  background: rgba(8, 25, 22, .98);
+  color: #eaf6f1;
+  box-shadow: 0 26px 68px rgba(0, 0, 0, .64), 0 0 0 1px rgba(101, 237, 180, .06);
+}
+
+html[data-theme="dark"] .premium-select-label {
+  color: #8ab3a3;
+}
+
+html[data-theme="dark"] .premium-select-options {
+  scrollbar-color: rgba(89, 165, 136, .4) transparent;
+}
+
+html[data-theme="dark"] .premium-select-option {
+  color: #dceee6;
+}
+
+html[data-theme="dark"] .premium-select-option-icon {
+  color: #8ab3a3;
+}
+
+html[data-theme="dark"] .premium-select-option:hover,
+html[data-theme="dark"] .premium-select-option:focus-visible {
+  border-color: rgba(82, 168, 130, .34);
+  background: rgba(25, 86, 62, .54);
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .premium-select-option.is-selected {
+  border-color: rgba(101, 237, 180, .42);
+  background: rgba(18, 72, 51, .88);
+  color: #79efc0;
+}
+
+html[data-theme="dark"] .premium-select-option.is-selected .premium-select-option-check {
+  color: #79efc0;
+}
+
+@keyframes premium-select-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes premium-select-enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ==========================================================================
+ * Settlement Due / Confirm Payment Modal (Light + Dark, Desktop + Phone)
+ * ========================================================================== */
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal {
+  width: min(640px, 100%) !important;
+  max-width: min(640px, calc(100vw - 24px)) !important;
+  max-height: min(90dvh, 840px) !important;
+  padding: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  border-radius: 22px !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  padding: 20px 24px 16px !important;
+  border-bottom: 1px solid #e1ece6 !important;
+  background:
+    radial-gradient(320px 140px at 94% 0%, rgba(16, 185, 129, .12), transparent 72%),
+    linear-gradient(155deg, #ffffff, #f2faf5) !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading .eyebrow {
+  display: inline-block;
+  color: #0b8c59 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: .12em !important;
+  text-transform: uppercase !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading h2 {
+  margin: 4px 0 3px !important;
+  color: #163328 !important;
+  font-size: 24px !important;
+  font-weight: 800 !important;
+  line-height: 1.18 !important;
+  letter-spacing: -.02em !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading p {
+  margin: 0 !important;
+  color: #5e746a !important;
+  font-size: 13.5px !important;
+  line-height: 1.45 !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading .icon-btn {
+  display: inline-grid !important;
+  place-items: center !important;
+  flex: 0 0 36px !important;
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  padding: 0 !important;
+  border: 1px solid #d4e3db !important;
+  border-radius: 11px !important;
+  background: rgba(255, 255, 255, .9) !important;
+  color: #466156 !important;
+  box-shadow: 0 1px 2px rgba(17, 50, 36, .06) !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading .icon-btn:hover {
+  border-color: #278f69 !important;
+  background: #eff8f3 !important;
+  color: #0d6e49 !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form {
+  display: grid !important;
+  gap: 14px !important;
+  padding: 18px 24px 0 !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form label {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+  color: #2f5546 !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form :is(input, .premium-select-trigger) {
+  width: 100% !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  padding: 0 12px !important;
+  border: 1px solid #d3e2da !important;
+  border-radius: 11px !important;
+  background: #fbfdfc !important;
+  color: #163328 !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  box-sizing: border-box !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form input:focus {
+  border-color: #278f69 !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(39, 143, 105, .13) !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form-note {
+  padding: 12px 14px !important;
+  border: 1px solid #d8e9e0 !important;
+  border-radius: 12px !important;
+  background: #eff7f2 !important;
+  color: #416053 !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  margin: 4px -24px 0 !important;
+  padding: 14px 24px 18px !important;
+  border-top: 1px solid #e4eee8 !important;
+  background: rgba(255, 255, 255, .94) !important;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 -8px 22px rgba(20, 54, 42, .05) !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-actions > button {
+  min-height: 42px !important;
+  height: 42px !important;
+  padding: 0 18px !important;
+  border-radius: 11px !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+}
+
+/* Dark Mode for Settlement Modals */
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal {
+  border-color: rgba(82, 146, 124, .38) !important;
+  background: #0c1b16 !important;
+  box-shadow: 0 28px 72px rgba(0, 0, 0, .62), inset 0 1px 0 rgba(255, 255, 255, .04) !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading {
+  border-bottom-color: rgba(82, 146, 124, .28) !important;
+  background:
+    radial-gradient(320px 140px at 94% 0%, rgba(32, 226, 154, .12), transparent 72%),
+    linear-gradient(155deg, rgba(16, 39, 32, .98), rgba(11, 25, 20, .98)) !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading .eyebrow {
+  color: #5fe8b2 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading h2 {
+  color: #effaf4 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading p {
+  color: #93b5a7 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading .icon-btn {
+  border-color: rgba(82, 146, 124, .34) !important;
+  background: rgba(20, 44, 36, .94) !important;
+  color: #cde8dc !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading .icon-btn:hover {
+  border-color: rgba(101, 237, 180, .5) !important;
+  background: rgba(28, 62, 50, .96) !important;
+  color: #79efc0 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form label {
+  color: #9fd5bf !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form :is(input, .premium-select-trigger) {
+  border-color: rgba(82, 146, 124, .36) !important;
+  background: #0c1814 !important;
+  color: #eaf6f1 !important;
+  color-scheme: dark !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .2) !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form input:focus,
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form .premium-select-trigger.is-open,
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form .premium-select-trigger:hover {
+  border-color: rgba(101, 237, 180, .56) !important;
+  background: #10251e !important;
+  box-shadow: 0 0 0 3px rgba(32, 226, 154, .14) !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form-note {
+  border-color: rgba(82, 146, 124, .3) !important;
+  background: rgba(16, 39, 31, .9) !important;
+  color: #b7d6c8 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-confirm-summary > span {
+  border-color: rgba(82, 146, 124, .3) !important;
+  background: rgba(15, 34, 28, .92) !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-confirm-summary small {
+  color: #8fb3a4 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-confirm-summary strong {
+  color: #eaf6f1 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-confirm-summary > span:nth-child(2) strong {
+  color: #65edb4 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-confirm-summary > span:nth-child(3) strong {
+  color: #fbbf24 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-actions {
+  border-top-color: rgba(82, 146, 124, .26) !important;
+  background: rgba(10, 23, 19, .96) !important;
+  box-shadow: 0 -10px 24px rgba(0, 0, 0, .42) !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-actions > button.secondary {
+  border-color: rgba(82, 146, 124, .36) !important;
+  background: rgba(18, 40, 33, .92) !important;
+  color: #cde8dc !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-actions > button.secondary:hover {
+  border-color: rgba(101, 237, 180, .48) !important;
+  background: rgba(24, 54, 44, .96) !important;
+  color: #ffffff !important;
+}
+
+@media (max-width: 700px) {
+  :root body #app-shell#app-shell.app.premium-theme .settlement-modal-backdrop {
+    padding: 12px !important;
+    align-items: center !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .settlement-modal {
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    border-radius: 20px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading {
+    padding: 16px 16px 14px !important;
+    gap: 12px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading h2 {
+    font-size: 21px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-heading p {
+    font-size: 13px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form {
+    gap: 12px !important;
+    padding: 14px 16px 0 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form :is(input, .premium-select-trigger) {
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-form-note {
+    padding: 11px 12px !important;
+    font-size: 13px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) !important;
+    gap: 10px !important;
+    margin: 4px -16px 0 !important;
+    padding: 12px 16px 16px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .settlement-modal .settlement-modal-actions > button {
+    width: 100% !important;
+    padding: 0 12px !important;
+  }
+}
+
+/* Phone view (<700px): capsule quick actions + unified search/filter bar */
+@media (max-width: 700px) {
+  :root body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions {
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 8px !important;
+    margin: 10px 0 8px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions > button {
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    margin: 0 !important;
+    padding: 0 14px !important;
+    border-radius: 999px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    letter-spacing: -.01em !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions > button > svg {
+    width: 15px !important;
+    height: 15px !important;
+    flex: 0 0 15px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions .bazar-needed-trigger {
+    border: 1px solid rgba(196, 224, 210, .92) !important;
+    background: rgba(255, 255, 255, .94) !important;
+    color: #144d38 !important;
+    box-shadow: 0 4px 12px rgba(14, 60, 42, .07) !important;
+    backdrop-filter: blur(12px) !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions .bazar-needed-trigger:hover,
+  :root body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions .bazar-needed-trigger.is-active {
+    border-color: #79bf9f !important;
+    background: #eff9f4 !important;
+    color: #086e4b !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions .bazar-needed-trigger > small {
+    display: inline-grid !important;
+    place-items: center !important;
+    min-width: 20px !important;
+    height: 20px !important;
+    padding: 0 6px !important;
+    border-radius: 999px !important;
+    background: #dff4ea !important;
+    color: #0a7650 !important;
+    font-size: 11px !important;
+    font-weight: 800 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions .bazar-header-add {
+    border: 1px solid rgba(16, 165, 106, .35) !important;
+    background: linear-gradient(135deg, #10a56a 0%, #0a7e51 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 6px 16px rgba(11, 138, 86, .24), inset 0 1px 0 rgba(255, 255, 255, .24) !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions .bazar-needed-trigger {
+    border-color: rgba(82, 146, 124, .34) !important;
+    background: rgba(15, 35, 29, .92) !important;
+    color: #d6efe5 !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .28) !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions .bazar-needed-trigger:hover,
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions .bazar-needed-trigger.is-active {
+    border-color: rgba(101, 237, 180, .54) !important;
+    background: rgba(20, 48, 39, .96) !important;
+    color: #79efc0 !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions .bazar-needed-trigger > small {
+    border: 1px solid rgba(82, 168, 130, .34) !important;
+    background: rgba(24, 76, 56, .88) !important;
+    color: #79efc0 !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme > .main.bazar-page > .bazar-mobile-actions .bazar-header-add {
+    border-color: rgba(32, 226, 154, .35) !important;
+    background: linear-gradient(135deg, #10a56a 0%, #097c4f 100%) !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .18) !important;
   }
 }

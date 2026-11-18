@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import {
   LayoutDashboard,
@@ -80,6 +81,7 @@ import { openOverviewReport } from "./overviewReport";
 import {
   findBazarFoodCatalogItem,
   getBazarFoodSearchScore,
+  matchesBazarHistorySearch,
   normalizeBazarFoodSearch,
   searchBazarFoodCatalog,
 } from "./bazarFoodCatalog";
@@ -104,19 +106,154 @@ if (typeof window !== "undefined") {
   } catch {}
 }
 
+const cleanedFoodIconCache = new Map();
+
+function stripWhiteBackdropFromImage(img) {
+  const w0 = img.naturalWidth || 0;
+  const h0 = img.naturalHeight || 0;
+  if (!w0 || !h0) return "";
+  const scale = Math.min(1, 160 / Math.max(w0, h0));
+  const w = Math.max(1, Math.round(w0 * scale));
+  const h = Math.max(1, Math.round(h0 * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return "";
+  ctx.drawImage(img, 0, 0, w, h);
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const d = imgData.data;
+
+  const isBgCandidate = (idx) => {
+    const r = d[idx];
+    const g = d[idx + 1];
+    const b = d[idx + 2];
+    const a = d[idx + 3];
+    if (a < 18) return true;
+    const minC = Math.min(r, g, b);
+    const maxC = Math.max(r, g, b);
+    return minC >= 240 && (maxC - minC) <= 14;
+  };
+
+  // Seed flood fill only from the outer 1px border so white parts inside food stay solid.
+  const total = w * h;
+  const visited = new Uint8Array(total);
+  const queue = [];
+  const tryPush = (x, y) => {
+    const p = y * w + x;
+    if (visited[p]) return;
+    if (!isBgCandidate(p * 4)) return;
+    visited[p] = 1;
+    queue.push(p);
+  };
+  for (let x = 0; x < w; x++) {
+    tryPush(x, 0);
+    tryPush(x, h - 1);
+  }
+  for (let y = 1; y < h - 1; y++) {
+    tryPush(0, y);
+    tryPush(w - 1, y);
+  }
+
+  // Require at least a handful of connected white border pixels before stripping.
+  if (!queue.length) return "";
+  let head = 0;
+  while (head < queue.length) {
+    const p = queue[head++];
+    const x = p % w;
+    const y = (p - x) / w;
+    if (x > 0) tryPush(x - 1, y);
+    if (x + 1 < w) tryPush(x + 1, y);
+    if (y > 0) tryPush(x, y - 1);
+    if (y + 1 < h) tryPush(x, y + 1);
+  }
+  if (queue.length < Math.max(8, Math.floor((w + h) * 0.4))) return "";
+
+  for (let i = 0; i < queue.length; i++) {
+    const idx = queue[i] * 4;
+    const minC = Math.min(d[idx], d[idx + 1], d[idx + 2]);
+    // Soft feather on anti-aliased fringe between 240..250
+    const nextAlpha = minC >= 250 ? 0 : Math.round(((250 - minC) / 10) * d[idx + 3] * 0.55);
+    d[idx + 3] = nextAlpha;
+  }
+  ctx.putImageData(imgData, 0, 0);
+  return canvas.toDataURL("image/png");
+}
+
+function TransparentFoodIcon({ src, className = "bazar-common-uploaded-icon", style }) {
+  const [resolvedSrc, setResolvedSrc] = useState(() => cleanedFoodIconCache.get(src) || src);
+
+  useEffect(() => {
+    if (!src) {
+      setResolvedSrc("");
+      return undefined;
+    }
+    const cached = cleanedFoodIconCache.get(src);
+    if (cached) {
+      setResolvedSrc(cached);
+      return undefined;
+    }
+    if (/\.svg(?:$|\?)|^data:image\/svg\+xml/i.test(src)) {
+      setResolvedSrc(src);
+      return undefined;
+    }
+    let cancelled = false;
+    const loader = new Image();
+    loader.crossOrigin = "anonymous";
+    loader.onload = () => {
+      if (cancelled) return;
+      try {
+        const cleaned = stripWhiteBackdropFromImage(loader) || src;
+        cleanedFoodIconCache.set(src, cleaned);
+        setResolvedSrc(cleaned);
+      } catch {
+        setResolvedSrc(src);
+      }
+    };
+    loader.onerror = () => {
+      if (!cancelled) setResolvedSrc(src);
+    };
+    loader.src = src;
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  return (
+    <img
+      src={resolvedSrc}
+      alt=""
+      className={className}
+      style={style}
+    />
+  );
+}
+
 const OilBottleIcon = ({ size = 24 }) => (
   <svg
     width={size}
     height={size}
-    viewBox="0 0 32 32"
+    viewBox="0 0 36 36"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
     aria-hidden="true"
   >
-    <rect x="12.5" y="2.5" width="7" height="3.5" rx="1.2" fill="#DC2626" />
-    <path d="M13 6h6v3.2l3.8 3.6A2.5 2.5 0 0 1 23.5 14.6V27a2.5 2.5 0 0 1-2.5 2.5H11A2.5 2.5 0 0 1 8.5 27V14.6a2.5 2.5 0 0 1 .7-1.8L13 9.2V6Z" fill="#FACC15" stroke="#CA8A04" strokeWidth="1.2" />
-    <rect x="10.5" y="15.5" width="11" height="8" rx="1.6" fill="#FEF08A" stroke="#EAB308" strokeWidth="0.9" />
-    <path d="M16 17.3c1.3 1.4 2 2.4 2 3.3a2 2 0 1 1-4 0c0-.9.7-1.9 2-3.3Z" fill="#EA580C" />
+    <defs>
+      <linearGradient id="bhOilBody" x1="10" y1="9" x2="26" y2="32" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#FDE047" />
+        <stop offset="55%" stopColor="#F59E0B" />
+        <stop offset="100%" stopColor="#D97706" />
+      </linearGradient>
+      <linearGradient id="bhOilLabel" x1="12" y1="17" x2="24" y2="27" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#FEF9C3" />
+        <stop offset="100%" stopColor="#FDE68A" />
+      </linearGradient>
+    </defs>
+    <rect x="13.5" y="3" width="9" height="4.2" rx="1.6" fill="#EF4444" stroke="#B91C1C" strokeWidth="1" />
+    <path d="M14.5 7.2h7v3.3l4.3 4.2a3.2 3.2 0 0 1 .9 2.2V29a3.5 3.5 0 0 1-3.5 3.5H12.8A3.5 3.5 0 0 1 9.3 29V16.9a3.2 3.2 0 0 1 .9-2.2l4.3-4.2V7.2Z" fill="url(#bhOilBody)" stroke="#B45309" strokeWidth="1.25" />
+    <path d="M12.2 17c0-1.2.4-2.1 1.3-2.9l1.2-1.1" stroke="#FEF9C3" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
+    <rect x="12" y="17.5" width="12" height="9.2" rx="2" fill="url(#bhOilLabel)" stroke="#D97706" strokeWidth="0.9" />
+    <path d="M18 19.3c1.6 1.7 2.5 2.9 2.5 4a2.5 2.5 0 1 1-5 0c0-1.1.9-2.3 2.5-4Z" fill="#EA580C" />
   </svg>
 );
 
@@ -137,19 +274,249 @@ const BAZAR_COMMON_ITEMS = [
 
 let latestCommonBazarItems = BAZAR_COMMON_ITEMS;
 
+const BAZAR_UNIT_OPTIONS = [
+  { value: "kg", label: "kg" },
+  { value: "gram", label: "gram" },
+  { value: "liter", label: "liter" },
+  { value: "pcs", label: "pcs" },
+  { value: "pack", label: "pack" },
+  { value: "tray", label: "tray" },
+  { value: "pc", label: "pc" },
+];
+
+const COMMON_UNIT_OPTIONS = BAZAR_UNIT_OPTIONS.filter((opt) => opt.value !== "tray");
+
+/** Portal-based listbox styled to match the app's month dropdown across modals and filters. */
+function PremiumDropdown({
+  id,
+  value,
+  onChange,
+  options = [],
+  ariaLabel,
+  menuLabel = "SELECT OPTION",
+  disabled = false,
+  className = "",
+  triggerClassName = "",
+  menuClassName = "",
+  minMenuWidth = 176,
+  align = "right",
+  leadingIcon = null,
+}) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState(null);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
+  const normalizedOptions = useMemo(
+    () =>
+      (options || []).map((opt) =>
+        typeof opt === "string" || typeof opt === "number"
+          ? { value: String(opt), label: String(opt), icon: null }
+          : {
+              value: String(opt?.value ?? ""),
+              label: String(opt?.label ?? opt?.value ?? ""),
+              icon: opt?.icon ?? null,
+            },
+      ),
+    [options],
+  );
+  const activeOption =
+    normalizedOptions.find((opt) => opt.value === String(value ?? "")) ||
+    normalizedOptions[0] || { value: "", label: "" };
+
+  const computeMenuPosition = useCallback(() => {
+    const triggerEl = triggerRef.current;
+    if (!triggerEl || typeof window === "undefined") return;
+    const rect = triggerEl.getBoundingClientRect();
+    const viewportW = window.innerWidth || document.documentElement.clientWidth || 375;
+    const viewportH = window.innerHeight || document.documentElement.clientHeight || 667;
+    const width = Math.min(viewportW - 16, Math.max(rect.width, minMenuWidth));
+    const preferredLeft = align === "left" ? rect.left : rect.right - width;
+    const left = Math.max(8, Math.min(preferredLeft, viewportW - width - 8));
+    const estimatedHeight = Math.min(350, 38 + normalizedOptions.length * 37 + 16);
+    const spaceBelow = viewportH - rect.bottom - 10;
+    const spaceAbove = rect.top - 10;
+    const openUp = spaceBelow < Math.min(estimatedHeight, 210) && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(120, Math.min(360, openUp ? spaceAbove : spaceBelow));
+    setCoords({
+      left: Math.round(left),
+      width: Math.round(width),
+      top: openUp ? undefined : Math.round(rect.bottom + 8),
+      bottom: openUp ? Math.round(viewportH - rect.top + 8) : undefined,
+      maxHeight: Math.round(maxHeight),
+      openUp,
+    });
+  }, [align, minMenuWidth, normalizedOptions.length]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    computeMenuPosition();
+  }, [open, computeMenuPosition]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handlePointerDown = (event) => {
+      const target = event.target;
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    const handleScrollOrResize = (event) => {
+      if (event?.type === "scroll" && menuRef.current?.contains(event.target)) return;
+      computeMenuPosition();
+    };
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("resize", handleScrollOrResize);
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+    };
+  }, [open, computeMenuPosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    const selectedBtn = menuRef.current?.querySelector(".premium-select-option.is-selected");
+    const firstBtn = menuRef.current?.querySelector(".premium-select-option");
+    (selectedBtn || firstBtn)?.focus({ preventScroll: true });
+  }, [open]);
+
+  const handleMenuKeyDown = (event) => {
+    const items = Array.from(menuRef.current?.querySelectorAll(".premium-select-option") || []);
+    if (!items.length) return;
+    const idx = items.indexOf(document.activeElement);
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      items[(idx + 1) % items.length]?.focus();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      items[(idx - 1 + items.length) % items.length]?.focus();
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      items[0]?.focus();
+    } else if (event.key === "End") {
+      event.preventDefault();
+      items[items.length - 1]?.focus();
+    }
+  };
+
+  return (
+    <div
+      className={`premium-select-wrap${open ? " is-open" : ""}${disabled ? " is-disabled" : ""}${className ? ` ${className}` : ""}`}
+    >
+      <button
+        ref={triggerRef}
+        id={id}
+        type="button"
+        className={`premium-select-trigger${open ? " is-open" : ""}${triggerClassName ? ` ${triggerClassName}` : ""}`}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (disabled) return;
+          if (!open) computeMenuPosition();
+          setOpen((prev) => !prev);
+        }}
+      >
+        {leadingIcon ? (
+          <span className="premium-select-leading-icon" aria-hidden="true">
+            {leadingIcon}
+          </span>
+        ) : null}
+        <span className="premium-select-value">{activeOption.label}</span>
+        <ChevronDown
+          className={`premium-select-chevron${open ? " is-open" : ""}`}
+          size={15}
+          strokeWidth={2.2}
+          aria-hidden="true"
+        />
+      </button>
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className={`premium-select-menu${coords?.openUp ? " is-upward" : ""}${menuClassName ? ` ${menuClassName}` : ""}`}
+            role="listbox"
+            aria-label={ariaLabel || menuLabel}
+            style={
+              coords
+                ? {
+                    position: "fixed",
+                    left: `${coords.left}px`,
+                    width: `${coords.width}px`,
+                    top: coords.top !== undefined ? `${coords.top}px` : "auto",
+                    bottom: coords.bottom !== undefined ? `${coords.bottom}px` : "auto",
+                    maxHeight: `${coords.maxHeight}px`,
+                  }
+                : undefined
+            }
+            onKeyDown={handleMenuKeyDown}
+          >
+            {menuLabel ? <span className="premium-select-label">{menuLabel}</span> : null}
+            <div className="premium-select-options">
+              {normalizedOptions.map((opt) => {
+                const selected = opt.value === String(value ?? "");
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    className={`premium-select-option${selected ? " is-selected" : ""}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onChange?.(opt.value);
+                      setOpen(false);
+                      triggerRef.current?.focus();
+                    }}
+                  >
+                    {opt.icon ? (
+                      <span className="premium-select-option-icon" aria-hidden="true">
+                        {opt.icon}
+                      </span>
+                    ) : null}
+                    <span className="premium-select-option-text">{opt.label}</span>
+                    {selected ? (
+                      <CheckCircle2
+                        className="premium-select-option-check"
+                        size={15}
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
 function renderCommonBazarIcon(preset, size = 24) {
   if (!preset) return "🛒";
   if (preset.iconUrl) {
     return (
-      <img
+      <TransparentFoodIcon
         src={preset.iconUrl}
-        alt=""
         className="bazar-common-uploaded-icon"
         style={{ width: size, height: size }}
       />
     );
   }
-  if (preset.iconType === "oil") {
+  if (preset.iconType === "oil" || preset.id === "tel") {
     return <OilBottleIcon size={size} />;
   }
   return preset.emoji || "🛒";
@@ -391,8 +758,28 @@ const BAZAR_ITEM_ALIAS_IDS = [
   ["garlic", "rosun"],
 ];
 
+function isOilFoodName(clean) {
+  if (!clean) return false;
+  if (clean.includes("নারিকেল") || clean.includes("coconut") || clean.includes("olive") || clean.includes("অলিভ") || clean.includes("সূর্যমুখী") || clean.includes("sunflower")) {
+    return false;
+  }
+  return (
+    clean === "তেল" ||
+    clean === "tel" ||
+    clean === "oil" ||
+    clean.includes("সয়াবিন তেল") ||
+    clean.includes("সরিষার তেল") ||
+    /\b(oil|tel)\b/.test(clean)
+  );
+}
+
 function renderBazarItemIcon(itemName, size = 18) {
-  const clean = String(itemName || "").replace(/\([^)]*\)/g, "").trim().toLowerCase();
+  const clean = normalizeBazarFoodSearch(String(itemName || "").replace(/\([^)]*\)/g, ""));
+  if (isOilFoodName(clean)) {
+    const telPreset = latestCommonBazarItems.find((preset) => preset.id === "tel");
+    if (telPreset?.iconUrl) return renderCommonBazarIcon(telPreset, size);
+    return <OilBottleIcon size={size} />;
+  }
   const catalogItem = findBazarFoodCatalogItem(clean);
   if (catalogItem?.emoji) return catalogItem.emoji;
   const presets = [...latestCommonBazarItems]
@@ -439,7 +826,9 @@ function renderBazarReportIcon(itemName, size = 18) {
   const clean = normalizeBazarFoodSearch(
     String(itemName || "").replace(/\([^)]*\)/g, ""),
   );
-  if (clean === "তেল" || clean === "tel" || clean === "oil") {
+  if (isOilFoodName(clean)) {
+    const telPreset = latestCommonBazarItems.find((preset) => preset.id === "tel");
+    if (telPreset?.iconUrl) return renderCommonBazarIcon(telPreset, size);
     return <OilBottleIcon size={size} />;
   }
   return renderBazarItemIcon(itemName, size);
@@ -2048,7 +2437,7 @@ function App() {
             : settlementPaidValue(settlement)),
         0,
       );
-  const bazarSearchTerm = bazarSearch.trim().toLowerCase();
+  const bazarSearchTerm = bazarSearch.trim();
   const groupedMonthBazar = groupMonthBazar(monthBazar);
   const filteredMonthBazar = groupedMonthBazar.filter((b) => {
     let matchesMember = false;
@@ -2059,7 +2448,9 @@ function App() {
     } else {
       matchesMember = b.isCombined ? b.memberId === bazarFilter : (!b.paidFromCash && b.paidBy === bazarFilter);
     }
-    const matchesSearch = !bazarSearchTerm || getBazarItemSummary(b.items).toLowerCase().includes(bazarSearchTerm);
+    const matchesSearch =
+      !bazarSearchTerm ||
+      matchesBazarHistorySearch(b.items, bazarSearchTerm, getBazarItemSummary(b.items));
     return matchesMember && matchesSearch;
   });
   const bazarTotal = monthBazar.reduce((s, b) => s + Number(b.amount || 0), 0);
@@ -9018,62 +9409,88 @@ function App() {
                   <form className="settlement-form" onSubmit={saveSettlement}>
                     <label>
                       Settlement method
-                      <select
+                      <PremiumDropdown
+                        ariaLabel="Settlement method"
+                        menuLabel="SETTLEMENT METHOD"
                         value={settlementForm.sourceType}
-                        onChange={(event) =>
+                        options={[
+                          { value: "cash_contribution", label: "Refund from cash contribution" },
+                          { value: "direct", label: "Direct member transfer" },
+                        ]}
+                        onChange={(nextType) =>
                           setSettlementForm({
                             ...settlementForm,
-                            sourceType: event.target.value,
+                            sourceType: nextType,
                           })
                         }
-                      >
-                        <option value="cash_contribution">Refund from cash contribution</option>
-                        <option value="direct">Direct member transfer</option>
-                      </select>
+                        minMenuWidth={240}
+                        align="left"
+                      />
                     </label>
                     <div className="settlement-form-grid">
                       <label>
                         {settlementForm.sourceType === "cash_contribution"
                           ? "Contribution from"
                           : "Paid by"}
-                        <select
+                        <PremiumDropdown
+                          ariaLabel={
+                            settlementForm.sourceType === "cash_contribution"
+                              ? "Contribution from"
+                              : "Paid by"
+                          }
+                          menuLabel={
+                            settlementForm.sourceType === "cash_contribution"
+                              ? "CONTRIBUTION FROM"
+                              : "PAID BY"
+                          }
                           value={settlementForm.fromUserId}
-                          onChange={(event) =>
+                          options={allActiveUsers.map((member) => ({
+                            value: member.id,
+                            label: `${member.name}${
+                              settlementForm.sourceType === "cash_contribution"
+                                ? ` · ${money(availableContributionForSettlement(member.id))} available`
+                                : ` · balance ${money(memberMealBalance(member, true))}`
+                            }`,
+                          }))}
+                          onChange={(nextId) =>
                             setSettlementForm({
                               ...settlementForm,
-                              fromUserId: event.target.value,
+                              fromUserId: nextId,
                             })
                           }
-                        >
-                          {allActiveUsers.map((member) => (
-                            <option key={member.id} value={member.id}>
-                              {member.name}
-                              {settlementForm.sourceType === "cash_contribution"
-                                ? ` · ${money(availableContributionForSettlement(member.id))} available`
-                                : ` · balance ${money(memberMealBalance(member, true))}`}
-                            </option>
-                          ))}
-                        </select>
+                          minMenuWidth={230}
+                          align="left"
+                        />
                       </label>
                       <label>
                         {settlementForm.sourceType === "cash_contribution"
                           ? "Refund to"
                           : "Paid to"}
-                        <select
+                        <PremiumDropdown
+                          ariaLabel={
+                            settlementForm.sourceType === "cash_contribution"
+                              ? "Refund to"
+                              : "Paid to"
+                          }
+                          menuLabel={
+                            settlementForm.sourceType === "cash_contribution"
+                              ? "REFUND TO"
+                              : "PAID TO"
+                          }
                           value={settlementForm.toUserId}
-                          onChange={(event) =>
+                          options={allActiveUsers.map((member) => ({
+                            value: member.id,
+                            label: `${member.name} · balance ${money(memberMealBalance(member, true))}`,
+                          }))}
+                          onChange={(nextId) =>
                             setSettlementForm({
                               ...settlementForm,
-                              toUserId: event.target.value,
+                              toUserId: nextId,
                             })
                           }
-                        >
-                          {allActiveUsers.map((member) => (
-                            <option key={member.id} value={member.id}>
-                              {member.name} · balance {money(memberMealBalance(member, true))}
-                            </option>
-                          ))}
-                        </select>
+                          minMenuWidth={230}
+                          align="left"
+                        />
                       </label>
                     </div>
                     <div className="settlement-form-grid">
@@ -10079,16 +10496,19 @@ function App() {
                             }}
                             disabled={bazarNeededBusy}
                           />
-                          <select
-                            aria-label="Quantity unit"
+                          <PremiumDropdown
+                            ariaLabel="Quantity unit"
+                            menuLabel="SELECT UNIT"
+                            className="bazar-unit-select"
                             value={bazarNeededPicker.unit}
-                            onChange={(event) => setBazarNeededPicker((prev) => ({ ...prev, unit: event.target.value }))}
+                            options={BAZAR_UNIT_OPTIONS}
+                            onChange={(nextUnit) =>
+                              setBazarNeededPicker((prev) => ({ ...prev, unit: nextUnit }))
+                            }
                             disabled={bazarNeededBusy}
-                          >
-                            <option value="kg">kg</option><option value="gram">gram</option>
-                            <option value="liter">liter</option><option value="pcs">pcs</option>
-                            <option value="pack">pack</option><option value="tray">tray</option><option value="pc">pc</option>
-                          </select>
+                            minMenuWidth={168}
+                            align="right"
+                          />
                         </div>
                       </div>
 
@@ -10185,19 +10605,23 @@ function App() {
                   </label>
                   <label className="bazar-mobile-member-filter">
                     <Users size={16} aria-hidden="true" />
-                    <select
+                    <PremiumDropdown
+                      className="bazar-mobile-member-select"
+                      ariaLabel="Filter bazar by member"
+                      menuLabel="FILTER BY MEMBER"
                       value={bazarFilter}
-                      onChange={(event) => setBazarFilter(event.target.value)}
-                      aria-label="Filter bazar by member"
-                    >
-                      <option value="all">All members</option>
-                      {allActiveUsers.map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {member.name}{member.role === "admin" ? " (Admin)" : ""}
-                        </option>
-                      ))}
-                      <option value="cash-in-hand">Cash in Hand</option>
-                    </select>
+                      options={[
+                        { value: "all", label: "All members" },
+                        ...allActiveUsers.map((member) => ({
+                          value: member.id,
+                          label: `${member.name}${member.role === "admin" ? " (Admin)" : ""}`,
+                        })),
+                        { value: "cash-in-hand", label: "Cash in Hand" },
+                      ]}
+                      onChange={(nextFilter) => setBazarFilter(nextFilter)}
+                      minMenuWidth={210}
+                      align="right"
+                    />
                   </label>
                 </div>
                 <div className="table-wrap">
@@ -10788,19 +11212,18 @@ function App() {
                               setBazarItemPicker((prev) => ({ ...prev, qty: event.target.value }));
                             }}
                           />
-                          <select
-                            aria-label="Quantity unit"
+                          <PremiumDropdown
+                            ariaLabel="Quantity unit"
+                            menuLabel="SELECT UNIT"
+                            className="bazar-unit-select"
                             value={bazarItemPicker.unit}
-                            onChange={(event) => setBazarItemPicker((prev) => ({ ...prev, unit: event.target.value }))}
-                          >
-                            <option value="kg">kg</option>
-                            <option value="gram">gram</option>
-                            <option value="liter">liter</option>
-                            <option value="pcs">pcs</option>
-                            <option value="pack">pack</option>
-                            <option value="tray">tray</option>
-                            <option value="pc">pc</option>
-                          </select>
+                            options={BAZAR_UNIT_OPTIONS}
+                            onChange={(nextUnit) =>
+                              setBazarItemPicker((prev) => ({ ...prev, unit: nextUnit }))
+                            }
+                            minMenuWidth={168}
+                            align="right"
+                          />
                         </div>
                       </div>
 
@@ -10853,19 +11276,16 @@ function App() {
                                 value={row.quantity ?? ""}
                                 onChange={(event) => updateBazarRow(index, "quantity", event.target.value)}
                               />
-                              <select
-                                aria-label={`Unit for ${row.item}`}
+                              <PremiumDropdown
+                                ariaLabel={`Unit for ${row.item}`}
+                                menuLabel="SELECT UNIT"
+                                className="bazar-unit-select"
                                 value={row.unit || "kg"}
-                                onChange={(event) => updateBazarRow(index, "unit", event.target.value)}
-                              >
-                                <option value="kg">kg</option>
-                                <option value="gram">gram</option>
-                                <option value="liter">liter</option>
-                                <option value="pcs">pcs</option>
-                                <option value="pack">pack</option>
-                                <option value="tray">tray</option>
-                                <option value="pc">pc</option>
-                              </select>
+                                options={BAZAR_UNIT_OPTIONS}
+                                onChange={(nextUnit) => updateBazarRow(index, "unit", nextUnit)}
+                                minMenuWidth={168}
+                                align="right"
+                              />
                             </span>
                             <input
                               aria-label={`Price for ${row.item}`}
@@ -10963,20 +11383,19 @@ function App() {
                           {selectedBazarPreset.id === "mosla" && (
                             <div className="bazar-detail-field">
                               <label htmlFor="bazar-add-moshla-type">মসলার ধরন</label>
-                              <select
+                              <PremiumDropdown
                                 id="bazar-add-moshla-type"
+                                ariaLabel="মসলার ধরন"
+                                menuLabel="SELECT SPICE"
                                 value={bazarItemPicker.moshlaType}
-                                onChange={(e) => {
+                                options={BAZAR_MOSHLA_OPTIONS}
+                                onChange={(nextVal) => {
                                   setBazarPickerError("");
-                                  setBazarItemPicker((prev) => ({ ...prev, moshlaType: e.target.value }));
+                                  setBazarItemPicker((prev) => ({ ...prev, moshlaType: nextVal }));
                                 }}
-                              >
-                                {BAZAR_MOSHLA_OPTIONS.map((opt) => (
-                                  <option key={opt} value={opt}>
-                                    {opt}
-                                  </option>
-                                ))}
-                              </select>
+                                minMenuWidth={200}
+                                align="left"
+                              />
                             </div>
                           )}
 
@@ -11008,20 +11427,19 @@ function App() {
                           {selectedBazarPreset.id === "mangsho" && (
                             <div className="bazar-detail-field">
                               <label htmlFor="bazar-add-mangsho-type">মাংসের ধরন</label>
-                              <select
+                              <PremiumDropdown
                                 id="bazar-add-mangsho-type"
+                                ariaLabel="মাংসের ধরন"
+                                menuLabel="SELECT TYPE"
                                 value={bazarItemPicker.mangshoType}
-                                onChange={(e) => {
+                                options={BAZAR_MANGSHO_OPTIONS}
+                                onChange={(nextVal) => {
                                   setBazarPickerError("");
-                                  setBazarItemPicker((prev) => ({ ...prev, mangshoType: e.target.value }));
+                                  setBazarItemPicker((prev) => ({ ...prev, mangshoType: nextVal }));
                                 }}
-                              >
-                                {BAZAR_MANGSHO_OPTIONS.map((opt) => (
-                                  <option key={opt} value={opt}>
-                                    {opt}
-                                  </option>
-                                ))}
-                              </select>
+                                minMenuWidth={180}
+                                align="left"
+                              />
                             </div>
                           )}
 
@@ -11103,21 +11521,18 @@ function App() {
                                   setBazarItemPicker((prev) => ({ ...prev, qty: e.target.value }))
                                 }
                               />
-                              <select
-                                aria-label="পরিমানের একক"
+                              <PremiumDropdown
+                                ariaLabel="পরিমানের একক"
+                                menuLabel="SELECT UNIT"
+                                className="bazar-unit-select"
                                 value={bazarItemPicker.unit}
-                                onChange={(e) =>
-                                  setBazarItemPicker((prev) => ({ ...prev, unit: e.target.value }))
+                                options={BAZAR_UNIT_OPTIONS}
+                                onChange={(nextUnit) =>
+                                  setBazarItemPicker((prev) => ({ ...prev, unit: nextUnit }))
                                 }
-                              >
-                                <option value="kg">kg</option>
-                                <option value="gram">gram</option>
-                                <option value="liter">liter</option>
-                                <option value="pcs">pcs</option>
-                                <option value="pack">pack</option>
-                                <option value="tray">tray</option>
-                                <option value="pc">pc</option>
-                              </select>
+                                minMenuWidth={168}
+                                align="right"
+                              />
                             </div>
                           </div>
 
@@ -11218,11 +11633,19 @@ function App() {
                   <label>
                     Paid by
                     {admin ? (
-                      <select
-                        name="paidBy"
+                      <PremiumDropdown
+                        ariaLabel="Paid by"
+                        menuLabel="PAID BY"
                         value={bazarForm.paidBy || user.id}
-                        onChange={(e) => {
-                          const val = e.target.value;
+                        options={[
+                          ...allActiveUsers.map((u) => ({
+                            value: u.id,
+                            label: `${u.name}${u.role === "admin" ? " (Admin)" : ""}`,
+                          })),
+                          { value: "cash-in-hand", label: "Cash in Hand" },
+                          { value: "combine", label: "⚡ Combine (Cash in Hand + Member)" },
+                        ]}
+                        onChange={(val) => {
                           const total = bazarRows.reduce((sum, row) => sum + Number(row.price || 0), 0);
                           const avail = Math.max(0, roundMoney(cashInHand - pendingCashSettlementTotal));
                           if (val === "combine") {
@@ -11239,11 +11662,9 @@ function App() {
                             setBazarForm((prev) => ({ ...prev, paidBy: val }));
                           }
                         }}
-                      >
-                        {allActiveUsers.map((u) => <option key={u.id} value={u.id}>{u.name}{u.role === "admin" ? " (Admin)" : ""}</option>)}
-                        <option value="cash-in-hand">Cash in Hand</option>
-                        <option value="combine">⚡ Combine (Cash in Hand + Member)</option>
-                      </select>
+                        minMenuWidth={240}
+                        align="left"
+                      />
                     ) : (
                       <input value={user.name} readOnly aria-readonly="true" />
                     )}
@@ -11291,16 +11712,20 @@ function App() {
                       {admin && (
                         <label className="bazar-combine-member-select">
                           Member paying balance
-                          <select
+                          <PremiumDropdown
+                            ariaLabel="Member paying balance"
+                            menuLabel="SELECT MEMBER"
                             value={bazarForm.combinedMemberId || user.id}
-                            onChange={(e) => setBazarForm((f) => ({ ...f, combinedMemberId: e.target.value }))}
-                          >
-                            {allActiveUsers.map((u) => (
-                              <option key={u.id} value={u.id}>
-                                {u.name}{u.role === "admin" ? " (Admin)" : ""}
-                              </option>
-                            ))}
-                          </select>
+                            options={allActiveUsers.map((u) => ({
+                              value: u.id,
+                              label: `${u.name}${u.role === "admin" ? " (Admin)" : ""}`,
+                            }))}
+                            onChange={(val) =>
+                              setBazarForm((f) => ({ ...f, combinedMemberId: val }))
+                            }
+                            minMenuWidth={220}
+                            align="left"
+                          />
                         </label>
                       )}
 
@@ -11609,15 +12034,18 @@ function App() {
                                 setBazarEditPicker((prev) => ({ ...prev, qty: event.target.value }));
                               }}
                             />
-                            <select
-                              aria-label="Quantity unit"
+                            <PremiumDropdown
+                              ariaLabel="Quantity unit"
+                              menuLabel="SELECT UNIT"
+                              className="bazar-unit-select"
                               value={bazarEditPicker.unit}
-                              onChange={(event) => setBazarEditPicker((prev) => ({ ...prev, unit: event.target.value }))}
-                            >
-                              <option value="kg">kg</option><option value="gram">gram</option>
-                              <option value="liter">liter</option><option value="pcs">pcs</option>
-                              <option value="pack">pack</option><option value="tray">tray</option><option value="pc">pc</option>
-                            </select>
+                              options={BAZAR_UNIT_OPTIONS}
+                              onChange={(nextUnit) =>
+                                setBazarEditPicker((prev) => ({ ...prev, unit: nextUnit }))
+                              }
+                              minMenuWidth={168}
+                              align="right"
+                            />
                           </div>
                         </div>
 
@@ -11674,15 +12102,16 @@ function App() {
                                   value={row.quantity ?? ""}
                                   onChange={(event) => updateBazarEditItem(index, "quantity", event.target.value)}
                                 />
-                                <select
-                                  aria-label={`Unit for ${row.item}`}
+                                <PremiumDropdown
+                                  ariaLabel={`Unit for ${row.item}`}
+                                  menuLabel="SELECT UNIT"
+                                  className="bazar-unit-select"
                                   value={row.unit || "kg"}
-                                  onChange={(event) => updateBazarEditItem(index, "unit", event.target.value)}
-                                >
-                                  <option value="kg">kg</option><option value="gram">gram</option>
-                                  <option value="liter">liter</option><option value="pcs">pcs</option>
-                                  <option value="pack">pack</option><option value="tray">tray</option><option value="pc">pc</option>
-                                </select>
+                                  options={BAZAR_UNIT_OPTIONS}
+                                  onChange={(nextUnit) => updateBazarEditItem(index, "unit", nextUnit)}
+                                  minMenuWidth={168}
+                                  align="right"
+                                />
                               </span>
                               <input
                                 aria-label={`Price for ${row.item}`}
@@ -11716,10 +12145,21 @@ function App() {
                     {admin ? (
                       <label>
                         Paid by
-                        <select
+                        <PremiumDropdown
+                          ariaLabel="Paid by"
+                          menuLabel="PAID BY"
                           value={bazarEditEntry.editPaidBy}
-                          onChange={(e) => {
-                            const val = e.target.value;
+                          options={[
+                            ...(db.users || [])
+                              .filter((member) => member.active !== false || member.id === bazarEditEntry.editPaidBy)
+                              .map((member) => ({
+                                value: member.id,
+                                label: `${member.name}${member.role === "admin" ? " (Admin)" : ""}`,
+                              })),
+                            { value: "cash-in-hand", label: "Cash in Hand" },
+                            { value: "combine", label: "⚡ Combine (Cash in Hand + Member)" },
+                          ]}
+                          onChange={(val) => {
                             const total = (bazarEditEntry.editItems || []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
                             const oldCash = bazarEditEntry.isCombined
           ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0)
@@ -11741,17 +12181,9 @@ function App() {
                               setBazarEditEntry((old) => ({ ...old, editPaidBy: val }));
                             }
                           }}
-                        >
-                          {(db.users || [])
-                            .filter((member) => member.active !== false || member.id === bazarEditEntry.editPaidBy)
-                            .map((member) => (
-                              <option key={member.id} value={member.id}>
-                                {member.name}{member.role === "admin" ? " (Admin)" : ""}
-                              </option>
-                            ))}
-                          <option value="cash-in-hand">Cash in Hand</option>
-                          <option value="combine">⚡ Combine (Cash in Hand + Member)</option>
-                        </select>
+                          minMenuWidth={240}
+                          align="left"
+                        />
                       </label>
                     ) : (
                       roundMoney(cashInHand - pendingCashSettlementTotal + (bazarEditEntry.isCombined ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0) : (bazarEditEntry.paidFromCash ? Number(bazarEditEntry.amount || 0) : 0))) > 0 && (
@@ -11802,16 +12234,20 @@ function App() {
                         {admin && (
                           <label className="bazar-combine-member-select">
                             Member paying balance
-                            <select
+                            <PremiumDropdown
+                              ariaLabel="Member paying balance"
+                              menuLabel="SELECT MEMBER"
                               value={bazarEditEntry.combinedMemberId || user?.id}
-                              onChange={(e) => setBazarEditEntry((old) => ({ ...old, combinedMemberId: e.target.value }))}
-                            >
-                              {allActiveUsers.map((u) => (
-                                <option key={u.id} value={u.id}>
-                                  {u.name}{u.role === "admin" ? " (Admin)" : ""}
-                                </option>
-                              ))}
-                            </select>
+                              options={allActiveUsers.map((u) => ({
+                                value: u.id,
+                                label: `${u.name}${u.role === "admin" ? " (Admin)" : ""}`,
+                              }))}
+                              onChange={(val) =>
+                                setBazarEditEntry((old) => ({ ...old, combinedMemberId: val }))
+                              }
+                              minMenuWidth={220}
+                              align="left"
+                            />
                           </label>
                         )}
 
@@ -12051,9 +12487,8 @@ function App() {
                     <div className="bazar-common-upload-box">
                       <span className="bazar-common-upload-preview" aria-hidden="true">
                         {commonItemForm.iconUrl ? (
-                          <img
+                          <TransparentFoodIcon
                             src={commonItemForm.iconUrl}
-                            alt=""
                             className="bazar-common-uploaded-icon"
                             style={{ width: 22, height: 22 }}
                           />
@@ -12101,18 +12536,18 @@ function App() {
                   </label>
                   <label className="bazar-common-manage-field is-unit">
                     <span>Unit</span>
-                    <select
+                    <PremiumDropdown
+                      ariaLabel="Default unit"
+                      menuLabel="SELECT UNIT"
+                      className="bazar-unit-select"
                       value={commonItemForm.defaultUnit}
-                      onChange={(e) =>
-                        setCommonItemForm((prev) => ({ ...prev, defaultUnit: e.target.value }))
+                      options={COMMON_UNIT_OPTIONS}
+                      onChange={(nextUnit) =>
+                        setCommonItemForm((prev) => ({ ...prev, defaultUnit: nextUnit }))
                       }
-                    >
-                      {["kg", "gram", "liter", "pcs", "pack", "pc"].map((u) => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
+                      minMenuWidth={168}
+                      align="right"
+                    />
                   </label>
                 </div>
 
@@ -12654,7 +13089,7 @@ function App() {
                             key={item.key}
                           >
                             <span className="bazar-top-item-emoji is-large" aria-hidden="true">
-                              {renderBazarItemIcon(item.name, 38)}
+                              {renderBazarReportIcon(item.name, 38)}
                             </span>
                             <span className="bazar-top-item-copy">
                               <strong className="bazar-top-item-name">{item.name}</strong>

@@ -119,7 +119,7 @@ export const BAZAR_FOOD_CATALOG = [
 
   // Meat and eggs
   food("meat-chicken", "মুরগি", "🍗", "kg", "mangsho", ["murgi", "morog", "chicken", "chiken"]),
-  food("meat-beef", "গরুর মাংস", "🥩", "kg", "mangsho", ["goru", "gorur mangsho", "beef", "cow meat"]),
+  food("meat-beef", "গরুর মাংস", "🥩", "kg", "mangsho", ["গরু", "goru", "gorur mangsho", "beef", "cow meat"]),
   food("meat-mutton", "খাসির মাংস", "🥩", "kg", "mangsho", ["khasi", "khashi", "khasir mangsho", "mutton", "goat meat"]),
   food("meat-duck", "হাঁসের মাংস", "🦆", "kg", "mangsho", ["hash", "hasher mangsho", "duck", "duck meat"]),
   food("meat-pigeon", "কবুতরের মাংস", "🍗", "pcs", "mangsho", ["kobutor", "kobutorer mangsho", "pigeon meat"]),
@@ -221,9 +221,10 @@ export const BAZAR_FOOD_CATALOG = [
 export function normalizeBazarFoodSearch(value) {
   return String(value || "")
     .normalize("NFKC")
+    .replace(/[\u0981\u200B-\u200D\uFEFF]/g, "")
     .toLocaleLowerCase("en")
     .replace(/[’'`]/g, "")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/g, " ");
 }
@@ -302,4 +303,196 @@ export function findBazarFoodCatalogItem(value) {
     const terms = [item.name, ...(item.aliases || [])].map(normalizeBazarFoodSearch);
     return terms.some((term) => term === normalized || term === withoutCategory);
   }) || null;
+}
+
+const BAZAR_HISTORY_CATEGORY_TERMS = {
+  chal: ["চাল", "chal", "chaal", "rice", "chawl"],
+  dal: ["ডাল", "dal", "daal", "lentil", "lentils"],
+  tel: ["তেল", "tel", "oil", "cooking oil"],
+  sobji: ["সবজি", "sobji", "shobji", "vegetable", "vegetables", "veg", "veggie", "veggies", "tarkari", "torkari"],
+  mangsho: ["মাংস", "mangsho", "mangso", "meat", "gosht", "gosto"],
+  mach: ["মাছ", "mach", "maach", "fish"],
+  dim: ["ডিম", "dim", "deem", "egg", "eggs"],
+  mosla: ["মসলা", "মশলা", "mosla", "moshla", "masala", "spice", "spices"],
+  peyaj: ["পেঁয়াজ", "পেঁয়াজ", "পেয়াজ", "পিয়াজ", "peyaj", "piyaj", "piaz", "peaj", "onion", "onions"],
+  morich: ["মরিচ", "morich", "marich", "chili", "chilli", "chillies", "pepper"],
+  rosun: ["রসুন", "rosun", "roshun", "rasun", "garlic"],
+};
+
+const BAZAR_UNIT_NOISE = new Set([
+  "kg", "kilogram", "gram", "gm", "g", "liter", "litre", "l", "ml",
+  "pcs", "pc", "piece", "pieces", "pack", "packet", "tray", "dozen",
+  "bundle", "ati", "bottle", "can", "box", "ta", "ti",
+]);
+
+function extractItemNamesFromRaw(rawItems) {
+  let list = Array.isArray(rawItems) ? rawItems : null;
+  if (!list && typeof rawItems === "string") {
+    try {
+      const parsed = JSON.parse(rawItems);
+      if (Array.isArray(parsed)) list = parsed;
+    } catch {
+      return rawItems
+        .split(/[,;\n]+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+    }
+  }
+  if (!list) return [];
+  return list
+    .map((entry) => {
+      if (typeof entry === "string") return entry.trim();
+      if (!entry || typeof entry !== "object") return "";
+      const val = entry.item ?? entry.name ?? entry.title;
+      return String(typeof val === "string" ? val : (val?.name ?? val?.item ?? "")).trim();
+    })
+    .filter(Boolean);
+}
+
+const NORMALIZED_CATALOG_INDEX = BAZAR_FOOD_CATALOG.map((item) => {
+  const terms = [item.name, ...(item.aliases || [])]
+    .map(normalizeBazarFoodSearch)
+    .filter(Boolean);
+  return {
+    id: item.id,
+    parentId: item.parentId,
+    terms,
+    termWords: Array.from(new Set(terms.flatMap((t) => t.split(" ")))).filter(Boolean),
+  };
+});
+
+const NORMALIZED_CATEGORY_ENTRIES = Object.entries(BAZAR_HISTORY_CATEGORY_TERMS).map(
+  ([parentId, rawTerms]) => ({
+    parentId,
+    terms: rawTerms.map(normalizeBazarFoodSearch).filter(Boolean),
+  }),
+);
+
+function hasWholePhrase(haystack, phrase) {
+  if (!haystack || !phrase) return false;
+  if (haystack === phrase) return true;
+  if (!haystack.includes(phrase)) return false;
+  const hayWords = haystack.split(" ");
+  const phraseWords = phrase.split(" ");
+  if (phraseWords.length === 1) return hayWords.includes(phraseWords[0]);
+  for (let i = 0; i <= hayWords.length - phraseWords.length; i += 1) {
+    let ok = true;
+    for (let j = 0; j < phraseWords.length; j += 1) {
+      if (hayWords[i + j] !== phraseWords[j]) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return true;
+  }
+  return false;
+}
+
+function resolveEntrySearchSignals(rawItems) {
+  const catalogMatches = new Set();
+  const groupMatches = new Set();
+  const names = extractItemNamesFromRaw(rawItems);
+
+  for (const rawName of names) {
+    // Strip trailing "(2 kg)" or quantity/price suffix while preserving base food words
+    const stripped = String(rawName || "")
+      .replace(/\([^)]*\)/g, " ")
+      .replace(/৳\s*[\d.,]+/g, " ")
+      .trim();
+    const parts = stripped
+      .split(/\s*[-–:]\s*/)
+      .map(normalizeBazarFoodSearch)
+      .filter(Boolean);
+    const fullNorm = normalizeBazarFoodSearch(stripped);
+    const filteredFull = fullNorm
+      .split(" ")
+      .filter((w) => w && !BAZAR_UNIT_NOISE.has(w) && !/^\d+(?:\.\d+)?$/.test(w))
+      .join(" ");
+
+    const candidates = Array.from(new Set([fullNorm, filteredFull, ...parts].filter(Boolean)));
+    const words = Array.from(
+      new Set(
+        candidates
+          .flatMap((c) => c.split(" "))
+          .filter((w) => w && !BAZAR_UNIT_NOISE.has(w) && !/^\d+(?:\.\d+)?$/.test(w)),
+      ),
+    );
+
+    for (const cat of NORMALIZED_CATALOG_INDEX) {
+      const hit = candidates.some((cand) =>
+        cat.terms.some((term) => hasWholePhrase(cand, term)),
+      ) || words.some((word) => word.length >= 2 && cat.terms.includes(word));
+      if (hit) {
+        catalogMatches.add(cat.id);
+        if (cat.parentId && cat.parentId !== "others") groupMatches.add(cat.parentId);
+      }
+    }
+
+    for (const grp of NORMALIZED_CATEGORY_ENTRIES) {
+      const hit = candidates.some((cand) =>
+        grp.terms.some((term) => hasWholePhrase(cand, term)),
+      ) || words.some((word) => word.length >= 2 && grp.terms.includes(word));
+      if (hit) {
+        groupMatches.add(grp.parentId);
+      }
+    }
+  }
+
+  return { catalogMatches, groupMatches };
+}
+
+/** Match monthly bazar history entries across English, Banglish, Bangla, and minor spelling typos. */
+export function matchesBazarHistorySearch(rawItems, rawQuery, extraText = "") {
+  const query = normalizeBazarFoodSearch(rawQuery);
+  if (!query) return true;
+
+  const summary = extractItemNamesFromRaw(rawItems).join(", ");
+  const normalizedHaystack = normalizeBazarFoodSearch(`${summary} ${extraText}`);
+  if (normalizedHaystack.includes(query)) return true;
+
+  const queryTokens = query.split(" ").filter(Boolean);
+  if (queryTokens.length > 1 && queryTokens.every((tok) => normalizedHaystack.includes(tok))) {
+    return true;
+  }
+
+  if (query.length < 2) return false;
+
+  const { catalogMatches, groupMatches } = resolveEntrySearchSignals(rawItems);
+  if (!catalogMatches.size && !groupMatches.size) return false;
+
+  // Resolve what the user's query refers to across food catalog (includes Banglish, English, Bangla & typo tolerance)
+  const queryCatalogHits = searchBazarFoodCatalog(query, 30);
+  if (queryCatalogHits.some((hit) => catalogMatches.has(hit.id))) {
+    return true;
+  }
+
+  // Match category-level queries (e.g. "rice", "chal", "oil", "tel", "egg", "vegetable", "sobji", "fish", "mach")
+  for (const grp of NORMALIZED_CATEGORY_ENTRIES) {
+    if (!groupMatches.has(grp.parentId)) continue;
+    const grpHit = grp.terms.some(
+      (term) =>
+        term === query ||
+        term.startsWith(query) ||
+        term.split(" ").some((word) => word.startsWith(query)) ||
+        (/^[a-z0-9 ]+$/i.test(query) &&
+          query.length >= 4 &&
+          Math.min(
+            ...grp.terms
+              .filter((t) => /^[a-z0-9 ]+$/i.test(t))
+              .flatMap((t) => [t, ...t.split(" ")])
+              .map((t) => editDistance(t, query)),
+          ) <= (query.length >= 8 ? 2 : 1)),
+    );
+    if (grpHit) return true;
+  }
+
+  // Fallback: check individual query tokens if user entered multi-word query (e.g. "red potato")
+  if (queryTokens.length > 1) {
+    const meaningfulTokens = queryTokens.filter((tok) => tok.length >= 2 && !BAZAR_UNIT_NOISE.has(tok));
+    if (meaningfulTokens.length > 0) {
+      return meaningfulTokens.every((tok) => matchesBazarHistorySearch(rawItems, tok, extraText));
+    }
+  }
+
+  return false;
 }
