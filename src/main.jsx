@@ -1942,6 +1942,7 @@ function App() {
     if (node) setBulletinLayoutVersion((version) => version + 1);
   }, []);
   const inboxAttachmentInputRef = useRef(null);
+  const inboxMessageListRef = useRef(null);
   const lastInboxActivityAtRef = useRef(0);
   const markingSeenRef = useRef(false);
   const paymentDefaults = [
@@ -2269,6 +2270,57 @@ function App() {
       (message.sender_id === selectedInboxMemberId && message.recipient_id === session?.id) ||
       (message.sender_id === session?.id && message.recipient_id === selectedInboxMemberId),
   );
+  const lastConversationMessageId = selectedConversation.length
+    ? selectedConversation[selectedConversation.length - 1]?.id
+    : null;
+  const scrollInboxToBottom = useCallback(() => {
+    const el = inboxMessageListRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, []);
+  useLayoutEffect(() => {
+    if (page !== "inbox" || !selectedInboxMemberId) return undefined;
+    if (window.innerWidth <= 900 && mobileInboxView !== "conversation") return undefined;
+    scrollInboxToBottom();
+    const rafId = window.requestAnimationFrame(scrollInboxToBottom);
+    const timerId = window.setTimeout(scrollInboxToBottom, 60);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timerId);
+    };
+  }, [
+    page,
+    selectedInboxMemberId,
+    mobileInboxView,
+    selectedConversation.length,
+    lastConversationMessageId,
+    scrollInboxToBottom,
+  ]);
+  const formatInboxMessageTime = (createdAt) => {
+    const d = new Date(createdAt);
+    if (Number.isNaN(d.getTime())) return { label: "", full: "" };
+    const now = new Date();
+    const timeOnly = d.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const full = d.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const isToday =
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate();
+    if (isToday) return { label: timeOnly, full };
+    const dateLabel = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+    return { label: `${dateLabel}, ${timeOnly}`, full };
+  };
   useEffect(() => {
     if (!inboxPeers.length) {
       setSelectedInboxMemberId("");
@@ -7898,13 +7950,26 @@ function App() {
     "payment-options": Settings,
     notices: Megaphone,
   };
+  const headerSubtitleByPage = {
+    overview: "Monthly summary of rent, meals, and bills",
+    settlements: "Current meal balance of all members",
+    bazar: "Daily groceries, expenses & shopping list",
+    "bazar-report": "Spending trends and item-by-item usage",
+    contacts: "Flatmates, staff, and emergency numbers",
+    inbox: "Direct messages with your housemates",
+    "pay-rent": "Payment accounts for sending monthly rent",
+    members: "Household accounts, roles & room rents",
+    expenses: "Flat rent and shared monthly utilities",
+    payments: "Rent payments and member cash deposits",
+    "payment-options": "Member payment methods & saved contacts",
+    notices: "Bulletin banners & household announcements",
+    monthly: "Active members & monthly expense shares",
+  };
   const ActiveHeaderIcon = headerIconByPage[page] || nav.find(([key]) => key === page)?.[2] || Home;
   const activeHeaderTitle = page === "settlements"
     ? "Member meal balances"
     : nav.find(([key]) => key === page)?.[1] || "My Account";
-  const activeHeaderSubtitle = page === "settlements"
-    ? "Current meal balance of all members"
-    : "Manage your home, one month at a time.";
+  const activeHeaderSubtitle = headerSubtitleByPage[page] || "Manage your home, one month at a time.";
   return (
     <div id="app-shell" className="app premium-theme">
       <aside className={menu ? "sidebar open" : "sidebar"}>
@@ -8244,7 +8309,7 @@ function App() {
                     </span>
                   </span>
                   <h2>Monthly Bazar</h2>
-                  <p>Manage your home, one month at a time.</p>
+                  <p>{headerSubtitleByPage.bazar}</p>
                 </div>
                 <div className="bazar-header-actions">
                   <button
@@ -8286,7 +8351,7 @@ function App() {
                     </span>
                   </span>
                   <h2>Overview</h2>
-                  <p>Manage your home, one month at a time.</p>
+                  <p>{headerSubtitleByPage.overview}</p>
                 </div>
                 <div className="welcome-actions">
                   <button className="secondary overview-export-btn overview-export-csv" onClick={exportCsv}>
@@ -13224,7 +13289,7 @@ function App() {
                     <div className="bazar-usage-min-head">
                       <div className="bazar-usage-min-title">
                         <h4>Item Usage Breakdown</h4>
-                        <span>{bazarItemUsageReport.items.length} categories · tap Details for sub-items</span>
+                        <span>{bazarItemUsageReport.items.length} items · tap Details on categories for sub-items</span>
                       </div>
                       {bazarItemUsageReport.items.length > 6 && (
                         <button
@@ -13244,6 +13309,8 @@ function App() {
                         ? bazarItemUsageReport.items
                         : bazarItemUsageReport.items.slice(0, 6)
                       ).map((item) => {
+                        const hasCategoryDetails =
+                          Array.isArray(item.subItems) && item.subItems.length > 0;
                         return (
                           <div
                             className="bazar-usage-row-wrap"
@@ -13258,14 +13325,7 @@ function App() {
                               </div>
                               <div className="bazar-usage-amount">
                                 <strong>{money(item.totalSpent)}</strong>
-                                <small className="bazar-usage-quantity">
-                                  {item.count}× bought
-                                  {item.qtySummary ? ` • ${item.qtySummary}` : ""}
-                                </small>
-                              </div>
-                              <div className="bazar-usage-item-copy">
-                                <strong>
-                                  <span className="bazar-usage-item-name">{item.name}</span>
+                                {hasCategoryDetails ? (
                                   <button
                                     type="button"
                                     className="bazar-usage-details-chip"
@@ -13277,7 +13337,14 @@ function App() {
                                   >
                                     Details
                                   </button>
-                                </strong>
+                                ) : null}
+                              </div>
+                              <div className="bazar-usage-item-copy">
+                                <strong className="bazar-usage-item-name">{item.name}</strong>
+                                <small className="bazar-usage-quantity">
+                                  {item.count}× bought
+                                  {item.qtySummary ? ` • ${item.qtySummary}` : ""}
+                                </small>
                               </div>
                             </div>
                           </div>
@@ -13523,8 +13590,10 @@ function App() {
                         )}
                       </div>
                     </header>
-                    <div className="inbox-message-list" aria-live="polite">
-                      {selectedConversation.length ? selectedConversation.map((message) => (
+                    <div ref={inboxMessageListRef} className="inbox-message-list" aria-live="polite">
+                      {selectedConversation.length ? selectedConversation.map((message) => {
+                        const msgTime = formatInboxMessageTime(message.created_at);
+                        return (
                         <article
                           key={message.id}
                           className={`inbox-message${message.sender_id === session.id ? " sent" : " received"}`}
@@ -13539,7 +13608,16 @@ function App() {
                               aria-label={`Open attachment ${message.attachment_name}`}
                             >
                               {message.attachment_type?.startsWith("image/") ? (
-                                <img src={message.attachment_url} alt={message.attachment_name} />
+                                <img
+                                  src={message.attachment_url}
+                                  alt={message.attachment_name}
+                                  onLoad={() => {
+                                    const el = inboxMessageListRef.current;
+                                    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 220) {
+                                      scrollInboxToBottom();
+                                    }
+                                  }}
+                                />
                               ) : (
                                 <span className="inbox-file-chip">
                                   <FileText size={17} />
@@ -13558,16 +13636,17 @@ function App() {
                             </span>
                           )}
                           <span className="inbox-message-meta">
-                            <time dateTime={message.created_at}>{new Date(message.created_at).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}</time>
+                            <time dateTime={message.created_at} title={msgTime.full}>{msgTime.label}</time>
                             {message.sender_id === session.id && (
                               <span className={`inbox-message-status ${message.read_at ? "is-seen" : "is-sent"}`} title={message.read_at ? `Seen ${new Date(message.read_at).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}` : "Sent"}>
-                                {message.read_at ? <CheckCheck size={15} aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}
+                                {message.read_at ? <CheckCheck size={12} aria-hidden="true" /> : <Check size={12} aria-hidden="true" />}
                                 {message.read_at ? "Seen" : "Sent"}
                               </span>
                             )}
                           </span>
                         </article>
-                      )) : <p className="inbox-empty-thread">No messages yet. Send a message to start the conversation.</p>}
+                        );
+                      }) : <p className="inbox-empty-thread">No messages yet. Send a message to start the conversation.</p>}
                     </div>
                     {selectedInboxMember.active ? <form className="inbox-compose" onSubmit={sendInboxMessage}>
                       <input
