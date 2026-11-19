@@ -2767,3 +2767,239 @@ html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme > .main.inbo
     color: #c7d2fe !important;
   }
 }
+
+/* Essentials to Buy (shared shopping list) popup: 4-column item grid + desktop & phone polish */
+:root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-modal {
+  overflow: hidden !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: min(52vh, 420px) !important;
+  overflow-y: auto !important;
+  padding-right: 2px !important;
+  overscroll-behavior: contain !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item {
+  min-height: 60px !important;
+  padding: 10px 13px !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item-main {
+  display: grid !important;
+  grid-template-columns: 36px 40px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item-number {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  font-size: 12px !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item-icon {
+  display: grid !important;
+  place-items: center !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 11px !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item-copy {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  min-width: 0 !important;
+  gap: 2px !important;
+  text-align: left !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item-copy strong {
+  display: block !important;
+  width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 14.5px !important;
+  line-height: 1.25 !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item-copy small {
+  font-size: 12px !important;
+  line-height: 1.2 !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-mark-bought,
+:root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-buyer-pill {
+  flex: 0 0 auto !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+  min-height: 34px !important;
+  padding: 6px 14px !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .bazar-needed-login-hero {
+  border-bottom-color: rgba(82, 146, 124, .24) !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .bazar-needed-login-mark {
+  background: linear-gradient(145deg, rgba(22, 74, 54, .92) 0%, rgba(16, 54, 40, .96) 100%) !important;
+  color: #65edb4 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .bazar-needed-login-divider {
+  background: rgba(82, 146, 124, .28) !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .bazar-needed-login-eyebrow {
+  color: #65edb4 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .bazar-needed-login-count {
+  border: 1px solid rgba(82, 168, 130, .32) !important;
+  background: rgba(20, 62, 46, .84) !important;
+  color: #79efc0 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item.is-bought {
+  border-color: rgba(82, 168, 130, .36) !important;
+  background: rgba(16, 44, 34, .88) !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item-number {
+  border-color: rgba(82, 168, 130, .3) !important;
+  background: rgba(20, 56, 43, .85) !important;
+  color: #79efc0 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .bazar-needed-login-buyer-pill {
+  border: 1px solid rgba(82, 168, 130, .32) !important;
+  background: rgba(20, 62, 46, .84) !important;
+  color: #79efc0 !important;
+}
+
+html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .bazar-needed-login-note {
+  border: 1px solid rgba(82, 146, 124, .24) !important;
+  background: rgba(16, 36, 30, .92) !important;
+  color: #a9cbbd !important;
+}
+
+@media (max-width: 700px) {
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-backdrop {
+    padding: 12px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-modal {
+    width: 100% !important;
+    max-height: calc(100dvh - 24px) !important;
+    padding: 16px !important;
+    gap: 12px !important;
+    border-radius: 20px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-close {
+    top: 12px !important;
+    right: 12px !important;
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-hero {
+    gap: 10px !important;
+    padding-right: 36px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-mark {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-divider {
+    display: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-heading {
+    min-width: 0 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-heading h2 {
+    font-size: 18px !important;
+    line-height: 1.2 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-heading p {
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-count {
+    padding: 4px 10px !important;
+    font-size: 11px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-list {
+    gap: 8px !important;
+    max-height: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item {
+    min-height: 0 !important;
+    padding: 9px 10px !important;
+    border-radius: 14px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item-main {
+    grid-template-columns: 36px minmax(0, 1fr) auto !important;
+    gap: 9px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item-number {
+    display: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item-icon {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 10px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item-copy strong {
+    font-size: 13.5px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-item-copy small {
+    font-size: 11.5px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-mark-bought,
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-buyer-pill {
+    min-height: 30px !important;
+    padding: 5px 11px !important;
+    font-size: 11.5px !important;
+    gap: 4px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-footer {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-note {
+    padding: 8px 11px !important;
+    font-size: 11.5px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-needed-login-got-it {
+    justify-content: center !important;
+    width: 100% !important;
+    min-height: 40px !important;
+    font-size: 13.5px !important;
+  }
+}
