@@ -1,0 +1,350 @@
+<!doctype html><html><head><meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Residence Summary · November 2026 · Arni</title>
+      <base href="file:///E:/bachelor-hisab-react-vercel/">
+      
+      
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
+        *{box-sizing:border-box}
+        :root{color-scheme:light}
+        @page{size:A4 portrait;margin:0}
+        html{min-width:0;background:#dce7e4}
+        body{margin:0;padding:24px;display:flex;justify-content:center;min-height:100vh;background:radial-gradient(circle at 50% 0,#eef6f3 0,#dde9e5 65%,#d2e0dc 100%);color:#10221f;font-family:"Manrope","Hind Siliguri",system-ui,-apple-system,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+        /* Floating Export Toolbar */
+        body>.toolbar{position:fixed;z-index:1000;top:16px;right:16px;display:flex;gap:8px;padding:7px;border:1px solid rgba(15,79,71,.16);border-radius:15px;background:rgba(255,255,255,.94);box-shadow:0 12px 32px rgba(10,55,49,.16);backdrop-filter:blur(12px)}
+        body>.toolbar button{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:40px;padding:0 14px;border:1px solid #0f564d;border-radius:10px;background:linear-gradient(135deg,#16685d,#0c453e);color:#fff;font:700 13.5px/1 "Manrope","Hind Siliguri",sans-serif;white-space:nowrap;cursor:pointer;transition:transform .15s,opacity .15s,background .15s}
+        body>.toolbar button:hover{transform:translateY(-1px);background:linear-gradient(135deg,#1a786c,#0f524a)}
+        body>.toolbar button:disabled{opacity:.65;cursor:wait;transform:none}
+        body>.toolbar button.btn-save-image{border-color:#c4dbd5;background:#fff;color:#113631}
+        body>.toolbar button.btn-save-image:hover{background:#f1f8f6}
+        body>.toolbar button svg{width:17px;height:17px;flex:none}
+        .toolbar-spinner{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.32);border-top-color:#fff;border-radius:50%;animation:tb-spin .7s linear infinite;flex:none}
+        body>.toolbar button.btn-save-image .toolbar-spinner{border-color:rgba(15,86,77,.25);border-top-color:#0f564d}
+        @keyframes tb-spin{to{transform:rotate(360deg)}}
+
+        /* A4 Statement Sheet */
+        .sheet{position:relative;isolation:isolate;display:flex;flex-direction:column;width:min(100%,210mm);min-height:297mm;padding:24px 30px 20px;overflow:hidden;border:1px solid #cddfda;border-radius:22px;background:linear-gradient(160deg,#edf4f2 0%,#f5f9f8 46%,#e8f1ee 100%);box-shadow:0 28px 80px rgba(10,54,48,.16)}
+        .sheet-watermark{position:absolute;right:-10px;bottom:-10px;z-index:0;width:340px;height:390px;pointer-events:none;opacity:.08;color:#0e4f47}
+        .sheet>*:not(.sheet-watermark){position:relative;z-index:1}
+
+        /* Header */
+        .doc-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
+        .brand-wrap{display:flex;align-items:center;gap:14px;min-width:0}
+        .brand-logo{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;color:#0f574e}
+        .brand-logo svg{width:46px;height:46px}
+        .brand-sep{width:1.5px;height:42px;flex:0 0 1.5px;background:#b9cdc7}
+        .brand-copy{min-width:0}
+        .brand-name{margin:0;color:#0c201d;font-size:25px;font-weight:800;letter-spacing:-.035em;line-height:1.08;white-space:nowrap}
+        .brand-address{display:flex;align-items:center;gap:6px;margin-top:4px;color:#556b66;font-size:12px;font-weight:550;line-height:1.2}
+        .brand-address svg{width:13px;height:13px;flex:none;color:#115a50}
+        .header-month{flex:0 0 auto;color:#0f2522;font-size:18px;font-weight:750;letter-spacing:-.02em;white-space:nowrap}
+
+        /* Main Title */
+        .summary-title{margin:0 0 15px;color:#0b1f1c;font-size:24px;font-weight:750;letter-spacing:-.03em;line-height:1.2}
+
+        /* Top Rent & Utilities + Member Pill Bar */
+        .member-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px 10px 16px;margin-bottom:13px;border:1px solid #d9e6e2;border-radius:16px;background:#ffffff;box-shadow:0 8px 22px rgba(13,62,54,.065)}
+        .bar-left{display:flex;align-items:center;gap:12px;min-width:0}
+        .badge-icon{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#186159,#0d3f3a);color:#ffffff;box-shadow:0 4px 10px rgba(13,63,58,.2)}
+        .badge-icon svg{width:18px;height:18px}
+        .bar-title{color:#0f221f;font-size:17px;font-weight:750;letter-spacing:-.02em}
+        .member-pill{display:flex;align-items:center;gap:10px;min-width:184px;padding:7px 16px 7px 12px;border:1px solid #c3e2d6;border-radius:13px;background:linear-gradient(120deg,#f4fbf8 0%,#ddf1e8 100%)}
+        .member-pill svg{width:24px;height:24px;flex:none;color:#125950}
+        .member-pill-label{display:block;color:#526b65;font-size:11px;font-weight:600;line-height:1.1}
+        .member-pill-name{display:block;margin-top:2px;color:#0c201d;font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.15;white-space:nowrap}
+
+        /* Shared Card Surface */
+        .card{margin-bottom:13px;padding:14px 16px 10px;border:1px solid #d9e6e2;border-radius:18px;background:#ffffff;box-shadow:0 8px 22px rgba(13,62,54,.065)}
+        .card-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+        .card-head h2{margin:0;color:#0e211e;font-size:16.5px;font-weight:750;letter-spacing:-.02em}
+
+        /* Detailed Breakdown Dual-Column Table */
+        .breakdown-table{width:100%;border-collapse:collapse;table-layout:fixed}
+        .breakdown-table thead th{padding:8px 10px;background:#e4eeeb;color:#1b332f;font-size:12.5px;font-weight:750;text-align:left;line-height:1.2}
+        .breakdown-table thead th:first-child{border-radius:8px 0 0 8px}
+        .breakdown-table thead th:last-child{border-radius:0 8px 8px 0;text-align:right}
+        .breakdown-table thead th.col-num{text-align:right}
+        .breakdown-table tbody td{padding:8px 10px;border-bottom:1px solid #ebf1ef;color:#1c2e2b;font-size:13px;font-weight:550;line-height:1.25}
+        .breakdown-table tbody tr:last-child td{border-bottom:0}
+        .breakdown-table tbody td.col-num{text-align:right;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap;color:#0f2320}
+        .breakdown-table tbody td.col-split{padding-left:18px}
+
+        /* Two-Column Middle Grid */
+        .mid-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:13px}
+        .mid-grid .card{margin-bottom:0;display:flex;flex-direction:column}
+        .mini-table{width:100%;border-collapse:collapse}
+        .mini-table thead th{padding:8px 10px;background:#e4eeeb;color:#1b332f;font-size:12.5px;font-weight:750;text-align:left}
+        .mini-table thead th:first-child{border-radius:8px 0 0 8px}
+        .mini-table thead th:last-child{border-radius:0 8px 8px 0;text-align:right}
+        .mini-table tbody td{padding:8px 10px;border-bottom:1px solid #ebf1ef;color:#223532;font-size:13px;font-weight:550;line-height:1.2}
+        .mini-table tbody td:last-child{text-align:right;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap;color:#0f2320}
+        .mini-table tbody tr.row-total td{border-bottom:0;padding-top:9px;font-weight:800;color:#0b1f1c}
+
+        /* Value Accent Colors */
+        .val-credit,.val-zero{color:#0f7c56!important}
+        .val-due{color:#0f2320!important}
+        .row-total .val-due{color:#b43a47!important}
+        .val-paid{color:#0f7c56!important}
+
+        /* Secure Payment Options Table */
+        .pay-table{width:100%;border-collapse:collapse}
+        .pay-table thead th{padding:8px 10px;background:#e4eeeb;color:#1b332f;font-size:12.5px;font-weight:750;text-align:left}
+        .pay-table thead th:first-child{border-radius:8px 0 0 8px;width:30%}
+        .pay-table thead th:nth-child(2){width:36%}
+        .pay-table thead th:last-child{border-radius:0 8px 8px 0;width:34%}
+        .pay-table tbody td{padding:8px 10px;border-bottom:1px solid #ebf1ef;color:#203330;font-size:13px;font-weight:550;vertical-align:middle}
+        .pay-table tbody tr:last-child td{border-bottom:0}
+        .pay-method-cell{display:flex;align-items:center;gap:10px}
+        .pay-logo{width:32px;height:22px;flex:0 0 32px;object-fit:contain;border-radius:5px;background:#fff}
+        .pay-logo-fallback{width:26px;height:22px;flex:0 0 26px;display:grid;place-items:center;border-radius:6px;background:#e4f2ec;color:#0f5a4f;font-size:11.5px;font-weight:800}
+        .pay-method-name{color:#0d211e;font-weight:750}
+        .pay-instructions-cell{color:#354c48}
+        .pay-account-cell{color:#0c201d;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+
+        /* Signature Split Amount Due Banner */
+        .amount-banner{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 56%;align-items:stretch;min-height:60px;margin-top:auto;overflow:hidden;border:1px solid #c9dcd6;border-radius:16px;background:#eef5f3;box-shadow:0 8px 22px rgba(10,58,51,.12)}
+        .amount-banner-left{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#eef5f3}
+        .amount-banner-label{color:#0d221f;font-size:18px;font-weight:800;letter-spacing:-.02em}
+        .amount-banner-right{position:relative;display:flex;align-items:center;justify-content:flex-end;padding:10px 24px 10px 44px;background:linear-gradient(120deg,#185e56 0%,#0b3b36 100%);color:#ffffff}
+        .amount-banner-curve{position:absolute;top:0;bottom:0;left:-1px;width:42px;height:100%;display:block;pointer-events:none}
+        .amount-banner-value{position:relative;z-index:1;font-size:26px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+        /* Estimated Total Strip */
+        .estimate-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:9px;padding:9px 16px;border:1px dashed #9fc3b8;border-radius:13px;background:rgba(255,255,255,.78)}
+        .estimate-left{display:flex;align-items:center;gap:9px;min-width:0}
+        .estimate-dot{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;border-radius:50%;background:#e0f1eb;color:#0f5c52;font-size:12px;font-weight:800}
+        .estimate-copy{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px;min-width:0}
+        .estimate-copy strong{color:#0f2622;font-size:13.5px;font-weight:800}
+        .estimate-copy small{color:#526b65;font-size:12px;font-weight:600}
+        .estimate-value{flex:0 0 auto;color:#0e4f47;font-size:17px;font-weight:850;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+        /* Footer */
+        .doc-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:2px;color:#556b66;font-size:12.5px;font-weight:550}
+        .doc-footer strong{color:#0f2622;font-weight:800}
+
+        @media(max-width:650px){
+          body{padding:0;background:#edf4f2}
+          body>.toolbar{top:auto;right:12px;bottom:12px;left:12px;justify-content:center}
+          .sheet{width:100%;min-height:100svh;padding:18px 14px 76px;border:0;border-radius:0;box-shadow:none}
+          .doc-header{margin-bottom:16px;gap:10px}
+          .brand-logo{width:38px;height:38px;flex-basis:38px}
+          .brand-logo svg{width:36px;height:36px}
+          .brand-sep{height:34px}
+          .brand-name{font-size:19px}
+          .brand-address{font-size:10px}
+          .header-month{font-size:13.5px}
+          .summary-title{margin-bottom:14px;font-size:19px}
+          .member-bar{padding:10px 12px;border-radius:14px;margin-bottom:12px}
+          .badge-icon{width:32px;height:32px;flex-basis:32px}
+          .badge-icon svg{width:16px;height:16px}
+          .bar-title{font-size:14.5px}
+          .member-pill{min-width:128px;padding:6px 10px;gap:8px;border-radius:11px}
+          .member-pill svg{width:20px;height:20px}
+          .member-pill-label{font-size:9.5px}
+          .member-pill-name{font-size:14px}
+          .card{margin-bottom:12px;padding:12px 12px 10px;border-radius:15px}
+          .card-head{gap:9px;margin-bottom:10px}
+          .card-head h2{font-size:15px}
+          .breakdown-table thead th,.mini-table thead th,.pay-table thead th{padding:7px 8px;font-size:11px}
+          .breakdown-table tbody td,.mini-table tbody td,.pay-table tbody td{padding:8px 8px;font-size:11.5px}
+          .breakdown-table tbody td.col-split{padding-left:10px}
+          .mid-grid{grid-template-columns:1fr;gap:12px;margin-bottom:12px}
+          .amount-banner{min-height:56px;border-radius:14px}
+          .amount-banner-label{font-size:15px}
+          .amount-banner-value{font-size:21px}
+          .doc-footer{margin-top:16px;font-size:11.5px}
+        }
+
+        @media print{
+          html,body{width:210mm;height:100%;margin:0!important;padding:0!important;background:#edf4f2}
+          body{display:block;min-height:297mm}
+          body>.toolbar{display:none!important}
+          .sheet{width:210mm;min-height:297mm;margin:0;padding:10mm 10mm 9mm;border:0;border-radius:0;box-shadow:none}
+        }
+      </style></head><body lang="en">
+        <div class="toolbar" data-html2canvas-ignore="true">
+          <button type="button" class="btn-save-pdf" onclick="window.saveBillAsPdf(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6m-3 3 3 3 3-3"/></svg><span>Save as PDF</span></button>
+          <button type="button" class="btn-save-image" onclick="window.saveBillAsImage(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>Save as image</span></button>
+        </div>
+        <main class="sheet">
+          <svg class="sheet-watermark" viewBox="0 0 360 420" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+            <path d="M210 420V92l118-48v376"/>
+            <path d="M110 420V165l100-38"/>
+            <path d="M40 420V250l70-22"/>
+            <path d="M236 130h66M236 168h66M236 206h66M236 244h66M236 282h66M236 320h66M236 358h66"/>
+            <path d="M132 198h56M132 232h56M132 266h56M132 300h56M132 334h56M132 368h56"/>
+            <path d="M268 78v342M160 148v272"/>
+          </svg>
+
+          <header class="doc-header">
+            <div class="brand-wrap">
+              <div class="brand-logo" aria-hidden="true">
+                <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M8 29 32 9l24 20" stroke-width="3.8"/>
+                  <path d="M14 26v28h36V26" stroke-width="3.8"/>
+                  <path d="M32 52V31" stroke-width="2.8"/>
+                  <path d="M31 42c-9-1-14-6-15-15 9 0 15 5 17 13" fill="currentColor" stroke="none"/>
+                  <path d="M33 42c9-1 14-6 15-15-9 0-15 5-17 13" fill="currentColor" stroke="none"/>
+                </svg>
+              </div>
+              <span class="brand-sep" aria-hidden="true"></span>
+              <div class="brand-copy">
+                <div class="brand-name">MridhaBari 6B</div>
+                <div class="brand-address">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                  <span>Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</span>
+                </div>
+              </div>
+            </div>
+            <div class="header-month">November 2026</div>
+          </header>
+
+          <h1 class="summary-title">Your Residence Summary - November 2026</h1>
+
+          <section class="member-bar">
+            <div class="bar-left">
+              <span class="badge-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg>
+              </span>
+              <span class="bar-title">Rent &amp; Utilities</span>
+            </div>
+            <div class="member-pill">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
+              <div>
+                <span class="member-pill-label">Member</span>
+                <span class="member-pill-name">Arni</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <span class="badge-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+              </span>
+              <h2>Detailed Breakdown</h2>
+            </div>
+            <table class="breakdown-table">
+              <thead>
+                <tr>
+                  <th style="width:33%">Statement Overview</th>
+                  <th class="col-num" style="width:17%">Amount</th>
+                  <th class="col-split" style="width:33%">Meal Details</th>
+                  <th class="col-num" style="width:17%">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Room Rent + Utilities Share</td>
+                  <td class="col-num">৳5,270</td>
+                  <td class="col-split">Meal Cost (Your Share)</td>
+                  <td class="col-num">৳1,467</td>
+                </tr>
+                <tr>
+                  <td>Paid</td>
+                  <td class="col-num">৳5,000</td>
+                  <td class="col-split">Meal Paid</td>
+                  <td class="col-num">৳855</td>
+                </tr>
+                <tr>
+                  <td>Due (This Month)</td>
+                  <td class="col-num val-due">৳270</td>
+                  <td class="col-split">Balance / Credit</td>
+                  <td class="col-num val-due">৳612</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <div class="mid-grid">
+            <section class="card">
+              <div class="card-head">
+                <span class="badge-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V11m5 8V6m5 13v-7m5 7V4"/></svg>
+                </span>
+                <h2>Summary</h2>
+              </div>
+              <table class="mini-table">
+                <thead>
+                  <tr><th>Description</th><th>Amount</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Rent &amp; Utilities Due</td><td class="val-due">৳270</td></tr>
+                  <tr><td>Meal Balance</td><td class="val-due">৳612</td></tr>
+                  <tr><td>This Month Balance</td><td class="val-due">৳882</td></tr>
+                  <tr><td>Previous Balance</td><td class="val-zero">৳0</td></tr>
+                  <tr class="row-total"><td>Final Balance Due</td><td class="val-due">৳882</td></tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="card">
+              <div class="card-head">
+                <span class="badge-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18m-4 4h.01"/></svg>
+                </span>
+                <h2>Payment Breakdown</h2>
+              </div>
+              <table class="mini-table">
+                <thead>
+                  <tr><th>Description</th><th>Amount</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Total Charges</td><td>৳6,737</td></tr>
+                  <tr><td>Rent Paid</td><td>৳5,000</td></tr>
+                  <tr><td>Meal Paid</td><td>৳855</td></tr>
+                  <tr class="row-total"><td>Total Paid</td><td class="val-paid">৳5,855</td></tr>
+                </tbody>
+              </table>
+            </section>
+          </div>
+
+          <section class="card">
+            <div class="card-head">
+              <span class="badge-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/></svg>
+              </span>
+              <h2>Secure Payment Options</h2>
+            </div>
+            <table class="pay-table">
+              <thead>
+                <tr><th>Method</th><th>Instructions</th><th>Details/Account</th></tr>
+              </thead>
+              <tbody><tr><td class="pay-method-cell"><img class="pay-logo" src="file:///E:/bachelor-hisab-react-vercel/public/payment-logos/bkash.svg" alt="bKash"/><span class="pay-method-name">bKash</span></td><td class="pay-instructions-cell">Send Money via App</td><td class="pay-account-cell">01712-345678</td></tr><tr><td class="pay-method-cell"><img class="pay-logo" src="file:///E:/bachelor-hisab-react-vercel/public/payment-logos/nagad.svg" alt="Nagad"/><span class="pay-method-name">Nagad</span></td><td class="pay-instructions-cell">Send Money via App</td><td class="pay-account-cell">01812-345678</td></tr><tr><td class="pay-method-cell"><img class="pay-logo" src="file:///E:/bachelor-hisab-react-vercel/public/payment-logos/brac-bank.svg" alt="BRAC Bank"/><span class="pay-method-name">BRAC Bank</span></td><td class="pay-instructions-cell">Account Transfer</td><td class="pay-account-cell">2056844908001</td></tr><tr><td class="pay-method-cell"><img class="pay-logo" src="file:///E:/bachelor-hisab-react-vercel/public/payment-logos/islami-bank.svg" alt="Islami Bank"/><span class="pay-method-name">Islami Bank</span></td><td class="pay-instructions-cell">Account Transfer</td><td class="pay-account-cell">2050246700001</td></tr></tbody>
+            </table>
+          </section>
+
+          <section class="amount-banner">
+            <div class="amount-banner-left">
+              <span class="badge-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h14a2 2 0 0 1 2 2v9H4a2 2 0 0 1-2-2V7a3 3 0 0 1 3-3h12"/><path d="M16 12h6v4h-6a2 2 0 0 1 0-4Z"/></svg>
+              </span>
+              <span class="amount-banner-label">Amount Due</span>
+            </div>
+            <div class="amount-banner-right">
+              <svg class="amount-banner-curve" viewBox="0 0 44 76" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0 0 H44 C26 0 24 76 0 76 Z" fill="#eef5f3"/>
+              </svg>
+              <span class="amount-banner-value">৳882</span>
+            </div>
+          </section>
+
+          <section class="estimate-strip">
+            <div class="estimate-left">
+              <span class="estimate-dot" aria-hidden="true">≈</span>
+              <div class="estimate-copy">
+                <strong>Estimated Total</strong>
+                <small>(if Meal Cost reaches ৳2,000)</small>
+              </div>
+            </div>
+            <strong class="estimate-value val-due">৳1,415</strong>
+          </section>
+
+          <footer class="doc-footer">
+            <span>November 19, 2026</span>
+            <span>Generated by <strong>MridhaBari 6B</strong></span>
+          </footer>
+        </main>
+      </body></html>

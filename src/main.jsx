@@ -6688,7 +6688,7 @@ function App() {
     const signedMoney = (amount) =>
       amount < 0 ? `−${money(Math.abs(amount))}` : money(amount);
     const estimatedMealTarget = 2000;
-    const estimatedMealRemaining = estimatedMealTarget - mealCost;
+    const estimatedMealRemaining = Math.max(0, estimatedMealTarget - mealCost);
     const estimatedMonthDue = finalBalance + estimatedMealRemaining;
     const generatedDate = new Intl.DateTimeFormat("en-US", {
       day: "2-digit",
@@ -6705,474 +6705,192 @@ function App() {
       brac_bank: "/payment-logos/brac-bank.svg",
       islami_bank: "/payment-logos/islami-bank.svg",
     };
-    const paymentMethodsHtml = reportPaymentOptions.length
-      ? `<div class="payment-options-inline">${reportPaymentOptions.map((option) => {
+    const paymentRowsHtml = reportPaymentOptions.length
+      ? reportPaymentOptions.map((option) => {
           const label = String(option.label || option.provider || "Payment").trim();
           const logoSrc = option.logo_url || paymentLogoByProvider[option.provider] || "";
           const logo = logoSrc
-            ? `<img src="${escapeHtml(logoSrc)}" alt="${escapeHtml(label)}"/>`
-            : `<span>${escapeHtml(label.charAt(0).toUpperCase() || "P")}</span>`;
-          return `<div class="payment-option-line">${logo}<strong>${escapeHtml(option.account_number)}</strong><small>${escapeHtml(option.instructions || "Transfer")}</small></div>`;
-        }).join("")}</div>`
+            ? `<img class="pay-logo" src="${escapeHtml(logoSrc)}" alt="${escapeHtml(label)}"/>`
+            : `<span class="pay-logo-fallback">${escapeHtml(label.charAt(0).toUpperCase() || "P")}</span>`;
+          return `<tr>
+            <td class="pay-method-cell">${logo}<span class="pay-method-name">${escapeHtml(label)}</span></td>
+            <td class="pay-instructions-cell">${escapeHtml(option.instructions || "Transfer")}</td>
+            <td class="pay-account-cell">${escapeHtml(option.account_number)}</td>
+          </tr>`;
+        }).join("")
       : "";
-    const rentDueColor = rentUtilitiesDue < 0 ? "credit" : "positive";
-    const mealDueColor = mealBalance < 0 ? "credit" : "positive";
-    const escapeSvg = (value) => escapeHtml(value);
-    const imageText = (x, y, value, options = {}) =>
-      `<text x="${x}" y="${y}" fill="${options.fill || "#17231f"}" font-family="Hind Siliguri, sans-serif" font-size="${options.size || 22}" font-weight="${options.weight || 400}" text-anchor="${options.anchor || "start"}">${escapeSvg(value)}</text>`;
-    const imageMoney = (x, y, value, options = {}) =>
-      imageText(x, y, money(value), { ...options, anchor: options.anchor || "end", weight: options.weight || 700 });
-    const billSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1450" viewBox="0 0 1200 1450">
-      <defs>
-        <linearGradient id="green" x2="1" y2="1"><stop stop-color="#0c9d59"/><stop offset="1" stop-color="#004c32"/></linearGradient>
-        <linearGradient id="soft" x2="1" y2="1"><stop stop-color="#fbfdfb"/><stop offset="1" stop-color="#f0f7ef"/></linearGradient>
-        <linearGradient id="warm" x2="1" y2="1"><stop stop-color="#fffdfa"/><stop offset="1" stop-color="#fff4e2"/></linearGradient>
-      </defs>
-      <rect width="1200" height="1450" fill="#fff"/>
-      <rect x="52" y="38" width="54" height="54" rx="15" fill="url(#green)"/>
-      <path d="M66 64 79 53l13 11M69 62v18h20V62m-13 18v-9h7v9" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
-      ${imageText(122, 64, "MridhaBari 6B", { size: 25, weight: 700 })}
-      ${imageText(122, 86, "Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229", { size: 15, fill: "#61716b" })}
+    const toneClass = (amount) => (amount < 0 ? "val-credit" : amount === 0 ? "val-zero" : "val-due");
+    const rentDueTone = toneClass(rentUtilitiesDue);
+    const mealDueTone = toneClass(mealBalance);
+    const currentBalanceTone = toneClass(currentBalance);
+    const prevBalanceTone = toneClass(previousBalance);
+    const finalBalanceTone = toneClass(finalBalance);
 
-      <rect x="916" y="42" width="232" height="48" rx="24" fill="#f6fbf7" stroke="#e1eee5"/>
-      <g transform="translate(944 56)" fill="none" stroke="#087343" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1h11l5 5v20H2z"/><path d="M12 1v6h6M6 13h8M6 18h8"/></g>
-      ${imageText(1052, 73, "Monthly Bill", { size: 17, weight: 700, anchor: "middle", fill: "#153c2c" })}
-      <rect x="58" y="148" width="6" height="96" rx="3" fill="#22bd61"/>
-      ${imageText(92, 192, "Monthly Bill", { size: 48, weight: 700 })}
-      ${imageText(92, 228, month, { size: 25, fill: "#57645f" })}
-      <rect x="800" y="146" width="348" height="88" rx="20" fill="#eff7ef" stroke="#e3efe5"/>
-      <g transform="translate(824 172)" fill="none" stroke="#087343" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="10" r="6"/><path d="M3 32v-3a12 12 0 0 1 24 0v3"/></g>
-      ${imageText(836, 181, "Member", { size: 17, fill: "#495c53" })}
-      ${imageText(836, 214, member.name, { size: 27, weight: 700 })}
-      ${[
-        ["Total Bill", currentCharges, "url(#soft)", "#e0eee4", "#078343"],
-        ["Total Paid", totalPaid, "#eff8f3", "#d8eee4", "#078454"],
-        ["Previous Balance", previousBalance, "url(#warm)", "#f6e8cd", "#aa3b30"],
-        ["Final Due", finalBalance, "url(#green)", "#07824b", "#fff"],
-      ].map(([label, amount, fill, border, color], index) => {
-        const x = 52 + index * 279;
-        const value = Number(amount);
-        const cardColor = label === "Previous Balance" && value < 0 ? "#08732f" : color;
-        return `<rect x="${x}" y="274" width="260" height="156" rx="20" fill="${fill}" stroke="${border}"/>
-          <circle cx="${x + 31}" cy="309" r="19" fill="${label === "Final Due" ? "#ffffff22" : "#e7f6e9"}"/>
-          <g transform="translate(${x + 17} 295)" fill="none" stroke="${label === "Final Due" ? "#fff" : index === 2 ? "#bb7600" : "#078343"}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            ${[
-              '<path d="m14 2 12 7-12 7L2 9l12-7Z"/><path d="m2 14 12 7 12-7m-24 5 12 7 12-7"/>',
-              '<rect x="2" y="5" width="24" height="19" rx="3"/><path d="M2 11h24m-6 7h.01"/>',
-              '<path d="M3 13a11 11 0 1 0 3-8l-3 3"/><path d="M3 2v6h6m5-1v6l4 2"/>',
-              '<ellipse cx="14" cy="6" rx="11" ry="4"/><path d="M3 6v7c0 2 5 4 11 4 2 0 4-.3 6-1m-17-3v7c0 2 5 4 11 4 2 0 4-.3 6-1m0-16c6 0 11 2 11 4v13c0 2-5 4-11 4s-11-2-11-4"/>',
-            ][index]}
-          </g>
-          ${imageText(x + 20, 356, label, { size: 18, fill: label === "Final Due" ? "#fff" : "#45534d" })}
-          ${imageText(x + 20, 400, signedMoney(value), { size: 29, weight: 700, fill: cardColor })}`;
-      }).join("")}
-      <rect x="52" y="462" width="536" height="250" rx="22" fill="#fff" stroke="#e0e6e2"/>
-      <rect x="612" y="462" width="536" height="250" rx="22" fill="#fff" stroke="#e0e6e2"/>
-      <circle cx="87" cy="500" r="22" fill="#e9f7e9"/><circle cx="647" cy="500" r="22" fill="#e9f7e9"/>
-      <g transform="translate(72 485)" fill="none" stroke="#087343" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m2 12 13-10 13 10"/><path d="M5 10v17h20V10m-13 17V16h7v11"/></g>
-      <g transform="translate(632 485)" fill="none" stroke="#087343" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2v10m-4-10v5a4 4 0 0 0 8 0V2m-4 10v15m13-25v25m0-25c5 3 5 10 0 13"/></g>
-      ${imageText(122, 508, "Rent & Utilities", { size: 22, weight: 700 })}
-      ${imageText(682, 508, "Meal (Food)", { size: 22, weight: 700 })}
-      <path d="M76 531h488M636 531h488" stroke="#edf0ed"/>
-      ${imageText(82, 569, "Room Rent + Utilities Share", { size: 17 })}
-      ${imageMoney(558, 569, rentAndUtilities, { size: 19 })}
-      <rect x="76" y="585" width="488" height="43" rx="11" fill="#f0f7ef"/>
-      ${imageText(91, 613, "Paid", { size: 17, fill: "#21602e" })}
-      ${imageMoney(548, 613, rentPaid, { size: 19, fill: "#08732f" })}
-      ${imageText(82, 672, "Due (This Month)", { size: 17, weight: 700 })}
-      ${imageText(558, 672, signedMoney(rentUtilitiesDue), { size: 19, weight: 700, fill: rentUtilitiesDue < 0 ? "#08732f" : "#18231f", anchor: "end" })}
-      ${imageText(642, 569, "Meal Cost (Your Share)", { size: 17 })}
-      ${imageMoney(1118, 569, mealCost, { size: 19 })}
-      <rect x="636" y="585" width="488" height="43" rx="11" fill="#f0f7ef"/>
-      ${imageText(651, 613, "Meal Paid", { size: 17, fill: "#21602e" })}
-      ${imageMoney(1108, 613, mealPaid, { size: 19, fill: "#08732f" })}
-      ${imageText(642, 672, "Balance / Credit", { size: 17, weight: 700 })}
-      ${imageText(1118, 672, signedMoney(mealBalance), { size: 19, weight: 700, fill: mealBalance < 0 ? "#08732f" : "#18231f", anchor: "end" })}
-      <rect x="52" y="738" width="690" height="323" rx="22" fill="#fff" stroke="#e0e6e2"/>
-      <rect x="766" y="738" width="382" height="323" rx="22" fill="#fff" stroke="#e0e6e2"/>
-      <circle cx="87" cy="778" r="22" fill="#e9f7e9"/><circle cx="801" cy="778" r="22" fill="#e9f7e9"/>
-      <g transform="translate(74 764)" fill="none" stroke="#087343" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 25V14m7 11V5m7 20v-9m7 9V2"/></g>
-      <g transform="translate(788 764)" fill="none" stroke="#087343" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="25" height="21" rx="3"/><path d="M2 10h25m-7 8h.01"/></g>
-      ${imageText(122, 786, "Summary", { size: 22, weight: 700 })}
-      ${imageText(836, 786, "Payment Breakdown", { size: 21, weight: 700 })}
-      <path d="M76 809h642M790 809h334" stroke="#edf0ed"/>
-      ${imageText(90, 847, "Rent & Utilities Due", { size: 17 })}
-      ${imageText(704, 847, signedMoney(rentUtilitiesDue), { size: 18, anchor: "end" })}
-      ${imageText(90, 889, "Meal Balance (Credit)", { size: 17 })}
-      ${imageText(704, 889, signedMoney(mealBalance), { size: 18, anchor: "end" })}
-      <rect x="76" y="905" width="642" height="43" rx="11" fill="#edf6ec"/>
-      ${imageText(91, 933, "This Month Balance", { size: 17, weight: 700 })}
-      ${imageText(704, 933, signedMoney(currentBalance), { size: 19, weight: 700, fill: "#08732f", anchor: "end" })}
-      ${imageText(90, 979, "Previous Month Balance (Credit)", { size: 17 })}
-      ${imageText(704, 979, signedMoney(previousBalance), { size: 18, anchor: "end" })}
-      <rect x="76" y="995" width="642" height="66" rx="12" fill="url(#green)"/>
-      ${imageText(96, 1019, "Final Balance Due", { size: 17, weight: 700, fill: "#fff" })}
-      ${imageText(700, 1019, signedMoney(finalBalance), { size: 19, weight: 700, fill: "#fff", anchor: "end" })}
-      <path d="M96 1029h602" stroke="#ffffff35"/>
-      ${imageText(96, 1050, `Estimated Due (Total Meal Cost ${money(estimatedMealTarget)})`, { size: 15, weight: 600, fill: "#d9f5e5" })}
-      ${imageText(700, 1050, signedMoney(estimatedMonthDue), { size: 19, weight: 700, fill: "#fff", anchor: "end" })}
-      ${imageText(806, 847, "Rent Paid", { size: 17 })}
-      ${imageMoney(1108, 847, rentPaid, { size: 18 })}
-      <path d="M790 865h334" stroke="#edf0ed"/>
-      ${imageText(806, 905, "Meal Paid", { size: 17 })}
-      ${imageMoney(1108, 905, mealPaid, { size: 18 })}
-      <rect x="790" y="922" width="334" height="52" rx="12" fill="#edf6ec"/>
-      ${imageText(806, 954, "Total Paid", { size: 17, weight: 700, fill: "#08732f" })}
-      ${imageMoney(1108, 954, totalPaid, { size: 20, fill: "#08732f" })}
-      <rect x="52" y="1086" width="1096" height="104" rx="22" fill="#eff8ef"/>
-      <circle cx="91" cy="1138" r="22" fill="#e0f4e3"/>
-      <circle cx="91" cy="1138" r="12" fill="none" stroke="#087343" stroke-width="2.5"/>
-      <path d="M91 1136v9m0-14h.01" stroke="#087343" stroke-width="2.5" stroke-linecap="round"/>
-      ${imageText(129, 1135, `Amount Due: ${signedMoney(finalBalance)}`, { size: 24, weight: 700, fill: "#075d2b" })}
-      ${imageText(129, 1164, finalBalance > 0 ? "Please clear the due amount at your earliest convenience." : "Your account has a credit balance.", { size: 16 })}
-      <path d="m930 1155 55-48 54 48v36h-109v-36Z" fill="#fff9e8" stroke="#14864d" stroke-width="5" stroke-linejoin="round"/>
-      <path d="m915 1154 70-61 70 61-9 10-61-53-61 53-9-10Z" fill="#078c4a"/>
-      <path d="M1001 1112v-23h17v37" fill="#168e4a" stroke="#087342" stroke-width="4"/>
-      <path d="M968 1160h33v33h-33z" fill="#fff1c9" stroke="#16884b" stroke-width="3"/>
-      <path d="M984 1161v31m-15-16h31" stroke="#e8a72e" stroke-width="2"/>
-      ${imageText(600, 1255, `Generated by Rahat  ·  ${generatedDate}`, { size: 15, anchor: "middle", fill: "#69756f" })}
-    </svg>`;
     reportDocument.open();
     reportDocument.write(`<!doctype html><html><head><meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
-      <title>Monthly Bill · ${escapeHtml(month)} · ${escapeHtml(member.name)}</title>
-      <base href="${escapeHtml(window.location.origin)}/">
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+      <title>Residence Summary · ${escapeHtml(month)} · ${escapeHtml(member.name)}</title>
       <base href="${escapeHtml(window.location.origin)}/">
       <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
         *{box-sizing:border-box}
-        @page{size:A4;margin:16mm}
-        body{margin:0;padding:24px;color:#17231f;background:#fff;font:13px/1.35 "Hind Siliguri",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-        .sheet{width:100%;max-width:840px;margin:0 auto;position:relative}
-        .toolbar{display:flex;justify-content:flex-end;margin-bottom:12px}
-        .toolbar button{border:0;border-radius:10px;padding:10px 16px;background:#087747;color:#fff;font-weight:700;cursor:pointer}
-        .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
-        .brand{display:flex;align-items:center;gap:12px}
-        .brand-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:linear-gradient(145deg,#2dc774,#00633d);color:white;box-shadow:0 5px 12px #076b4230}
-        .brand-mark svg{width:27px;height:27px}
-        .brand-title{font:700 20px "Hind Siliguri",sans-serif;color:#111d1a}
-        .brand-subtitle{margin-top:2px;color:#61716b;font-size:13px}
-        .bill-pill{display:flex;align-items:center;gap:8px;padding:9px 15px;border:1px solid #e1eee5;border-radius:25px;background:#f6fbf7;color:#153c2c;font-weight:700;box-shadow:0 4px 12px #173a2510}
-        .bill-pill svg{width:17px;height:17px;color:#087343}
-        .headline{display:grid;grid-template-columns:1fr 195px;align-items:center;gap:14px;margin-bottom:14px}
-        .title-block{border-left:5px solid #22bd61;padding:2px 0 2px 27px}
-        h1{margin:0;color:#101a18;font:700 31px/1.1 "Hind Siliguri",sans-serif;letter-spacing:-.6px}
-        .month{margin-top:4px;color:#57645f;font-size:18px}
-        .member-card{display:flex;align-items:center;gap:11px;min-height:58px;padding:9px 13px;border:1px solid #e3efe5;border-radius:15px;background:#eff7ef}
-        .member-icon{width:30px;height:30px;color:#087343;flex:none}
-        .member-caption{font-size:13px;color:#495c53}
-        .member-name{margin-top:2px;font-size:18px;font-weight:750;color:#111c19;overflow-wrap:anywhere}
-        .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin-bottom:24px}
-        .stat{min-height:112px;padding:14px 16px;border:1px solid #e0eee4;border-radius:17px;background:linear-gradient(140deg,#fbfdfb,#f0f7ef);box-shadow:0 5px 13px #163c2010}
-        .stat:nth-child(2){background:linear-gradient(140deg,#fbfdfc,#eaf7f1);border-color:#d8eee4}
-        .stat:nth-child(3){background:linear-gradient(140deg,#fffdfa,#fff4e2);border-color:#f6e8cd}
-        .stat.final{background:linear-gradient(145deg,#0c9d59,#004c32);border-color:#07824b;color:#fff}
-        .stat-icon{display:grid;place-items:center;width:39px;height:39px;margin-bottom:6px;border-radius:13px;background:#e7f6e9;color:#078343}
-        .stat:nth-child(2) .stat-icon{background:#e7f7ef;color:#078454}
-        .stat:nth-child(3) .stat-icon{background:#fff3dc;color:#bb7600}
-        .stat.final .stat-icon{background:transparent;color:#fff}
-        .stat-icon svg{width:26px;height:26px}
-        .stat-label{color:#45534d;font-size:14px}
-        .stat-value{margin-top:2px;color:#111b19;font-size:25px;font-weight:750;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
-        .stat:nth-child(3) .stat-value{color:#aa3b30}
-        .stat.final .stat-label,.stat.final .stat-value{color:white}
-        .two-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
-        .panel{padding:10px 12px;border:1px solid #e0e6e2;border-radius:15px;background:#fff;box-shadow:0 4px 11px #112c1a0c}
-        .panel-title{display:flex;align-items:center;gap:9px;padding-bottom:7px;margin-bottom:2px;border-bottom:1px solid #edf0ed;color:#15201d;font-size:17px;font-weight:750}
-        .panel-icon{display:grid;place-items:center;width:33px;height:33px;border-radius:11px;background:#e9f7e9;color:#087343}
-        .panel-icon svg{width:22px;height:22px}
-        .line{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:32px;padding:6px 8px;border-bottom:1px solid #edf0ed;color:#25332e}
-        .line strong{font-size:15px;color:#18231f;font-variant-numeric:tabular-nums}
-        .line.paid{margin:2px -1px;padding:6px 9px;border:0;border-radius:9px;background:#f0f7ef;color:#21602e}
-        .line.paid strong,.positive{color:#08732f!important}
-        .line.due{border-bottom:0;font-weight:750}
-        .line.due strong{font-weight:750}
-        .credit{color:#08732f!important}
-        .lower-grid{display:grid;grid-template-columns:1.3fr .7fr;gap:10px}
-        .summary-panel,.payment-panel{min-height:0}
-        .summary-panel .line,.payment-panel .line{min-height:31px;padding:6px 8px}
-        .line.highlight{margin:3px 0;border:0;border-radius:10px;background:#edf6ec;font-weight:750}
-        .line.final-line{margin:5px 0 0;padding:10px 13px;border:0;border-radius:11px;background:linear-gradient(110deg,#15965b,#004d34);color:#fff;font-size:18px;font-weight:750}
-        .line.final-line.estimated-line{margin-top:3px;background:linear-gradient(110deg,#087b4b,#003f2c)}
-        .line.final-line>span{display:grid;gap:2px}
-        .line.final-line small{color:#d9f5e5;font-size:13px;font-weight:500}
-        .line.final-line strong{color:#fff;font-size:19px;white-space:nowrap}
-        .amount-due{position:relative;display:flex;align-items:center;gap:10px;min-height:60px;margin-top:10px;padding:10px 140px 10px 14px;overflow:hidden;border-radius:15px;background:linear-gradient(100deg,#eff8ef,#e9f6ec);color:#075d2b}
-        .amount-icon{display:grid;place-items:center;width:38px;height:38px;flex:none;border-radius:12px;background:#e0f4e3}
-        .amount-icon svg{width:25px;height:25px}
-        .amount-title{font-size:18px;font-weight:750}
-        .amount-note{margin-top:3px;color:#263a30;font-size:13px}
-        .house-art{position:absolute;right:8px;bottom:0;width:130px;height:82px}
-        .payment-options-inline{display:grid;gap:4px;margin-top:5px;padding-top:5px;border-top:1px solid #e1e9e4}
-        .payment-option-line{display:flex;align-items:center;gap:6px;min-width:0;padding:3px 5px;border-radius:8px;background:#f5faf6}
-        .payment-option-line img,.payment-option-line>span{width:28px;height:20px;flex:0 0 28px;object-fit:contain}
-        .payment-option-line>span{display:grid;place-items:center;border-radius:6px;background:#dff3e5;color:#087343;font-size:13px;font-weight:800}
-        .payment-option-line strong{min-width:0;color:#087343;font-size:13px;line-height:1.2;overflow-wrap:anywhere}
-        .payment-option-line small{margin-left:auto;color:#66766e;font-size:13px;white-space:nowrap}
-        footer{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;color:#69756f;font-size:13px}
-        footer:before,footer:after{content:"";height:1px;flex:1;background:#dce4df}
-        footer strong{color:#087343}
-
-        /* Minimal premium statement styling */
-        body{background:#f1f3f0;color:#18201d}
-        .sheet{padding:25px 27px;border:1px solid #e0e5e1;border-radius:18px;background:#fff;box-shadow:0 18px 55px rgba(24,48,36,.08)}
-        .toolbar{margin-bottom:16px}
-        .toolbar button{padding:9px 15px;border:1px solid #0b6848;border-radius:9px;background:#0b6848;box-shadow:none;font-size:13px}
-        .topbar{padding-bottom:14px;margin-bottom:18px;border-bottom:1px solid #e4e8e5}
-        .brand{gap:10px}
-        .brand-mark{width:38px;height:38px;border-radius:10px;background:#0b6848;box-shadow:none}
-        .brand-mark svg{width:23px;height:23px}
-        .brand-title{color:#17211d;font-size:18px;letter-spacing:-.2px}
-        .brand-subtitle{color:#7a8580;font-size:13px}
-        .bill-pill{padding:7px 12px;border-color:#dce4df;border-radius:9px;background:#fff;box-shadow:none;color:#425149;font-size:13px;font-weight:650}
-        .bill-pill svg{width:15px;height:15px;color:#0b6848}
-        .headline{margin-bottom:12px}
-        .title-block{padding:1px 0 1px 17px;border-left:3px solid #0b6848}
-        h1{color:#17211d;font-size:28px;letter-spacing:-.55px}
-        .month{color:#6c7771;font-size:16px}
-        .member-card{min-height:54px;border-color:#dfe6e1;border-radius:11px;background:#fafbfa}
-        .member-icon{width:26px;height:26px;color:#0b6848}
-        .member-caption{color:#7a8580;font-size:13px;text-transform:uppercase;letter-spacing:.08em}
-        .member-name{color:#18231e;font-size:17px}
-        .panel{border-color:#dde4df;border-radius:12px;background:#fff;box-shadow:none}
-        .panel-title{gap:8px;padding-bottom:7px;border-bottom-color:#e8ece9;color:#243029;font-size:15px;letter-spacing:.01em}
-        .panel-icon{width:30px;height:30px;border-radius:8px;background:#eef4f0;color:#0b6848}
-        .panel-icon svg{width:19px;height:19px}
-        .line{border-bottom-color:#edf0ee;color:#4b5851}
-        .line strong{color:#19231f;font-weight:700}
-        .line.paid{margin:0;padding:6px 8px;border-bottom:1px solid #edf0ee;border-radius:0;background:transparent;color:#587067}
-        .line.paid strong,.positive{color:#0b6848!important}
-        .line.highlight{margin:2px 0;border-radius:7px;background:#f3f7f4}
-        .line.final-line{margin-top:4px;border-radius:8px;background:#116c4d;font-size:16px}
-        .line.final-line.estimated-line{margin-top:3px;background:#0a513b}
-        .line.final-line small{color:#cfe4da}
-        .line.final-line strong{font-size:18px}
-        .amount-due{min-height:56px;padding:9px 13px;border:1px solid #dce7e0;border-radius:11px;background:#f5f8f6;color:#164f3a}
-        .amount-icon{width:34px;height:34px;border-radius:9px;background:#e6f0ea}
-        .amount-icon svg{width:21px;height:21px}
-        .amount-title{font-size:17px}
-        .amount-note{color:#65736c;font-size:13px}
-        .house-art{display:none}
-        .payment-options-inline{gap:5px;margin-top:6px;padding-top:6px;border-top-color:#e3e9e5}
-        .payment-option-line{display:grid;grid-template-columns:32px minmax(0,1fr) auto;align-items:center;gap:8px;min-height:34px;padding:5px 7px;border:1px solid #e3e9e5;border-radius:8px;background:#fbfcfb}
-        .payment-option-line img,.payment-option-line>span{width:32px;height:23px;flex:none;padding:2px;border:1px solid #e5ebe7;border-radius:6px;background:#fff;object-fit:contain}
-        .payment-option-line>span{display:grid;place-items:center;padding:0;background:#edf5f0;color:#0b6848;font-size:13px;font-weight:800}
-        .payment-option-line strong{min-width:0;color:#164f3a;font-size:13px;font-weight:700;line-height:1.2;letter-spacing:.01em;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
-        .payment-option-line small{justify-self:end;padding:3px 6px;border-radius:99px;background:#eaf3ed;color:#456357;font-size:13px;font-weight:650;line-height:1;white-space:nowrap}
-        footer{color:#89918d;letter-spacing:.01em}
-        footer:before,footer:after{background:#e1e6e3}
-        footer strong{color:#0b6848}
-        /* Mobile-first 9:16 statement, matching the supplied bill reference. */
         :root{color-scheme:light}
-        html{min-width:0;background:#e8f1ec}
-        body{display:flex;justify-content:center;min-width:0;min-height:100vh;padding:24px;overflow-x:hidden;background:radial-gradient(circle at 50% 0,#f7fffa 0,#e7f0eb 52%,#dbe8e1 100%);color:#07192d}
-        .sheet{--page-pad:clamp(18px,3.6vw,34px);isolation:isolate;position:relative;display:flex;flex-direction:column;width:min(100%,210mm);min-height:297mm;margin:0;padding:0 0 70px;overflow:hidden;border:1px solid #bfe5d6;border-radius:28px;background:linear-gradient(180deg,#fbfffd 0,#fff 67%,#f7fffa 100%);box-shadow:0 26px 80px rgba(1,72,48,.16)}
-        .hero{position:relative;min-height:clamp(170px,24vw,218px);padding:clamp(24px,3.9vw,38px) var(--page-pad) 62px;overflow:hidden;background:radial-gradient(circle at 17% -30%,rgba(36,219,127,.68) 0 25%,transparent 25.3%),radial-gradient(ellipse at 105% 2%,rgba(0,151,85,.72) 0 38%,transparent 38.3%),linear-gradient(125deg,#009452 0,#00633e 52%,#003f2f 100%);color:#fff}
-        .hero:before{content:"";position:absolute;z-index:0;right:-13%;bottom:-42px;width:76%;height:94px;border-radius:50% 0 0 0/100% 0 0 0;background:linear-gradient(110deg,rgba(32,211,115,.92),rgba(170,246,193,.9));transform:rotate(-3deg)}
-        .hero:after{content:"";position:absolute;z-index:1;left:-7%;right:-7%;bottom:-62px;height:102px;border-radius:50% 50% 0 0/32% 32% 0 0;background:#fbfffd;transform:rotate(-1.4deg)}
-        .topbar{position:relative;z-index:2;display:grid;grid-template-columns:minmax(0,1fr) clamp(132px,24vw,185px);align-items:center;gap:clamp(14px,3vw,34px);padding:0;margin:0;border:0}
-        .brand{min-width:0;gap:clamp(10px,2vw,18px)}
-        .brand-mark{width:clamp(50px,7.4vw,72px);height:clamp(50px,7.4vw,72px);border:1px solid rgba(54,255,149,.78);border-radius:clamp(14px,2vw,20px);background:linear-gradient(145deg,rgba(5,90,58,.52),rgba(18,217,108,.78));box-shadow:0 8px 20px rgba(0,0,0,.2),inset 0 1px 0 rgba(255,255,255,.24)}
-        .brand-mark svg{width:58%;height:58%}
-        .brand>div:last-child{min-width:0;padding-left:clamp(10px,2vw,20px);border-left:1px solid rgba(255,255,255,.75)}
-        .brand-title{overflow:hidden;color:#fff;font-size:clamp(22px,4vw,36px);line-height:1.08;letter-spacing:-.04em;text-overflow:ellipsis;white-space:nowrap}
-        .brand-subtitle{overflow:hidden;margin-top:clamp(4px,.7vw,8px);color:rgba(255,255,255,.94);font-size:clamp(12px,2vw,20px);line-height:1.2;text-overflow:ellipsis;white-space:nowrap}
-        .toolbar{display:grid;gap:10px;width:100%;margin:0}
-        .toolbar button{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0;height:clamp(38px,5.7vw,52px);padding:0 12px;border:1px solid #1deb80;border-radius:999px;background:rgba(0,91,57,.45);box-shadow:0 8px 18px rgba(0,0,0,.18);color:#fff;font:700 clamp(12px,1.8vw,16px)/1 "Hind Siliguri",sans-serif;white-space:nowrap;cursor:pointer;transition:transform .15s,background .15s,opacity .15s}
-        .toolbar button:hover{transform:translateY(-1px);background:rgba(0,118,74,.68)}
-        .toolbar button:active{transform:translateY(0)}
-        .toolbar button:disabled{opacity:.65;cursor:wait;transform:none}
-        .toolbar button.btn-save-image{border-color:rgba(255,255,255,.9);background:#fff;color:#072035}
-        .toolbar button.btn-save-image:hover{background:#f0faf4}
-        .toolbar button svg{width:clamp(17px,2.4vw,22px);height:clamp(17px,2.4vw,22px);flex:none;color:#fff}
-        .toolbar button.btn-save-image svg{color:#008550}
-        .toolbar-spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:tb-spin .7s linear infinite;flex:none}
-        .toolbar button.btn-save-image .toolbar-spinner{border-color:rgba(0,133,80,.25);border-top-color:#008550}
-        @keyframes tb-spin{to{transform:rotate(360deg)}}
-        .headline{position:relative;z-index:4;display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,32%);align-items:center;gap:16px;min-height:92px;margin:-28px var(--page-pad) 17px;padding:12px 15px;border:1px solid #bce6d5;border-radius:24px;background:linear-gradient(110deg,rgba(255,255,255,.96),rgba(231,249,239,.94));box-shadow:0 11px 28px rgba(0,67,45,.08)}
-        .title-block{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:15px;min-width:0;padding:0;border:0}
-        .title-icon{display:grid;place-items:center;width:48px;height:48px;flex:none;border-radius:15px;background:#e0f9e9;color:#008854}
-        .title-icon svg{width:29px;height:29px}
-        h1{overflow:hidden;color:#07192d;font-size:clamp(23px,3.4vw,32px);line-height:1.05;letter-spacing:-.035em;text-overflow:ellipsis;white-space:nowrap}
-        .month{overflow:hidden;margin-top:5px;color:#31435d;font-size:clamp(14px,2.2vw,20px);line-height:1.1;text-overflow:ellipsis;white-space:nowrap}
-        .member-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:11px;min-width:0;min-height:64px;padding:9px 12px;border:1px solid #bce8d4;border-radius:20px;background:linear-gradient(120deg,#effbf4,#e3f8ec)}
-        .member-icon{width:36px;height:36px;color:#00965a}
-        .member-caption{overflow:hidden;color:#41516b;font-size:clamp(10px,1.5vw,13px);line-height:1;text-overflow:ellipsis;white-space:nowrap}
-        .member-name{overflow:hidden;margin-top:5px;color:#07192d;font-size:clamp(15px,2.3vw,21px);line-height:1;text-overflow:ellipsis;white-space:nowrap}
-        .member-arrow{width:19px;height:19px;color:#07192d}
-        .two-columns,.lower-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:0 var(--page-pad)}
-        .two-columns{margin:0 0 13px}
-        .lower-grid{margin:0}
-        .panel{min-width:0;padding:12px 13px;border:1px solid #bfe0d6;border-radius:22px;background:rgba(255,255,255,.98);box-shadow:0 9px 24px rgba(0,64,47,.08)}
-        .panel-title{min-width:0;gap:10px;padding:0 0 9px;margin:0 0 3px;border-bottom:1px solid #dfe9e5;color:#07192d;font-size:clamp(14px,2vw,18px);line-height:1.1;letter-spacing:-.02em;white-space:nowrap}
-        .panel-title{overflow:hidden;text-overflow:ellipsis}
-        .panel-icon{width:39px;height:39px;flex:none;border-radius:50%;background:linear-gradient(145deg,#effff5,#c9f6d9);color:#008b51}
-        .panel-icon svg{width:23px;height:23px}
-        .line{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:9px;min-width:0;min-height:39px;padding:7px 5px;border-bottom:1px solid #e4ece9;color:#15243a;font-size:clamp(11px,1.55vw,14px);line-height:1.15}
-        .line>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .line>strong{color:#07192d;font-size:clamp(12px,1.75vw,16px);line-height:1;white-space:nowrap}
-        .line.paid{margin:0;padding:7px 5px;border-bottom:1px solid #e4ece9;border-radius:0;background:transparent;color:#15243a}
-        .line.paid strong,.positive{color:#004c38!important}
-        .line.due{min-height:45px;margin:4px -4px -2px;padding:8px 10px;border:0;border-radius:12px;background:linear-gradient(90deg,#ddf8e8,#cff3dc);color:#07192d}
-        .line.due strong{color:#00563b!important}
-        .summary-panel,.payment-panel{min-height:300px}
-        .summary-panel .line,.payment-panel .line{min-height:39px;padding:7px 5px}
-        .line.highlight{min-height:47px;margin:4px -4px;padding:8px 10px;border:0;border-radius:12px;background:linear-gradient(90deg,#ddf8e8,#cef3dc);color:#07192d}
-        .line.highlight strong{color:#00563b}
-        .line.final-line{min-height:61px;margin:5px -1px 0;padding:11px 13px;border:0;border-radius:15px;background:linear-gradient(110deg,#009c58,#00442f);box-shadow:0 8px 18px rgba(0,103,62,.17);color:#fff;font-size:clamp(13px,1.85vw,17px)}
-        .line.final-line>span:before{content:"✓";display:inline-grid;place-items:center;width:29px;height:29px;margin-right:9px;border-radius:50%;background:#4bdd66;box-shadow:0 5px 10px rgba(0,0,0,.16);color:#fff;font-weight:800;vertical-align:middle}
-        .line.final-line strong{color:#fff;font-size:clamp(15px,2.1vw,19px)}
-        .line.final-line.estimated-line{display:none}
-        .payment-options-inline{display:grid;gap:5px;margin:5px 0 0;padding:0;border:0}
-        .payment-panel .panel-title{font-size:clamp(15px,2.15vw,19px)}
-        .payment-panel .line{font-size:clamp(12px,1.7vw,15px)}
-        .payment-panel .line>strong{font-size:clamp(13px,1.9vw,17px)}
-        .payment-option-line{display:grid;grid-template-columns:42px minmax(0,1fr) minmax(74px,auto);align-items:center;gap:8px;min-width:0;min-height:39px;padding:4px 5px;border:0;border-bottom:1px solid #e4ece9;border-radius:0;background:transparent}
-        .payment-option-line:last-child{border-bottom:0}
-        .payment-option-line img,.payment-option-line>span{width:42px;height:27px;padding:3px;border:1px solid #dbe8e2;border-radius:999px;background:#fff;object-fit:contain;box-shadow:0 3px 7px rgba(0,55,40,.08)}
-        .payment-option-line strong{min-width:0;overflow:hidden;color:#07192d;font-size:clamp(11px,1.6vw,14px);line-height:1;text-overflow:ellipsis;white-space:nowrap}
-        .payment-option-line small{min-width:0;overflow:hidden;justify-self:end;padding:6px 9px;border-radius:999px;background:#dcf7e7;color:#173a2e;font-size:clamp(10px,1.4vw,13px);font-weight:650;line-height:1;text-overflow:ellipsis;white-space:nowrap}
-        .amount-due{position:relative;display:flex;align-items:center;gap:13px;min-height:86px;margin:19px var(--page-pad) 0;padding:13px 150px 13px 18px;overflow:hidden;border:1px solid #99e6bd;border-radius:24px;background:linear-gradient(95deg,#effff3 0,#d9f8e4 70%,#bff2d0 100%);color:#005237}
-        .amount-due:after{content:"";position:absolute;right:-36px;bottom:-54px;width:230px;height:120px;border-radius:55% 0 0 0;background:linear-gradient(135deg,rgba(94,227,151,.44),rgba(0,178,91,.95));transform:rotate(-12deg)}
-        .amount-icon{z-index:1;width:48px;height:48px;border-radius:50%;background:linear-gradient(145deg,#00a85b,#006e43);box-shadow:0 7px 15px rgba(0,93,55,.2);color:#fff}
-        .amount-icon svg{width:28px;height:28px}
-        .amount-due>div{z-index:1;min-width:0}
-        .amount-title{overflow:hidden;color:#005237;font-size:clamp(19px,2.9vw,27px);line-height:1.1;text-overflow:ellipsis;white-space:nowrap}
-        .amount-note{overflow:hidden;margin-top:5px;color:#162a30;font-size:clamp(11px,1.7vw,15px);line-height:1.15;text-overflow:ellipsis;white-space:nowrap}
-        .house-art{display:none}
-        footer{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;gap:13px;margin:24px var(--page-pad) 0;color:#5d6b82;font-size:clamp(10px,1.45vw,13px);line-height:1;white-space:nowrap}
-        footer:before,footer:after{background:#a8b9c5}
-        footer strong{color:#007446}
-        .bottom-waves{position:absolute;z-index:1;right:0;bottom:0;left:0;height:58px;overflow:hidden;pointer-events:none}
-        .bottom-waves:before,.bottom-waves:after{content:"";position:absolute;right:-8%;bottom:-43px;width:116%;height:94px;border-radius:50% 50% 0 0/34% 34% 0 0;transform:rotate(2deg)}
-        .bottom-waves:before{bottom:-29px;background:#92edb1;transform:rotate(-2deg)}
-        .bottom-waves:after{background:linear-gradient(100deg,#008a50,#00a55c)}
-
-        @media(max-width:650px){
-          body{display:block;min-height:100svh;padding:0;background:#fff}
-          .sheet{--page-pad:clamp(9px,3vw,16px);width:100%;min-height:max(100svh,calc(100vw * 16 / 9));aspect-ratio:9/16;border:0;border-radius:0;box-shadow:none;padding-bottom:clamp(49px,13vw,62px)}
-          .hero{min-height:clamp(116px,31vw,145px);padding:clamp(14px,4vw,21px) var(--page-pad) clamp(39px,10vw,52px)}
-          .hero:before{bottom:-32px;height:65px}.hero:after{bottom:-45px;height:76px}
-          .topbar{grid-template-columns:minmax(0,1fr) clamp(102px,28vw,126px);gap:8px}
-          .brand{gap:8px}.brand-mark{width:clamp(42px,12vw,53px);height:clamp(42px,12vw,53px);border-radius:13px}.brand>div:last-child{padding-left:8px}
-          .brand-title{font-size:clamp(17px,5.3vw,23px)}.brand-subtitle{font-size:clamp(8px,2.55vw,11px)}
-          .toolbar{gap:6px}.toolbar button{height:clamp(28px,8.2vw,35px);gap:5px;padding:0 7px;font-size:clamp(8px,2.65vw,11px)}.toolbar button svg{width:clamp(13px,3.8vw,16px);height:clamp(13px,3.8vw,16px)}.toolbar-spinner{width:12px;height:12px;border-width:1.5px}
-          .headline{grid-template-columns:minmax(0,1fr) minmax(121px,36%);gap:7px;min-height:clamp(57px,17vw,72px);margin:clamp(-21px,-5.3vw,-16px) var(--page-pad) 8px;padding:7px;border-radius:clamp(13px,4vw,18px)}
-          .title-block{gap:7px}.title-icon{width:clamp(31px,9vw,39px);height:clamp(31px,9vw,39px);border-radius:10px}.title-icon svg{width:61%;height:61%}
-          h1{font-size:clamp(15px,4.6vw,20px)}.month{margin-top:3px;font-size:clamp(9px,2.9vw,12px)}
-          .member-card{gap:6px;min-height:44px;padding:5px 7px;border-radius:13px}.member-icon{width:clamp(24px,7vw,30px);height:clamp(24px,7vw,30px)}.member-caption{font-size:clamp(7px,2.1vw,9px)}.member-name{margin-top:3px;font-size:clamp(10px,3.15vw,13px)}.member-arrow{width:13px;height:13px}
-          .two-columns,.lower-grid{gap:clamp(6px,2vw,9px)}.two-columns{margin-bottom:8px}
-          .panel{padding:clamp(6px,2vw,9px);border-radius:clamp(13px,4vw,18px)}
-          .panel-title{gap:5px;padding-bottom:5px;font-size:clamp(9px,2.85vw,12px)}.panel-icon{width:clamp(25px,7.5vw,32px);height:clamp(25px,7.5vw,32px)}.panel-icon svg{width:58%;height:58%}
-          .line{gap:4px;min-height:clamp(24px,7.2vw,30px);padding:4px 2px;font-size:clamp(7.5px,2.25vw,9.6px)}.line>strong{font-size:clamp(8.5px,2.65vw,11px)}
-          .line.paid{padding:4px 2px}.line.due{min-height:clamp(29px,8.3vw,36px);margin:3px -3px -1px;padding:5px;border-radius:8px}
-          .summary-panel,.payment-panel{min-height:clamp(203px,58vw,248px)}.summary-panel .line,.payment-panel .line{min-height:clamp(24px,7vw,29px);padding:4px 2px}
-          .line.highlight{min-height:clamp(31px,8.8vw,37px);margin:3px -3px;padding:5px;border-radius:8px}
-          .line.final-line{min-height:clamp(40px,11.5vw,49px);margin-top:3px;padding:7px;border-radius:10px;font-size:clamp(8.5px,2.5vw,11px)}.line.final-line>span:before{width:clamp(19px,5.6vw,24px);height:clamp(19px,5.6vw,24px);margin-right:4px}.line.final-line strong{font-size:clamp(9px,2.8vw,12px)}
-          .payment-panel .panel-title{font-size:clamp(10px,3.05vw,13px)}.payment-panel .line{font-size:clamp(8.2px,2.5vw,10.5px)}.payment-panel .line>strong{font-size:clamp(9px,2.8vw,11.7px)}
-          .payment-options-inline{gap:1px;margin-top:2px}.payment-option-line{grid-template-columns:clamp(25px,7.4vw,31px) minmax(0,1fr) minmax(42px,42%);gap:3px;min-height:clamp(25px,7.5vw,31px);padding:2px 1px}.payment-option-line img,.payment-option-line>span{width:clamp(25px,7.4vw,31px);height:clamp(17px,4.9vw,21px);padding:2px}.payment-option-line strong{font-size:clamp(7.6px,2.3vw,9.7px)}.payment-option-line small{padding:4px;font-size:clamp(6.8px,2.05vw,8.7px)}
-          .amount-due{min-height:clamp(49px,14vw,59px);margin:9px var(--page-pad) 0;padding:7px clamp(64px,20vw,86px) 7px 9px;border-radius:clamp(13px,4vw,18px);gap:7px}.amount-due:after{right:-34px;bottom:-50px;width:132px;height:84px}.amount-icon{width:clamp(30px,8.8vw,37px);height:clamp(30px,8.8vw,37px)}.amount-icon svg{width:58%;height:58%}.amount-title{font-size:clamp(12px,3.7vw,16px)}.amount-note{margin-top:3px;font-size:clamp(7px,2.15vw,9px)}
-          footer{gap:7px;margin:clamp(12px,3.5vw,16px) var(--page-pad) 0;font-size:clamp(6.8px,2.05vw,8.7px)}.bottom-waves{height:clamp(42px,12vw,53px)}
-        }
-        /* Reference-matched MridhaBari statement */
-        html{background:#eaf3ee}
-        body{font-family:"Manrope","Hind Siliguri",sans-serif;background:radial-gradient(circle at 50% 0,#f9fffc,#e5f0ea 65%,#dce9e2)}
-        body>.toolbar{position:fixed;z-index:1000;top:16px;right:16px;display:flex;gap:8px;width:auto;margin:0;padding:7px;border:1px solid rgba(5,103,70,.14);border-radius:16px;background:rgba(255,255,255,.92);box-shadow:0 12px 34px rgba(0,71,48,.16);backdrop-filter:blur(12px)}
-        body>.toolbar button{height:40px;padding:0 14px;border-radius:11px;font-family:inherit}
-        .sheet{--page-pad:34px;width:min(100%,210mm);min-height:297mm;padding:0 0 74px;border:1px solid #c5e6d8;border-radius:28px;background:linear-gradient(180deg,#fbfffd 0,#fff 70%,#f6fff9 100%);box-shadow:0 28px 90px rgba(0,72,48,.17)}
-        .hero{position:relative;min-height:238px;padding:28px var(--page-pad) 74px;overflow:hidden;background:linear-gradient(90deg,rgba(248,253,250,.98) 0%,rgba(243,251,247,.91) 31%,rgba(234,247,241,.52) 53%,rgba(224,242,236,.08) 100%),url("/modern-apartment-building-amid-greenery.png") center 59%/cover no-repeat;color:#071d17}
-        .hero:before{content:"";position:absolute;z-index:0;top:-124px;left:80px;width:470px;height:300px;border-radius:50%;border:1px solid rgba(0,104,67,.08);background:rgba(255,255,255,.2);transform:rotate(-15deg)}
-        .hero:after{content:"";position:absolute;z-index:3;right:-8%;bottom:-62px;left:-8%;height:100px;border-radius:50% 50% 0 0/34% 34% 0 0;background:#fbfffd;transform:rotate(-1.5deg)}
-        .topbar{position:relative;z-index:5;display:flex;grid-template-columns:none;align-items:flex-start;justify-content:space-between;gap:24px;margin:0;padding:0;border:0}
-        .brand{align-items:center;gap:15px;color:#075f43}
-        .brand-mark{width:72px;height:72px;flex:0 0 72px;border:0;border-radius:0;background:transparent;box-shadow:none;color:#076c4b}
-        .brand-mark svg{width:68px;height:68px}
-        .brand-divider{width:1px;height:62px;flex:0 0 1px;background:#168063}
-        .brand>div:last-child{padding:0;border:0}
-        .brand-title{overflow:visible;color:#050b09;font-family:"Manrope",sans-serif;font-size:34px;font-weight:800;letter-spacing:-.045em;white-space:nowrap}
-        .brand-subtitle{display:flex;align-items:center;gap:8px;overflow:visible;margin-top:8px;color:#17251f;font-size:14px;font-weight:500;white-space:nowrap}
-        .brand-subtitle svg{width:19px;height:19px;flex:none;color:#006d4b}
-        .bill-pill{position:relative;z-index:6;display:flex;align-items:center;gap:10px;min-height:49px;padding:0 20px;border:0;border-radius:999px;background:rgba(255,255,255,.83);box-shadow:0 9px 24px rgba(33,79,66,.08);color:#111915;font-size:16px;font-weight:750;white-space:nowrap}
-        .bill-pill svg{width:22px;height:22px;color:#07120e}
-        .hero-scene{display:none!important}
-        .headline{position:relative;z-index:6;display:grid;grid-template-columns:minmax(0,1fr) 205px;align-items:center;gap:24px;min-height:126px;margin:-47px var(--page-pad) 16px;padding:25px 17px 8px;border:0;border-radius:0;background:transparent;box-shadow:none}
-        .title-block{display:block;min-width:0;padding:0;border:0}
-        .statement-kicker{margin-bottom:3px;color:#08714f;font-size:14px;font-weight:800;letter-spacing:.24em}
-        h1{overflow:visible;color:#063c2b;font-family:"Manrope",sans-serif;font-size:43px;font-weight:800;line-height:1;letter-spacing:-.045em;white-space:nowrap}
-        .month{overflow:visible;margin-top:7px;color:#24323d;font-size:16px;font-weight:500;line-height:1.15;white-space:nowrap}
-        .member-card{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:13px;min-height:73px;padding:11px 18px;border:1px solid #9eddbf;border-radius:24px;background:linear-gradient(115deg,#eefaf3,#c9f1da);box-shadow:none}
-        .member-icon{width:42px;height:42px;color:#006c48}
-        .member-caption{color:#30443a;font-size:14px;text-transform:none;letter-spacing:0}
-        .member-name{overflow:hidden;margin-top:3px;color:#080e0b;font-size:22px;font-weight:800;line-height:1;text-overflow:ellipsis;white-space:nowrap}
-        .two-columns,.lower-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:0 var(--page-pad)}
-        .two-columns{margin-bottom:16px}
-        .panel{padding:16px 17px;border:1px solid #a9ddc5;border-radius:24px;background:rgba(255,255,255,.98);box-shadow:0 8px 20px rgba(0,74,49,.065)}
-        .panel-title{gap:14px;padding:0 0 12px;margin-bottom:4px;border-bottom-color:#d9e5df;color:#07130e;font-family:"Manrope",sans-serif;font-size:21px;font-weight:800;letter-spacing:-.035em}
-        .panel-icon{width:54px;height:54px;flex:0 0 54px;border-radius:50%;background:linear-gradient(145deg,#0ca464,#00462f);box-shadow:0 7px 15px rgba(0,86,52,.22);color:#fff}
-        .panel-icon svg{width:29px;height:29px}
-        .line{min-height:43px;padding:8px 6px;border-bottom-color:#dde6e1;color:#132039;font-size:15px}
-        .line>strong{color:#050a08;font-size:17px;font-weight:800}
-        .line.paid{padding:8px 6px;color:#132039}
-        .line.due{min-height:52px;margin:5px -5px -3px;padding:10px 13px;border-radius:13px;background:linear-gradient(90deg,#e0f8ea,#c9f1d8)}
-        .line.due strong{color:#00683f!important}
-        .summary-panel,.payment-panel{min-height:350px}
-        .summary-panel .line,.payment-panel .line{min-height:43px;padding:8px 6px}
-        .line.highlight{min-height:53px;margin:5px -5px;padding:10px 13px;border-radius:13px;background:linear-gradient(90deg,#e0f8ea,#c9f1d8)}
-        .line.final-line{min-height:68px;margin:8px -1px 0;padding:12px 15px;border-radius:17px;background:linear-gradient(110deg,#0b9c5e,#00442f);box-shadow:0 9px 20px rgba(0,91,53,.2);font-size:16px}
-        .line.final-line>span{display:flex;align-items:center}
-        .line.final-line>span:before{width:34px;height:34px;margin-right:11px;background:#4bdc73}
-        .line.final-line strong{font-size:21px}
-        .payment-panel .panel-title{font-size:21px}
-        .payment-panel .line{font-size:15px}
-        .payment-panel .line>strong{font-size:17px}
-        .payment-methods-panel{margin:16px var(--page-pad) 0;padding:14px 15px 15px;border:1px solid #a9ddc5;border-radius:22px;background:rgba(255,255,255,.98);box-shadow:0 8px 20px rgba(0,74,49,.065)}
-        .payment-methods-heading{display:flex;align-items:center;gap:11px;margin-bottom:12px;color:#07130e}
-        .payment-methods-icon{display:grid;width:39px;height:39px;flex:0 0 39px;place-items:center;border-radius:12px;background:linear-gradient(145deg,#0ca464,#00462f);color:#fff}
-        .payment-methods-icon svg{width:22px;height:22px}
-        .payment-methods-heading strong{display:block;font-size:18px;font-weight:800;line-height:1.05}
-        .payment-methods-heading small{display:block;margin-top:3px;color:#607269;font-size:11px;font-weight:550}
-        .payment-options-inline{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:0;padding:0;border:0}
-        .payment-option-line{display:grid;grid-template-columns:54px minmax(0,1fr);grid-template-rows:auto auto;gap:7px 8px;min-width:0;min-height:76px;padding:9px 10px;border:1px solid #d8e9e1;border-radius:14px;background:linear-gradient(145deg,#ffffff,#f4faf7);box-shadow:0 4px 11px rgba(0,61,42,.055)}
-        .payment-option-line img,.payment-option-line>span{grid-column:1;grid-row:1;width:54px;height:29px;padding:3px;border:1px solid #e1e9e5;border-radius:999px;background:#fff;object-fit:contain;box-shadow:0 3px 8px rgba(0,55,40,.07)}
-        .payment-option-line>span{display:grid;place-items:center;color:#087343;font-weight:800}
-        .payment-option-line strong{grid-column:1/-1;grid-row:2;min-width:0;overflow:visible;color:#07192d;font-size:12px;font-weight:800;line-height:1.1;letter-spacing:.015em;overflow-wrap:anywhere;white-space:normal}
-        .payment-option-line small{grid-column:2;grid-row:1;align-self:center;justify-self:end;padding:6px 9px;border-radius:999px;background:#d3f2df;color:#163c2d;font-size:10px;font-weight:750;line-height:1;white-space:nowrap}
-        .amount-due{min-height:95px;margin:25px var(--page-pad) 0;padding:15px 150px 15px 24px;border:1px solid #8ed9b5;border-radius:25px;background:linear-gradient(95deg,#f0fcf4 0,#d8f5e3 70%,#bcf0ce 100%)}
-        .amount-due:after{right:-30px;bottom:-63px;width:270px;height:140px;background:linear-gradient(135deg,rgba(99,228,153,.38),rgba(0,165,85,.78))}
-        .amount-icon{width:53px;height:53px;border-radius:13px;background:linear-gradient(145deg,#079d5b,#00643e)}
-        .amount-icon svg{width:31px;height:31px}
-        .amount-title{color:#07130e;font-size:27px;font-weight:800}
-        .amount-note{margin-top:5px;color:#20332a;font-size:14px}
-        footer{display:flex;flex-wrap:wrap;gap:8px 14px;margin:31px var(--page-pad) 0;color:#26354a;font-size:13px}
-        footer span{display:flex;align-items:center;gap:7px;white-space:nowrap}
-        footer small{flex:0 0 100%;color:#2e3a4e;font-size:12px;text-align:center}
-        footer:before,footer:after{background:#09764e}
-        footer strong{color:#08734d}
-        .bottom-waves{height:72px}
-        .bottom-waves:before{bottom:-28px;background:#8ae3a9}
-        .bottom-waves:after{bottom:-45px;background:linear-gradient(100deg,#006d45,#07985b)}
-
-        @media(max-width:650px){
-          body{padding:0}.sheet{--page-pad:10px;min-height:max(100svh,calc(100vw * 1.414));padding-bottom:52px;border:0;border-radius:0}
-          body>.toolbar{top:auto;right:10px;bottom:10px;left:10px;justify-content:center}.hero{min-height:145px;padding:14px var(--page-pad) 46px;background-position:center,62% 59%}.hero-scene{display:none!important}
-          .brand{gap:6px}.brand-mark{width:44px;height:44px;flex-basis:44px}.brand-mark svg{width:42px;height:42px}.brand-divider{height:40px}.brand-title{font-size:18px}.brand-subtitle{gap:4px;margin-top:4px;font-size:8px}.brand-subtitle svg{width:12px;height:12px}.bill-pill{min-height:34px;padding:0 10px;font-size:10px}.bill-pill svg{width:14px;height:14px}
-          .headline{grid-template-columns:minmax(0,1fr) 125px;gap:8px;min-height:74px;margin:-29px var(--page-pad) 8px;padding:15px 6px 4px}.statement-kicker{font-size:8px;letter-spacing:.16em}h1{font-size:22px}.month{margin-top:3px;font-size:9px}.member-card{gap:6px;min-height:47px;padding:6px 8px;border-radius:14px}.member-icon{width:27px;height:27px}.member-caption{font-size:8px}.member-name{font-size:12px}
-          .two-columns,.lower-grid{gap:7px}.two-columns{margin-bottom:8px}.panel{padding:8px;border-radius:15px}.panel-title{gap:6px;padding-bottom:6px;font-size:11px}.panel-icon{width:30px;height:30px;flex-basis:30px}.panel-icon svg{width:17px;height:17px}.line{min-height:29px;padding:5px 2px;font-size:8.7px}.line>strong{font-size:10px}.line.due{min-height:35px;margin:3px -3px -2px;padding:6px;border-radius:8px}.summary-panel,.payment-panel{min-height:236px}.summary-panel .line,.payment-panel .line{min-height:29px;padding:5px 2px}.line.highlight{min-height:36px;margin:3px -3px;padding:6px;border-radius:8px}.line.final-line{min-height:47px;padding:7px;border-radius:10px;font-size:9px}.line.final-line>span:before{width:22px;height:22px;margin-right:5px}.line.final-line strong{font-size:11px}.payment-panel .panel-title{font-size:11px}.payment-panel .line{font-size:9px}.payment-panel .line>strong{font-size:10.5px}.payment-methods-panel{margin:8px var(--page-pad) 0;padding:8px;border-radius:14px}.payment-methods-heading{gap:6px;margin-bottom:7px}.payment-methods-icon{width:28px;height:28px;flex-basis:28px;border-radius:8px}.payment-methods-icon svg{width:16px;height:16px}.payment-methods-heading strong{font-size:11px}.payment-methods-heading small{font-size:7px}.payment-options-inline{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.payment-option-line{grid-template-columns:36px minmax(0,1fr);gap:4px;min-height:54px;padding:6px;border-radius:9px}.payment-option-line img,.payment-option-line>span{width:36px;height:22px;padding:2px}.payment-option-line strong{font-size:8px}.payment-option-line small{padding:4px 5px;font-size:6.5px}.amount-due{min-height:59px;margin:10px var(--page-pad) 0;padding:8px 75px 8px 10px;border-radius:15px;gap:7px}.amount-icon{width:35px;height:35px}.amount-icon svg{width:21px;height:21px}.amount-title{font-size:15px}.amount-note{font-size:8px}.bottom-waves{height:50px}footer{margin:14px var(--page-pad) 0;font-size:8px}footer small{font-size:7px}
-        }
-
         @page{size:A4 portrait;margin:0}
+        html{min-width:0;background:#dce7e4}
+        body{margin:0;padding:24px;display:flex;justify-content:center;min-height:100vh;background:radial-gradient(circle at 50% 0,#eef6f3 0,#dde9e5 65%,#d2e0dc 100%);color:#10221f;font-family:"Manrope","Hind Siliguri",system-ui,-apple-system,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+        /* Floating Export Toolbar */
+        body>.toolbar{position:fixed;z-index:1000;top:16px;right:16px;display:flex;gap:8px;padding:7px;border:1px solid rgba(15,79,71,.16);border-radius:15px;background:rgba(255,255,255,.94);box-shadow:0 12px 32px rgba(10,55,49,.16);backdrop-filter:blur(12px)}
+        body>.toolbar button{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:40px;padding:0 14px;border:1px solid #0f564d;border-radius:10px;background:linear-gradient(135deg,#16685d,#0c453e);color:#fff;font:700 13.5px/1 "Manrope","Hind Siliguri",sans-serif;white-space:nowrap;cursor:pointer;transition:transform .15s,opacity .15s,background .15s}
+        body>.toolbar button:hover{transform:translateY(-1px);background:linear-gradient(135deg,#1a786c,#0f524a)}
+        body>.toolbar button:disabled{opacity:.65;cursor:wait;transform:none}
+        body>.toolbar button.btn-save-image{border-color:#c4dbd5;background:#fff;color:#113631}
+        body>.toolbar button.btn-save-image:hover{background:#f1f8f6}
+        body>.toolbar button svg{width:17px;height:17px;flex:none}
+        .toolbar-spinner{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.32);border-top-color:#fff;border-radius:50%;animation:tb-spin .7s linear infinite;flex:none}
+        body>.toolbar button.btn-save-image .toolbar-spinner{border-color:rgba(15,86,77,.25);border-top-color:#0f564d}
+        @keyframes tb-spin{to{transform:rotate(360deg)}}
+
+        /* A4 Statement Sheet */
+        .sheet{position:relative;isolation:isolate;display:flex;flex-direction:column;width:min(100%,210mm);min-height:297mm;padding:24px 30px 20px;overflow:hidden;border:1px solid #cddfda;border-radius:22px;background:linear-gradient(160deg,#edf4f2 0%,#f5f9f8 46%,#e8f1ee 100%);box-shadow:0 28px 80px rgba(10,54,48,.16)}
+        .sheet-watermark{position:absolute;right:-10px;bottom:-10px;z-index:0;width:340px;height:390px;pointer-events:none;opacity:.08;color:#0e4f47}
+        .sheet>*:not(.sheet-watermark){position:relative;z-index:1}
+
+        /* Header */
+        .doc-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
+        .brand-wrap{display:flex;align-items:center;gap:14px;min-width:0}
+        .brand-logo{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;color:#0f574e}
+        .brand-logo svg{width:46px;height:46px}
+        .brand-sep{width:1.5px;height:42px;flex:0 0 1.5px;background:#b9cdc7}
+        .brand-copy{min-width:0}
+        .brand-name{margin:0;color:#0c201d;font-size:25px;font-weight:800;letter-spacing:-.035em;line-height:1.08;white-space:nowrap}
+        .brand-address{display:flex;align-items:center;gap:6px;margin-top:4px;color:#556b66;font-size:12px;font-weight:550;line-height:1.2}
+        .brand-address svg{width:13px;height:13px;flex:none;color:#115a50}
+        .header-month{flex:0 0 auto;color:#0f2522;font-size:18px;font-weight:750;letter-spacing:-.02em;white-space:nowrap}
+
+        /* Main Title */
+        .summary-title{margin:0 0 15px;color:#0b1f1c;font-size:24px;font-weight:750;letter-spacing:-.03em;line-height:1.2}
+
+        /* Top Rent & Utilities + Member Pill Bar */
+        .member-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px 10px 16px;margin-bottom:13px;border:1px solid #d9e6e2;border-radius:16px;background:#ffffff;box-shadow:0 8px 22px rgba(13,62,54,.065)}
+        .bar-left{display:flex;align-items:center;gap:12px;min-width:0}
+        .badge-icon{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#186159,#0d3f3a);color:#ffffff;box-shadow:0 4px 10px rgba(13,63,58,.2)}
+        .badge-icon svg{width:18px;height:18px}
+        .bar-title{color:#0f221f;font-size:17px;font-weight:750;letter-spacing:-.02em}
+        .member-pill{display:flex;align-items:center;gap:10px;min-width:184px;padding:7px 16px 7px 12px;border:1px solid #c3e2d6;border-radius:13px;background:linear-gradient(120deg,#f4fbf8 0%,#ddf1e8 100%)}
+        .member-pill svg{width:24px;height:24px;flex:none;color:#125950}
+        .member-pill-label{display:block;color:#526b65;font-size:11px;font-weight:600;line-height:1.1}
+        .member-pill-name{display:block;margin-top:2px;color:#0c201d;font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.15;white-space:nowrap}
+
+        /* Shared Card Surface */
+        .card{margin-bottom:13px;padding:14px 16px 10px;border:1px solid #d9e6e2;border-radius:18px;background:#ffffff;box-shadow:0 8px 22px rgba(13,62,54,.065)}
+        .card-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+        .card-head h2{margin:0;color:#0e211e;font-size:16.5px;font-weight:750;letter-spacing:-.02em}
+
+        /* Detailed Breakdown Dual-Column Table */
+        .breakdown-table{width:100%;border-collapse:collapse;table-layout:fixed}
+        .breakdown-table thead th{padding:8px 10px;background:#e4eeeb;color:#1b332f;font-size:12.5px;font-weight:750;text-align:left;line-height:1.2}
+        .breakdown-table thead th:first-child{border-radius:8px 0 0 8px}
+        .breakdown-table thead th:last-child{border-radius:0 8px 8px 0;text-align:right}
+        .breakdown-table thead th.col-num{text-align:right}
+        .breakdown-table tbody td{padding:8px 10px;border-bottom:1px solid #ebf1ef;color:#1c2e2b;font-size:13px;font-weight:550;line-height:1.25}
+        .breakdown-table tbody tr:last-child td{border-bottom:0}
+        .breakdown-table tbody td.col-num{text-align:right;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap;color:#0f2320}
+        .breakdown-table tbody td.col-split{padding-left:18px}
+
+        /* Two-Column Middle Grid */
+        .mid-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:13px}
+        .mid-grid .card{margin-bottom:0;display:flex;flex-direction:column}
+        .mini-table{width:100%;border-collapse:collapse}
+        .mini-table thead th{padding:8px 10px;background:#e4eeeb;color:#1b332f;font-size:12.5px;font-weight:750;text-align:left}
+        .mini-table thead th:first-child{border-radius:8px 0 0 8px}
+        .mini-table thead th:last-child{border-radius:0 8px 8px 0;text-align:right}
+        .mini-table tbody td{padding:8px 10px;border-bottom:1px solid #ebf1ef;color:#223532;font-size:13px;font-weight:550;line-height:1.2}
+        .mini-table tbody td:last-child{text-align:right;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap;color:#0f2320}
+        .mini-table tbody tr.row-total td{border-bottom:0;padding-top:9px;font-weight:800;color:#0b1f1c}
+
+        /* Value Accent Colors */
+        .val-credit,.val-zero{color:#0f7c56!important}
+        .val-due{color:#0f2320!important}
+        .row-total .val-due{color:#b43a47!important}
+        .val-paid{color:#0f7c56!important}
+
+        /* Secure Payment Options Table */
+        .pay-table{width:100%;border-collapse:collapse}
+        .pay-table thead th{padding:8px 10px;background:#e4eeeb;color:#1b332f;font-size:12.5px;font-weight:750;text-align:left}
+        .pay-table thead th:first-child{border-radius:8px 0 0 8px;width:30%}
+        .pay-table thead th:nth-child(2){width:36%}
+        .pay-table thead th:last-child{border-radius:0 8px 8px 0;width:34%}
+        .pay-table tbody td{padding:8px 10px;border-bottom:1px solid #ebf1ef;color:#203330;font-size:13px;font-weight:550;vertical-align:middle}
+        .pay-table tbody tr:last-child td{border-bottom:0}
+        .pay-method-cell{display:flex;align-items:center;gap:10px}
+        .pay-logo{width:32px;height:22px;flex:0 0 32px;object-fit:contain;border-radius:5px;background:#fff}
+        .pay-logo-fallback{width:26px;height:22px;flex:0 0 26px;display:grid;place-items:center;border-radius:6px;background:#e4f2ec;color:#0f5a4f;font-size:11.5px;font-weight:800}
+        .pay-method-name{color:#0d211e;font-weight:750}
+        .pay-instructions-cell{color:#354c48}
+        .pay-account-cell{color:#0c201d;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+
+        /* Signature Split Amount Due Banner */
+        .amount-banner{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 56%;align-items:stretch;min-height:60px;margin-top:auto;overflow:hidden;border:1px solid #c9dcd6;border-radius:16px;background:#eef5f3;box-shadow:0 8px 22px rgba(10,58,51,.12)}
+        .amount-banner-left{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#eef5f3}
+        .amount-banner-label{color:#0d221f;font-size:18px;font-weight:800;letter-spacing:-.02em}
+        .amount-banner-right{position:relative;display:flex;align-items:center;justify-content:flex-end;padding:10px 24px 10px 44px;background:linear-gradient(120deg,#185e56 0%,#0b3b36 100%);color:#ffffff}
+        .amount-banner-curve{position:absolute;top:0;bottom:0;left:-1px;width:42px;height:100%;display:block;pointer-events:none}
+        .amount-banner-value{position:relative;z-index:1;font-size:26px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+        /* Estimated Total Strip */
+        .estimate-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:9px;padding:9px 16px;border:1px dashed #9fc3b8;border-radius:13px;background:rgba(255,255,255,.78)}
+        .estimate-left{display:flex;align-items:center;gap:9px;min-width:0}
+        .estimate-dot{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;border-radius:50%;background:#e0f1eb;color:#0f5c52;font-size:12px;font-weight:800}
+        .estimate-copy{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px;min-width:0}
+        .estimate-copy strong{color:#0f2622;font-size:13.5px;font-weight:800}
+        .estimate-copy small{color:#526b65;font-size:12px;font-weight:600}
+        .estimate-value{flex:0 0 auto;color:#0e4f47;font-size:17px;font-weight:850;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+        /* Footer */
+        .doc-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:2px;color:#556b66;font-size:12.5px;font-weight:550}
+        .doc-footer strong{color:#0f2622;font-weight:800}
+
+        @media(max-width:650px){
+          body{padding:0;background:#edf4f2}
+          body>.toolbar{top:auto;right:12px;bottom:12px;left:12px;justify-content:center}
+          .sheet{width:100%;min-height:100svh;padding:18px 14px 76px;border:0;border-radius:0;box-shadow:none}
+          .doc-header{margin-bottom:16px;gap:10px}
+          .brand-logo{width:38px;height:38px;flex-basis:38px}
+          .brand-logo svg{width:36px;height:36px}
+          .brand-sep{height:34px}
+          .brand-name{font-size:19px}
+          .brand-address{font-size:10px}
+          .header-month{font-size:13.5px}
+          .summary-title{margin-bottom:14px;font-size:19px}
+          .member-bar{padding:10px 12px;border-radius:14px;margin-bottom:12px}
+          .badge-icon{width:32px;height:32px;flex-basis:32px}
+          .badge-icon svg{width:16px;height:16px}
+          .bar-title{font-size:14.5px}
+          .member-pill{min-width:128px;padding:6px 10px;gap:8px;border-radius:11px}
+          .member-pill svg{width:20px;height:20px}
+          .member-pill-label{font-size:9.5px}
+          .member-pill-name{font-size:14px}
+          .card{margin-bottom:12px;padding:12px 12px 10px;border-radius:15px}
+          .card-head{gap:9px;margin-bottom:10px}
+          .card-head h2{font-size:15px}
+          .breakdown-table thead th,.mini-table thead th,.pay-table thead th{padding:7px 8px;font-size:11px}
+          .breakdown-table tbody td,.mini-table tbody td,.pay-table tbody td{padding:8px 8px;font-size:11.5px}
+          .breakdown-table tbody td.col-split{padding-left:10px}
+          .mid-grid{grid-template-columns:1fr;gap:12px;margin-bottom:12px}
+          .amount-banner{min-height:56px;border-radius:14px}
+          .amount-banner-label{font-size:15px}
+          .amount-banner-value{font-size:21px}
+          .doc-footer{margin-top:16px;font-size:11.5px}
+        }
+
         @media print{
-          html,body{width:210mm;height:100%;margin:0!important;padding:0!important;background:#fff}
-          body{display:block;min-height:297mm;overflow:visible}
-          .sheet{--page-pad:9mm;width:210mm;height:auto;min-height:296mm;max-height:none;margin:0;padding-bottom:14mm;overflow:visible;border:0;border-radius:0;box-shadow:none;page-break-inside:auto;break-inside:auto}
-          .hero{min-height:63mm;padding:8mm var(--page-pad) 19mm}.topbar{display:flex;grid-template-columns:none}.toolbar{display:none!important}.brand-mark{width:18mm;height:18mm;flex-basis:18mm}.brand-title{font-size:9mm}.brand-subtitle{font-size:3.7mm}.bill-pill{min-height:13mm;font-size:4.2mm}.hero-scene{height:54mm}
-          .headline{min-height:31mm;margin:-12mm var(--page-pad) 4.5mm;padding:6mm 4mm 2mm}.statement-kicker{font-size:3.7mm}h1{font-size:11mm}.month{font-size:4.1mm}.member-card{min-height:19mm}.member-name{font-size:5.5mm}
-          .two-columns,.lower-grid{gap:3.5mm}.two-columns{margin-bottom:3.5mm}.panel{padding:3.3mm 3.6mm}.panel-title{font-size:4.8mm}.line{min-height:10mm;font-size:3.7mm}.line>strong{font-size:4.2mm}.line.due{min-height:11mm}.summary-panel,.payment-panel{min-height:77mm}.payment-panel .panel-title{font-size:5.1mm}.payment-panel .line{font-size:4mm}.payment-panel .line>strong{font-size:4.5mm}.payment-methods-panel{margin-top:4mm;padding:3mm 3.5mm;break-inside:avoid}.payment-methods-heading{margin-bottom:2.5mm}.payment-options-inline{grid-template-columns:repeat(4,minmax(0,1fr));gap:2mm}.payment-option-line{min-height:20mm;padding:2mm}.payment-option-line strong{font-size:3.2mm}.payment-option-line small{font-size:2.7mm}
-          .amount-due{min-height:22mm;margin-top:5mm}.amount-title{font-size:7mm}.amount-note{font-size:4mm}footer{margin-top:6mm;font-size:3.4mm}.bottom-waves{height:16mm}
+          html,body{width:210mm;height:100%;margin:0!important;padding:0!important;background:#edf4f2}
+          body{display:block;min-height:297mm}
+          body>.toolbar{display:none!important}
+          .sheet{width:210mm;min-height:297mm;margin:0;padding:10mm 10mm 9mm;border:0;border-radius:0;box-shadow:none}
         }
       </style></head><body lang="en">
         <div class="toolbar" data-html2canvas-ignore="true">
@@ -7180,49 +6898,184 @@ function App() {
           <button type="button" class="btn-save-image" onclick="window.saveBillAsImage(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>Save as image</span></button>
         </div>
         <main class="sheet">
-        <header class="hero">
-          <div class="topbar">
-            <div class="brand"><div class="brand-mark"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 29 32 7l25 22" stroke-width="4"/><path d="M13 27v29h38V27" stroke-width="4"/><path d="M32 54V31" stroke-width="3"/><path d="M31 42c-10-1-15-7-16-17 10 0 17 5 19 14" fill="currentColor" stroke="none"/><path d="M33 42c10-1 15-7 16-17-10 0-17 5-19 14" fill="currentColor" stroke="none"/></svg></div><span class="brand-divider" aria-hidden="true"></span><div><div class="brand-title">MridhaBari 6B</div><div class="brand-subtitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</div></div></div>
-            <div class="bill-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg><span>${escapeHtml(month)}</span></div>
+          <svg class="sheet-watermark" viewBox="0 0 360 420" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+            <path d="M210 420V92l118-48v376"/>
+            <path d="M110 420V165l100-38"/>
+            <path d="M40 420V250l70-22"/>
+            <path d="M236 130h66M236 168h66M236 206h66M236 244h66M236 282h66M236 320h66M236 358h66"/>
+            <path d="M132 198h56M132 232h56M132 266h56M132 300h56M132 334h56M132 368h56"/>
+            <path d="M268 78v342M160 148v272"/>
+          </svg>
+
+          <header class="doc-header">
+            <div class="brand-wrap">
+              <div class="brand-logo" aria-hidden="true">
+                <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M8 29 32 9l24 20" stroke-width="3.8"/>
+                  <path d="M14 26v28h36V26" stroke-width="3.8"/>
+                  <path d="M32 52V31" stroke-width="2.8"/>
+                  <path d="M31 42c-9-1-14-6-15-15 9 0 15 5 17 13" fill="currentColor" stroke="none"/>
+                  <path d="M33 42c9-1 14-6 15-15-9 0-15 5-17 13" fill="currentColor" stroke="none"/>
+                </svg>
+              </div>
+              <span class="brand-sep" aria-hidden="true"></span>
+              <div class="brand-copy">
+                <div class="brand-name">MridhaBari 6B</div>
+                <div class="brand-address">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                  <span>Ka/164, Kuratoli, Kuril, Vatara, Dhaka 1229</span>
+                </div>
+              </div>
+            </div>
+            <div class="header-month">${escapeHtml(month)}</div>
+          </header>
+
+          <h1 class="summary-title">Your Residence Summary - ${escapeHtml(month)}</h1>
+
+          <section class="member-bar">
+            <div class="bar-left">
+              <span class="badge-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg>
+              </span>
+              <span class="bar-title">Rent &amp; Utilities</span>
+            </div>
+            <div class="member-pill">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
+              <div>
+                <span class="member-pill-label">Member</span>
+                <span class="member-pill-name">${escapeHtml(member.name)}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <span class="badge-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+              </span>
+              <h2>Detailed Breakdown</h2>
+            </div>
+            <table class="breakdown-table">
+              <thead>
+                <tr>
+                  <th style="width:33%">Statement Overview</th>
+                  <th class="col-num" style="width:17%">Amount</th>
+                  <th class="col-split" style="width:33%">Meal Details</th>
+                  <th class="col-num" style="width:17%">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Room Rent + Utilities Share</td>
+                  <td class="col-num">${money(rentAndUtilities)}</td>
+                  <td class="col-split">Meal Cost (Your Share)</td>
+                  <td class="col-num">${money(mealCost)}</td>
+                </tr>
+                <tr>
+                  <td>Paid</td>
+                  <td class="col-num">${money(rentPaid)}</td>
+                  <td class="col-split">Meal Paid</td>
+                  <td class="col-num">${money(mealPaid)}</td>
+                </tr>
+                <tr>
+                  <td>Due (This Month)</td>
+                  <td class="col-num ${rentDueTone}">${signedMoney(rentUtilitiesDue)}</td>
+                  <td class="col-split">Balance / Credit</td>
+                  <td class="col-num ${mealDueTone}">${signedMoney(mealBalance)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <div class="mid-grid">
+            <section class="card">
+              <div class="card-head">
+                <span class="badge-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V11m5 8V6m5 13v-7m5 7V4"/></svg>
+                </span>
+                <h2>Summary</h2>
+              </div>
+              <table class="mini-table">
+                <thead>
+                  <tr><th>Description</th><th>Amount</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Rent &amp; Utilities Due</td><td class="${rentDueTone}">${signedMoney(rentUtilitiesDue)}</td></tr>
+                  <tr><td>Meal Balance</td><td class="${mealDueTone}">${signedMoney(mealBalance)}</td></tr>
+                  <tr><td>This Month Balance</td><td class="${currentBalanceTone}">${signedMoney(currentBalance)}</td></tr>
+                  <tr><td>Previous Balance</td><td class="${prevBalanceTone}">${signedMoney(previousBalance)}</td></tr>
+                  <tr class="row-total"><td>Final Balance Due</td><td class="${finalBalanceTone}">${signedMoney(finalBalance)}</td></tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="card">
+              <div class="card-head">
+                <span class="badge-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18m-4 4h.01"/></svg>
+                </span>
+                <h2>Payment Breakdown</h2>
+              </div>
+              <table class="mini-table">
+                <thead>
+                  <tr><th>Description</th><th>Amount</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Total Charges</td><td>${money(currentCharges)}</td></tr>
+                  <tr><td>Rent Paid</td><td>${money(rentPaid)}</td></tr>
+                  <tr><td>Meal Paid</td><td>${money(mealPaid)}</td></tr>
+                  <tr class="row-total"><td>Total Paid</td><td class="val-paid">${money(totalPaid)}</td></tr>
+                </tbody>
+              </table>
+            </section>
           </div>
-          <div class="hero-scene" aria-hidden="true"><svg viewBox="0 0 620 270" preserveAspectRatio="xMidYMax meet"><defs><linearGradient id="wall" x1="0" x2="1"><stop stop-color="#fdfefe"/><stop offset="1" stop-color="#dce8e7"/></linearGradient><linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#385d62"/><stop offset="1" stop-color="#0d292d"/></linearGradient></defs><g opacity=".98"><path d="M175 76 302 25v226H175Z" fill="url(#wall)"/><path d="M302 25 405 68v183H302Z" fill="#cbd8d8"/><path d="M270 49h31v202h-31z" fill="#f7fbfb"/><path d="M187 90h67v161h-67z" fill="#eef3f3"/><path d="M319 81h73v170h-73z" fill="#edf3f2"/><g fill="url(#glass)"><path d="M198 104h42v34h-42zM198 158h42v34h-42zM198 212h42v31h-42zM326 96h48v35h-48zM326 150h48v35h-48zM326 204h48v38h-48z"/></g><g fill="#fff"><path d="M190 139h58v8h-58zM190 193h58v8h-58zM318 132h64v8h-64zM318 186h64v8h-64z"/></g><path d="M405 68 515 42v209H405Z" fill="url(#wall)"/><path d="M515 42 587 83v168h-72Z" fill="#c9d8d8"/><g fill="url(#glass)"><path d="M422 82h37v39h-37zM470 70h31v42h-31zM422 143h37v39h-37zM470 132h31v42h-31zM422 204h37v39h-37zM470 194h31v45h-31zM530 91h37v40h-37zM530 153h37v40h-37zM530 214h37v30h-37z"/></g></g><g fill="#2b9a4f"><circle cx="130" cy="220" r="46"/><circle cx="92" cy="238" r="38"/><circle cx="560" cy="211" r="55"/><circle cx="606" cy="232" r="44"/></g><g fill="#66bd63"><circle cx="151" cy="237" r="31"/><circle cx="531" cy="239" r="36"/></g></svg></div>
-        </header>
-        <div class="headline">
-          <div class="title-block"><div><div class="statement-kicker">— MONTHLY BILL STATEMENT</div><h1>${escapeHtml(month)}</h1><div class="month">Your residence account summary for this month</div></div></div>
-          <div class="member-card"><svg class="member-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><div><div class="member-caption">Member</div><div class="member-name">${escapeHtml(member.name)}</div></div></div>
-        </div>
-        <div class="two-columns">
-          <section class="panel"><div class="panel-title"><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9M9 21v-7h6v7"/></svg></span>Rent &amp; Utilities</div>
-            <div class="line"><span>Room Rent + Utilities Share</span><strong>${money(rentAndUtilities)}</strong></div>
-            <div class="line paid"><span>Paid</span><strong>${money(rentPaid)}</strong></div>
-            <div class="line due"><span>Due (This Month)</span><strong class="${rentDueColor}">${signedMoney(rentUtilitiesDue)}</strong></div>
+
+          ${paymentRowsHtml ? `<section class="card">
+            <div class="card-head">
+              <span class="badge-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/></svg>
+              </span>
+              <h2>Secure Payment Options</h2>
+            </div>
+            <table class="pay-table">
+              <thead>
+                <tr><th>Method</th><th>Instructions</th><th>Details/Account</th></tr>
+              </thead>
+              <tbody>${paymentRowsHtml}</tbody>
+            </table>
+          </section>` : ""}
+
+          <section class="amount-banner">
+            <div class="amount-banner-left">
+              <span class="badge-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h14a2 2 0 0 1 2 2v9H4a2 2 0 0 1-2-2V7a3 3 0 0 1 3-3h12"/><path d="M16 12h6v4h-6a2 2 0 0 1 0-4Z"/></svg>
+              </span>
+              <span class="amount-banner-label">${finalBalance < 0 ? "Credit Balance" : "Amount Due"}</span>
+            </div>
+            <div class="amount-banner-right">
+              <svg class="amount-banner-curve" viewBox="0 0 44 76" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0 0 H44 C26 0 24 76 0 76 Z" fill="#eef5f3"/>
+              </svg>
+              <span class="amount-banner-value">${signedMoney(finalBalance)}</span>
+            </div>
           </section>
-          <section class="panel"><div class="panel-title"><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v7m-3-7v4a3 3 0 0 0 6 0V3m-3 7v11M17 3v18m0-18c3 2 3 7 0 9"/></svg></span>Meal (Food)</div>
-            <div class="line"><span>Meal Cost (Your Share)</span><strong>${money(mealCost)}</strong></div>
-            <div class="line paid"><span>Meal Paid</span><strong>${money(mealPaid)}</strong></div>
-            <div class="line due"><span>Balance / Credit</span><strong class="${mealDueColor}">${signedMoney(mealBalance)}</strong></div>
+
+          <section class="estimate-strip">
+            <div class="estimate-left">
+              <span class="estimate-dot" aria-hidden="true">≈</span>
+              <div class="estimate-copy">
+                <strong>Estimated Total</strong>
+                <small>(if Meal Cost reaches ${money(estimatedMealTarget)})</small>
+              </div>
+            </div>
+            <strong class="estimate-value ${toneClass(estimatedMonthDue)}">${signedMoney(estimatedMonthDue)}</strong>
           </section>
-        </div>
-        <div class="lower-grid">
-          <section class="panel summary-panel"><div class="panel-title"><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/></svg></span>Summary</div>
-            <div class="line"><span>Rent &amp; Utilities Due</span><strong>${signedMoney(rentUtilitiesDue)}</strong></div>
-            <div class="line"><span>Meal Balance (Credit)</span><strong>${signedMoney(mealBalance)}</strong></div>
-            <div class="line highlight"><span>This Month Balance</span><strong>${signedMoney(currentBalance)}</strong></div>
-            <div class="line"><span>Previous Month Balance (Credit)</span><strong>${signedMoney(previousBalance)}</strong></div>
-            <div class="line final-line"><span>Final Balance Due</span><strong>${signedMoney(finalBalance)}</strong></div>
-            <div class="line final-line estimated-line"><span>Estimated Due<small>Total Meal Cost ${money(estimatedMealTarget)}</small></span><strong>${signedMoney(estimatedMonthDue)}</strong></div>
-          </section>
-          <section class="panel payment-panel"><div class="panel-title"><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18m-4 5h.01"/></svg></span>Payment Breakdown</div>
-            <div class="line"><span>Rent Paid</span><strong>${money(rentPaid)}</strong></div>
-            <div class="line"><span>Meal Paid</span><strong>${money(mealPaid)}</strong></div>
-            <div class="line highlight"><span>Total Paid</span><strong class="positive">${money(totalPaid)}</strong></div>
-          </section>
-        </div>
-        ${paymentMethodsHtml ? `<section class="payment-methods-panel"><div class="payment-methods-heading"><span class="payment-methods-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18m-4 5h.01"/></svg></span><div><strong>Payment Methods</strong><small>Use any account below to make your payment</small></div></div>${paymentMethodsHtml}</section>` : ""}
-        <div class="amount-due"><span class="amount-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h14a2 2 0 0 1 2 2v9H4a2 2 0 0 1-2-2V7a3 3 0 0 1 3-3h12"/><path d="M16 12h6v4h-6a2 2 0 0 1 0-4Z"/></svg></span><div><div class="amount-title">Amount Due: ${signedMoney(finalBalance)}</div><div class="amount-note">${finalBalance > 0 ? "Please clear the due amount at your earliest convenience." : "Your account has a credit balance."}</div></div><svg class="house-art" viewBox="0 0 160 100" fill="none" aria-hidden="true"><path d="M5 88c22-7 36-4 53 0 20 5 41 5 58-1 16-5 27-4 39 1v12H5V88Z" fill="#B9E8A6"/><path d="m31 62 34-31 34 31v31H31V62Z" fill="#FFF9E8" stroke="#14864D" stroke-width="5" stroke-linejoin="round"/><path d="m21 62 44-40 44 40-7 7-37-33-37 33-7-7Z" fill="#078C4A"/><path d="M84 34V18h13v28" fill="#168E4A" stroke="#087342" stroke-width="4"/><path d="M53 67h23v26H53z" fill="#FFF1C9" stroke="#16884B" stroke-width="3"/><path d="M64.5 68v24M54 80h21" stroke="#E8A72E" stroke-width="2"/><path d="M16 87c-8-10-4-20 2-23 7 5 9 14 4 22m-8 0c-2-12 2-19 9-21m-4 21h14" stroke="#36A84C" stroke-width="4" stroke-linecap="round"/><path d="M125 88c-5-9-2-17 4-20 7 5 8 13 3 20m-7 0c-2-10 2-16 8-18m-6 18h16" stroke="#36A84C" stroke-width="4" stroke-linecap="round"/><circle cx="21" cy="80" r="7" fill="#84D66F"/><circle cx="133" cy="78" r="8" fill="#78CE64"/></svg></div>
-        <footer><span>Generated by <strong>MridhaBari 6B</strong></span><small>${escapeHtml(generatedDate)} &nbsp;•&nbsp; Dhaka, Bangladesh</small></footer>
-        <div class="bottom-waves" aria-hidden="true"></div>
-      </main>
+
+          <footer class="doc-footer">
+            <span>${escapeHtml(generatedDate)}</span>
+            <span>Generated by <strong>MridhaBari 6B</strong></span>
+          </footer>
+        </main>
       <script>
         (function() {
           var billMonth = ${JSON.stringify(month || "Monthly")};
@@ -8867,16 +8720,17 @@ function App() {
                       <tr>
                         <th>Member</th>
                         <th>Rent</th>
-                        <th>Individual meal</th>
+                        <th>Ind. meal</th>
                         <th>Rent paid</th>
                         <th>Meal paid</th>
-                        <th>Previous Due</th>
+                        <th>Prev. due</th>
                         <th>Due</th>
+                        <th className="member-balance-report-col">PDF</th>
                       </tr>
                     </thead>
                     <tbody>
                       {allDue.map((x) => (
-                        <tr>
+                        <tr key={x.u.id}>
                           <td>
                             <div className="person">
                               {x.u.photo_url ? (
@@ -8892,9 +8746,20 @@ function App() {
                               )}
                               <b>{x.u.name}</b>
                             </div>
-                            <span className="mobile-due">
-                              {money(memberDue(x.u) + (previousDueByUser[x.u.id] || 0))}
-                            </span>
+                            <div className="mobile-balance-actions">
+                              <span className="mobile-due">
+                                {money(memberDue(x.u) + (previousDueByUser[x.u.id] || 0))}
+                              </span>
+                              <button
+                                type="button"
+                                className="icon-btn member-report-download mobile-report-download"
+                                title={`Download ${x.u.name} ${month} bill PDF`}
+                                aria-label={`Download ${x.u.name} ${month} bill PDF`}
+                                onClick={() => exportMemberBill(x.u)}
+                              >
+                                <Download size={14} />
+                              </button>
+                            </div>
                           </td>
                           <td>{money(memberRentShare(x.u))}</td>
                           <td>{money(memberMealShare(x.u))}</td>
@@ -8902,6 +8767,17 @@ function App() {
                           <td className="green-text">{money(memberMealPaid(x.u.id))}</td>
                           <td>{previousDueLoading ? "Loading…" : money(previousDueByUser[x.u.id] || 0)}</td>
                           <td className="due">{money(memberDue(x.u) + (previousDueByUser[x.u.id] || 0))}</td>
+                          <td className="member-balance-report-cell">
+                            <button
+                              type="button"
+                              className="icon-btn member-report-download"
+                              title={`Download ${x.u.name} ${month} bill PDF`}
+                              aria-label={`Download ${x.u.name} ${month} bill PDF`}
+                              onClick={() => exportMemberBill(x.u)}
+                            >
+                              <Download size={15} />
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -10143,13 +10019,12 @@ function App() {
                       <th>Meal</th>
                       <th>Status</th>
                       <th>Last active</th>
-                      <th>Report</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {db.users.map((u) => (
-                      <tr>
+                      <tr key={u.id}>
                         <td>
                           <b>{u.name}</b>
                           <small className="role">{u.role}</small>
@@ -10175,16 +10050,6 @@ function App() {
                         </td>
                         <td title={u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : "No recorded login"}>
                           {formatLastActive(u.lastLoginAt)}
-                        </td>
-                        <td>
-                          <button
-                            className="icon-btn member-report-download"
-                            title={`Download ${u.name} ${month} bill`}
-                            aria-label={`Download ${u.name} ${month} bill`}
-                            onClick={() => exportMemberBill(u)}
-                          >
-                            <Download size={16} />
-                          </button>
                         </td>
                         <td>
                           <div className="actions">
@@ -10998,10 +10863,19 @@ function App() {
                   </section>
                   </div>
                 )}
-                <div className="total-row bazar-total-row">
-                  <b>Total bazar purchased</b>
-                  <b><span>{money(selectedBazarTotal)}</span></b>
-                  <ShoppingBasket className="bazar-total-icon" size={64} aria-hidden="true" />
+                <div className="total-row bazar-total-row bazar-total-split-banner">
+                  <div className="bazar-total-left">
+                    <span className="bazar-total-badge" aria-hidden="true">
+                      <ShoppingBasket size={18} />
+                    </span>
+                    <b className="bazar-total-label">Total bazar purchased</b>
+                  </div>
+                  <div className="bazar-total-right">
+                    <svg className="bazar-total-curve" viewBox="0 0 44 76" preserveAspectRatio="none" aria-hidden="true">
+                      <path d="M0 0 H44 C26 0 24 76 0 76 Z" fill="currentColor" />
+                    </svg>
+                    <b className="bazar-total-value"><span>{money(selectedBazarTotal)}</span></b>
+                  </div>
                 </div>
                 <div className="bazar-mobile-table-tools">
                   <label className="bazar-search">
