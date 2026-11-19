@@ -2100,3 +2100,670 @@ html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme > .main.inbo
     font-size: 10px !important;
   }
 }
+
+/* Monthly Bazar desktop table header: flush full-width fill with no right-edge gap */
+@media (min-width: 701px) {
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel > .table-wrap,
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel > .table-wrap:has(.bazar-row-menu-popover) {
+    scrollbar-gutter: auto !important;
+  }
+}
+
+@media (min-width: 901px) {
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel > .table-wrap::after,
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel > .table-wrap::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel > .table-wrap > table > thead {
+    width: 100% !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel > .table-wrap > table > thead th:first-child {
+    border-radius: 21px 0 0 0 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel > .table-wrap > table > thead th:last-child {
+    width: 126px !important;
+    padding-right: 24px !important;
+    border-radius: 0 21px 0 0 !important;
+  }
+}
+
+/* Item Usage Details modal: preserve intended 520px track width & clear close-button spacing */
+:root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-backdrop {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-modal {
+  width: min(100%, 520px) !important;
+}
+
+:root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-head {
+  padding-right: 52px !important;
+}
+
+@media (max-width: 700px) {
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-backdrop {
+    padding: 10px !important;
+    overflow: hidden !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-modal {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-height: calc(100dvh - 20px) !important;
+    padding: 14px !important;
+    overflow: hidden !important;
+    border-radius: 18px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-close-icon {
+    top: 12px !important;
+    right: 12px !important;
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-head {
+    flex: 0 0 auto !important;
+    gap: 11px !important;
+    padding-right: 42px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-icon {
+    width: 54px !important;
+    min-width: 54px !important;
+    height: 54px !important;
+    border-radius: 13px !important;
+    font-size: 34px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-icon > :is(img, svg) {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-head small {
+    font-size: 10px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-head h3 {
+    margin: 1px 0 !important;
+    font-size: 19px !important;
+    line-height: 1.15 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-head p {
+    font-size: 11.5px !important;
+    line-height: 1.3 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-summary {
+    flex: 0 0 auto !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin: 12px 0 10px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-summary > div {
+    padding: 9px 11px !important;
+    border-radius: 11px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-summary span {
+    font-size: 10.5px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-summary strong {
+    margin-top: 2px !important;
+    font-size: 15px !important;
+    line-height: 1.2 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-list {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    gap: 6px !important;
+    margin: 0 0 10px !important;
+    padding-right: 4px !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(11, 130, 84, .34) transparent !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-row {
+    flex: 0 0 auto !important;
+    grid-template-columns: 36px minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 9px !important;
+    padding: 8px 10px !important;
+    border-radius: 11px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-row-icon {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 9px !important;
+    font-size: 22px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-row strong {
+    font-size: 13.5px !important;
+    line-height: 1.2 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-row small {
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-row > b {
+    grid-column: auto !important;
+    justify-self: end !important;
+    font-size: 14px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .bazar-usage-details-close {
+    flex: 0 0 auto !important;
+    min-height: 40px !important;
+    margin: 0 !important;
+  }
+
+  /* My Account mobile timeline: remove stray vertical connector bar overlapping bottom status pills */
+  :root body #app-shell#app-shell.app.premium-theme .main.my-account-page .account-payment-marker::after,
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.my-account-page .account-payment-marker::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.my-account-page .account-payment-content,
+  :root body #app-shell#app-shell.app.premium-theme .main.my-account-page .account-payment-value {
+    position: relative !important;
+    z-index: 2 !important;
+  }
+
+  /* Phone timeline: status/amount row sits under the text so the vertical line runs clear in the marker column */
+  :root body #app-shell#app-shell.app.premium-theme .main.my-account-page .account-payment-event {
+    position: relative !important;
+    grid-template-columns: 42px 28px minmax(0, 1fr) !important;
+    grid-template-areas:
+      "payment-date payment-marker payment-content"
+      "payment-date payment-marker payment-value" !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.my-account-page .account-payment-event::before {
+    position: absolute !important;
+    top: 0 !important;
+    bottom: -1px !important;
+    left: 63px !important;
+    z-index: 0 !important;
+    width: 2px !important;
+    background: #d1e5de !important;
+    content: "" !important;
+    pointer-events: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.my-account-page .account-payment-event:first-child::before {
+    top: 33px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.my-account-page .account-payment-event:last-child::before {
+    bottom: auto !important;
+    height: 0 !important;
+    display: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.my-account-page .account-payment-event .account-payment-marker {
+    position: relative !important;
+    z-index: 1 !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.my-account-page .account-payment-event::before {
+    background: rgba(82, 146, 124, .34) !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.my-account-page .account-payment-value {
+    margin: 0 !important;
+    padding-top: 6px !important;
+    border-top: 0 !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+}
+
+/* Meal Settlement phone: compact member balance cards (name + status on top, three stats in one row) */
+@media (max-width: 700px) {
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody {
+    gap: 7px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody tr,
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody tr.balance-row-pay,
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody tr.balance-row-receive,
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody tr.balance-row-settled {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    grid-template-areas:
+      "member member status status status status"
+      "cost cost paid paid balance balance" !important;
+    border-radius: 12px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td,
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(n) {
+    min-height: 0 !important;
+    padding: 6px 10px !important;
+    border: 0 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:first-child {
+    min-height: 0 !important;
+    padding: 8px 6px 6px 10px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(5) {
+    align-items: flex-end !important;
+    padding: 8px 10px 6px 4px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(5)::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(n+2):nth-child(-n+4) {
+    border-top: 1px solid #edf2ef !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(2),
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(3) {
+    border-right: 1px solid #edf2ef !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(n+2):nth-child(-n+4)::before {
+    margin-bottom: 2px !important;
+    font-size: 9.5px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(2),
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(3) {
+    font-size: 14px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-person {
+    gap: 8px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-person .avatar.small {
+    width: 28px !important;
+    height: 28px !important;
+    flex: 0 0 28px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-person b {
+    font-size: 14px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-balance-amount {
+    font-size: 14px !important;
+    line-height: 1.15 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-balance-prev-due {
+    margin-top: 2px !important;
+    padding: 1px 6px !important;
+    font-size: 9.5px !important;
+    line-height: 1.3 !important;
+    white-space: nowrap !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-status-col {
+    justify-content: flex-end !important;
+    align-items: flex-end !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-balance-pill {
+    min-height: 24px !important;
+    padding: 3px 9px !important;
+    border-radius: 8px !important;
+    font-size: 11px !important;
+    gap: 4px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-balance-pill > span,
+  :root body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-balance-pill > strong {
+    position: static !important;
+    margin: 0 !important;
+    flex: 0 0 auto !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(n+2):nth-child(-n+4),
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(2),
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.settlement-page .settlement-balance-row .settlement-member-table tbody td:nth-child(3) {
+    border-color: rgba(126, 160, 148, .16) !important;
+  }
+}
+
+/* Monthly Bazar phone: clean fintech-style ledger card redesign */
+@media (max-width: 700px) {
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel > .table-wrap > table,
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel > .table-wrap > table > tbody {
+    gap: 8px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined) {
+    grid-template-columns: 42px minmax(0, 1fr) auto !important;
+    grid-template-rows: auto auto !important;
+    grid-template-areas:
+      "entry-date entry-items entry-amount"
+      "entry-date entry-paid entry-actions" !important;
+    align-items: center !important;
+    gap: 5px 10px !important;
+    padding: 10px 11px !important;
+    border: 1px solid rgba(13, 111, 73, .12) !important;
+    border-radius: 15px !important;
+    background: #ffffff !important;
+    box-shadow: 0 3px 12px rgba(15, 58, 42, .05) !important;
+  }
+
+  /* Sleek soft-tinted date badge (replaces heavy calendar cap on phone) */
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined) .bazar-date-tile,
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-row-combined .bazar-date-tile {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 1px !important;
+    width: 42px !important;
+    min-width: 42px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 4px 2px !important;
+    border: 1px solid rgba(16, 139, 95, .16) !important;
+    border-radius: 12px !important;
+    background: linear-gradient(160deg, #effaf4 0%, #e1f4ea 100%) !important;
+    box-shadow: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-date-tile > strong {
+    flex: 0 0 auto !important;
+    color: #0b4a33 !important;
+    font-size: 15.5px !important;
+    font-weight: 850 !important;
+    line-height: 1.05 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-date-tile > span {
+    height: auto !important;
+    width: auto !important;
+    background: transparent !important;
+    color: #167956 !important;
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    letter-spacing: .07em !important;
+    line-height: 1 !important;
+  }
+
+  /* Primary headline: Items text */
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined) > .bazar-items-cell {
+    grid-area: entry-items !important;
+    display: block !important;
+    align-self: start !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 1px 0 0 !important;
+    border-top: 0 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row) > td.bazar-items-cell .bazar-item-summary {
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2 !important;
+    overflow: hidden !important;
+    color: #132a21 !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    line-height: 1.35 !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* Clean borderless right-aligned amount */
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined) > .bazar-amount-cell {
+    grid-area: entry-amount !important;
+    align-self: start !important;
+    justify-content: flex-end !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined) .bazar-amount-value {
+    min-height: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #08734f !important;
+    font-size: 15.5px !important;
+    font-weight: 850 !important;
+    font-variant-numeric: tabular-nums !important;
+    letter-spacing: -.01em !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+  }
+
+  /* Lightweight inline payer meta (no heavy pill box) */
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined) > .bazar-paid-cell {
+    grid-area: entry-paid !important;
+    align-self: center !important;
+    justify-content: flex-start !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined) .bazar-paid-by {
+    gap: 5px !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #5b7267 !important;
+    font-size: 11.5px !important;
+    font-weight: 600 !important;
+    line-height: 1.1 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined) .bazar-paid-avatar {
+    align-items: center !important;
+    justify-content: center !important;
+    width: 18px !important;
+    min-width: 18px !important;
+    height: 18px !important;
+    flex: 0 0 18px !important;
+    font-size: 9px !important;
+    line-height: 1 !important;
+  }
+
+  /* Subtle ghost action buttons */
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined) > .row-actions {
+    grid-area: entry-actions !important;
+    align-self: center !important;
+    justify-content: flex-end !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row) .bazar-actions-group {
+    gap: 4px !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row) :is(.bazar-desktop-action, .bazar-combined-view-action, .bazar-row-menu-trigger) {
+    width: 26px !important;
+    min-width: 26px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    flex: 0 0 26px !important;
+    border: 1px solid rgba(13, 111, 73, .12) !important;
+    border-radius: 8px !important;
+    background: #f5faf7 !important;
+    color: #355748 !important;
+    box-shadow: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row) :is(.bazar-desktop-action, .bazar-combined-view-action, .bazar-row-menu-trigger) svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+
+  /* Combined split-payment card: items + actions on top, 2-col split amounts below (hide duplicate payer pills) */
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr.bazar-row-combined {
+    grid-template-columns: 42px minmax(0, 1fr) auto !important;
+    grid-template-rows: auto auto !important;
+    grid-template-areas:
+      "combined-date combined-items combined-actions"
+      "combined-date combined-amount combined-amount" !important;
+    align-items: center !important;
+    gap: 7px 10px !important;
+    padding: 10px 11px !important;
+    border: 1px solid rgba(13, 111, 73, .16) !important;
+    border-radius: 15px !important;
+    background: #ffffff !important;
+    box-shadow: 0 3px 12px rgba(15, 58, 42, .055) !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr.bazar-row-combined > .bazar-date-cell {
+    grid-area: combined-date !important;
+    align-self: center !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr.bazar-row-combined > .bazar-items-cell {
+    grid-area: combined-items !important;
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-top: 0 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr.bazar-row-combined > .row-actions {
+    grid-area: combined-actions !important;
+    align-self: start !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr.bazar-row-combined > .bazar-amount-cell {
+    grid-area: combined-amount !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr.bazar-row-combined > .bazar-paid-cell {
+    display: none !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-row-combined .bazar-combined-amount-box {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    width: 100% !important;
+    border: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-row-combined .bazar-combined-amount-line {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 4px !important;
+    min-height: 24px !important;
+    padding: 3px 8px !important;
+    border: 1px solid rgba(16, 139, 95, .18) !important;
+    border-radius: 8px !important;
+    background: #eef8f2 !important;
+    box-shadow: none !important;
+    font-size: 11px !important;
+    line-height: 1.1 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-row-combined .bazar-combined-amount-line.member {
+    border-color: rgba(79, 70, 229, .18) !important;
+    background: #f1f4fe !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-row-combined .bazar-combined-amount-line span {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-weight: 650 !important;
+  }
+
+  :root body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-row-combined .bazar-combined-amount-line strong {
+    flex: 0 0 auto !important;
+    font-size: 11.5px !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+  }
+
+  /* Dark mode polish for redesigned phone cards */
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined),
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr.bazar-row-combined {
+    border-color: rgba(82, 146, 124, .24) !important;
+    background: linear-gradient(160deg, rgba(16, 36, 30, .96) 0%, rgba(11, 25, 21, .98) 100%) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .24) !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined) .bazar-date-tile,
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-row-combined .bazar-date-tile {
+    border-color: rgba(82, 168, 130, .28) !important;
+    background: rgba(20, 56, 43, .72) !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-date-tile > strong {
+    color: #eef9f4 !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-date-tile > span {
+    color: #6ee7b7 !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row) > td.bazar-items-cell .bazar-item-summary {
+    color: #edf8f2 !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined) .bazar-amount-value {
+    border: 0 !important;
+    background: transparent !important;
+    color: #65edb4 !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row):not(.bazar-row-combined) .bazar-paid-by {
+    border: 0 !important;
+    background: transparent !important;
+    color: #93b5a7 !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel table tbody tr:not(.bazar-history-empty-row) :is(.bazar-desktop-action, .bazar-combined-view-action, .bazar-row-menu-trigger) {
+    border-color: rgba(82, 146, 124, .26) !important;
+    background: rgba(20, 46, 38, .82) !important;
+    color: #9ae7c6 !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-row-combined .bazar-combined-amount-line {
+    border-color: rgba(82, 168, 130, .28) !important;
+    background: rgba(20, 56, 43, .72) !important;
+    color: #a9e8cd !important;
+  }
+
+  html[data-theme="dark"] body #app-shell#app-shell.app.premium-theme .main.bazar-page .bazar-history-panel.bazar-history-panel .bazar-row-combined .bazar-combined-amount-line.member {
+    border-color: rgba(129, 140, 248, .3) !important;
+    background: rgba(30, 44, 78, .75) !important;
+    color: #c7d2fe !important;
+  }
+}

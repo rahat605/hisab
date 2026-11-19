@@ -257,6 +257,265 @@ const OilBottleIcon = ({ size = 24 }) => (
   </svg>
 );
 
+function canonSpiceName(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/\u0981/g, "")
+    .replace(/\u09A1\u09BC/g, "ড়")
+    .replace(/\u09A2\u09BC/g, "ঢ়")
+    .replace(/\u09AF\u09BC/g, "য়")
+    .toLowerCase();
+}
+
+function getSpiceIconVariant(clean) {
+  const text = canonSpiceName(clean);
+  if (!text) return null;
+  if (text.includes("মুরগির মসলা") || text.includes("মুরগি মসলা") || text.includes("chicken masala") || text.includes("chicken spice")) {
+    return "chicken";
+  }
+  if (text.includes("মাছের মসলা") || text.includes("মাছ মসলা") || text.includes("fish masala") || text.includes("fish spice")) {
+    return "fish";
+  }
+  if (text.includes("বিরিয়ানি") || text.includes("biriyani") || text.includes("biryani") || text.includes("tehari") || text.includes("তেহারি") || text.includes("কাবাব মসলা")) {
+    return "biryani";
+  }
+  if (text.includes("গরম মসলা") || text.includes("gorom mosla") || text.includes("garam masala") || text.includes("garam mosla")) {
+    return "garam";
+  }
+  if (text.includes("জিরা") || text.includes("jira") || text.includes("jire") || text.includes("jeera") || text.includes("cumin")) {
+    return "cumin";
+  }
+  if (text.includes("হলুদ") || text.includes("holud") || text.includes("halud") || text.includes("turmeric")) {
+    return "turmeric";
+  }
+  if (
+    text.includes("মরিচ গুড়া") ||
+    text.includes("মরিচ গুরা") ||
+    text.includes("মরিচের গুড়া") ||
+    text.includes("শুকনা মরিচ") ||
+    text.includes("chili powder") ||
+    text.includes("chilli powder") ||
+    text.includes("morich gura") ||
+    ((text.startsWith("মসলা") || text.startsWith("মশলা")) && (text.includes("মরিচ") || text.includes("morich")) && !text.includes("গোলমরিচ"))
+  ) {
+    return "chili";
+  }
+  if (text.includes("ধনিয়া") || text.includes("dhonia") || text.includes("dhania") || text.includes("coriander")) {
+    return "coriander";
+  }
+  if (text.includes("পাচ ফোড়ন") || text.includes("পাচফোড়ন") || text.includes("panch phoron") || text.includes("pach foron") || text.includes("five spice")) {
+    return "panchPhoron";
+  }
+  if (text.includes("এলাচ") || text.includes("elach") || text.includes("elaichi") || text.includes("cardamom")) {
+    return "cardamom";
+  }
+  if (text.includes("লবঙ্গ") || text.includes("lobongo") || text.includes("labanga") || text.includes("clove")) {
+    return "clove";
+  }
+  if (text.includes("সরিষা") || text.includes("sorisha") || text.includes("mustard seed")) {
+    return "mustard";
+  }
+  return null;
+}
+
+const SPICE_BOWL_THEMES = {
+  cumin: {
+    moundLight: "#D97706",
+    moundMid: "#92400E",
+    moundDark: "#5C2D0C",
+    bowlRim: "#F5EDE3",
+    bowlFill: "#D6C5B3",
+    bowlStroke: "#8C6D52",
+  },
+  turmeric: {
+    moundLight: "#FDE047",
+    moundMid: "#F59E0B",
+    moundDark: "#B45309",
+    bowlRim: "#FFFBEB",
+    bowlFill: "#F3E5AB",
+    bowlStroke: "#B45309",
+  },
+  chili: {
+    moundLight: "#F87171",
+    moundMid: "#DC2626",
+    moundDark: "#7F1D1D",
+    bowlRim: "#FEF2F2",
+    bowlFill: "#FECACA",
+    bowlStroke: "#B91C1C",
+  },
+  coriander: {
+    moundLight: "#BEF264",
+    moundMid: "#65A30D",
+    moundDark: "#3F6212",
+    bowlRim: "#F7FEE7",
+    bowlFill: "#D9F99D",
+    bowlStroke: "#4D7C0F",
+  },
+  garam: {
+    moundLight: "#EA580C",
+    moundMid: "#9A3412",
+    moundDark: "#431407",
+    bowlRim: "#FFF7ED",
+    bowlFill: "#FED7AA",
+    bowlStroke: "#9A3412",
+  },
+  panchPhoron: {
+    moundLight: "#EAB308",
+    moundMid: "#854D0E",
+    moundDark: "#422006",
+    bowlRim: "#FEF9C3",
+    bowlFill: "#E5D3B3",
+    bowlStroke: "#713F12",
+  },
+  mustard: {
+    moundLight: "#FACC15",
+    moundMid: "#CA8A04",
+    moundDark: "#713F12",
+    bowlRim: "#FEFCE8",
+    bowlFill: "#FDE68A",
+    bowlStroke: "#A16207",
+  },
+};
+
+const SpiceBazarIcon = ({ variant, size = 24 }) => {
+  if (variant === "chicken" || variant === "fish" || variant === "biryani") {
+    const packColors =
+      variant === "chicken"
+        ? { top: "#FB923C", mid: "#EA580C", dark: "#9A3412", band: "#FEF3C7", stroke: "#9A3412" }
+        : variant === "fish"
+          ? { top: "#2DD4BF", mid: "#0D9488", dark: "#115E59", band: "#CCFBF1", stroke: "#115E59" }
+          : { top: "#F59E0B", mid: "#B45309", dark: "#78350F", band: "#FEF3C7", stroke: "#78350F" };
+    return (
+      <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id={`bhPack-${variant}`} x1="8" y1="6" x2="28" y2="32" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor={packColors.top} />
+            <stop offset="58%" stopColor={packColors.mid} />
+            <stop offset="100%" stopColor={packColors.dark} />
+          </linearGradient>
+        </defs>
+        <path d="M9 5.5l2 1.8 2.2-1.8 2.3 1.8L18 5.5l2.5 1.8 2.3-1.8L25 7.3l2-1.8v25a2.2 2.2 0 0 1-2.2 2.2H11.2A2.2 2.2 0 0 1 9 30.5v-25Z" fill={`url(#bhPack-${variant})`} stroke={packColors.stroke} strokeWidth="1.2" strokeLinejoin="round" />
+        <rect x="9.6" y="11" width="16.8" height="14" rx="1.6" fill={packColors.band} opacity="0.95" />
+        {variant === "chicken" && (
+          <g transform="translate(10.5, 11.8)">
+            <path d="M5.2 9.4c-1.8-1.4-2-4-.3-5.6 1.7-1.6 4.4-1.3 5.7.5.9 1.2.8 2.8-.2 3.8l2.5 2.4c.4.4.4 1.1-.1 1.5s-1.2.4-1.6 0l-2.4-2.5c-1.1.8-2.6.8-3.6-.1Z" fill="#C2410C" />
+            <circle cx="12.7" cy="11.2" r="1.1" fill="#FDBA74" />
+          </g>
+        )}
+        {variant === "fish" && (
+          <g transform="translate(9.5, 12.2)">
+            <path d="M3 6c2.6-3.2 7.4-3.2 10 0-2.6 3.2-7.4 3.2-10 0Z" fill="#0F766E" />
+            <path d="M12.5 6l3.5-2.6v5.2L12.5 6Z" fill="#0F766E" />
+            <circle cx="5.8" cy="5.5" r="0.9" fill="#CCFBF1" />
+          </g>
+        )}
+        {variant === "biryani" && (
+          <g transform="translate(18, 18)">
+            <path d="M0-5.4L1.5-1.7l4 .3-3 2.5.9 3.9L0 3l-3.4 2 .9-3.9-3-2.5 4-.3L0-5.4Z" fill="#B45309" stroke="#78350F" strokeWidth="0.6" strokeLinejoin="round" />
+          </g>
+        )}
+        <rect x="11.5" y="27.2" width="13" height="2" rx="1" fill="#FFFFFF" opacity="0.4" />
+      </svg>
+    );
+  }
+
+  if (variant === "cardamom") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <g transform="rotate(-24 14 20)">
+          <ellipse cx="14" cy="20" rx="5.2" ry="9" fill="#4ADE80" stroke="#15803D" strokeWidth="1.2" />
+          <path d="M14 11.5v17M11.5 13.5c-1 4-1 9 0 13M16.5 13.5c1 4 1 9 0 13" stroke="#166534" strokeWidth="1" strokeLinecap="round" opacity="0.65" />
+        </g>
+        <g transform="rotate(20 23 18)">
+          <ellipse cx="23" cy="18" rx="4.6" ry="8.2" fill="#86EFAC" stroke="#16A34A" strokeWidth="1.2" />
+          <path d="M23 10.4v15.2M20.8 12.2c-.8 3.6-.8 8 0 11.6" stroke="#15803D" strokeWidth="0.95" strokeLinecap="round" opacity="0.65" />
+        </g>
+      </svg>
+    );
+  }
+
+  if (variant === "clove") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <g transform="rotate(-20 14 19)">
+          <path d="M12.6 14h2.8l-.6 15h-1.6l-.6-15Z" fill="#7C2D12" />
+          <circle cx="14" cy="11.5" r="3.4" fill="#B45309" stroke="#451A03" strokeWidth="1.1" />
+          <path d="M11 10.5c1.8 1 4.2 1 6 0" stroke="#FDE68A" strokeWidth="1" opacity="0.55" />
+        </g>
+        <g transform="rotate(24 23 18)">
+          <path d="M21.8 13.8h2.4l-.5 13.5h-1.4l-.5-13.5Z" fill="#5C2D0C" />
+          <circle cx="23" cy="11.4" r="3.1" fill="#92400E" stroke="#451A03" strokeWidth="1.1" />
+        </g>
+      </svg>
+    );
+  }
+
+  const theme = SPICE_BOWL_THEMES[variant] || SPICE_BOWL_THEMES.cumin;
+  return (
+    <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id={`bhMound-${variant}`} x1="18" y1="8" x2="18" y2="23" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor={theme.moundLight} />
+          <stop offset="55%" stopColor={theme.moundMid} />
+          <stop offset="100%" stopColor={theme.moundDark} />
+        </linearGradient>
+      </defs>
+      {/* Spice powder mound */}
+      <path d="M7.5 20.5c2-5.4 6.2-10.5 10.5-10.5s8.5 5.1 10.5 10.5H7.5Z" fill={`url(#bhMound-${variant})`} stroke={theme.moundDark} strokeWidth="0.9" strokeLinejoin="round" />
+      {/* Variant-specific spice accents */}
+      {variant === "cumin" && (
+        <g fill="#451A03" opacity="0.82">
+          <ellipse cx="15" cy="15.2" rx="1.6" ry="0.6" transform="rotate(-25 15 15.2)" />
+          <ellipse cx="20.4" cy="16.4" rx="1.6" ry="0.6" transform="rotate(30 20.4 16.4)" />
+          <ellipse cx="17.8" cy="12.6" rx="1.5" ry="0.55" transform="rotate(10 17.8 12.6)" />
+          <ellipse cx="13.2" cy="18.2" rx="1.4" ry="0.55" transform="rotate(42 13.2 18.2)" />
+          <ellipse cx="22.5" cy="18.4" rx="1.4" ry="0.55" transform="rotate(-35 22.5 18.4)" />
+        </g>
+      )}
+      {variant === "turmeric" && (
+        <g>
+          <path d="M23.5 9.2c2.2-1.8 5.2-1.1 5.6.8.3 1.4-1.3 2.8-3.6 3.5-1.8.5-2.9-.8-2-4.3Z" fill="#D97706" stroke="#92400E" strokeWidth="0.9" />
+          <path d="M25 10.3l2.4.7M24.6 11.7l2 .5" stroke="#FEF08A" strokeWidth="0.85" strokeLinecap="round" />
+        </g>
+      )}
+      {variant === "chili" && (
+        <g>
+          <path d="M22.5 14.5c2.2-3.4 4.8-5.1 7.2-5-1.1 3.7-3.1 6.7-6 7.8-.9.3-1.8-.4-1.6-1.3l.4-1.5Z" fill="#DC2626" stroke="#7F1D1D" strokeWidth="0.9" />
+          <path d="M28.8 9.6c.9-.9 1.8-1.1 2.7-.8" stroke="#15803D" strokeWidth="1.5" strokeLinecap="round" />
+        </g>
+      )}
+      {variant === "coriander" && (
+        <g>
+          <path d="M21 11.2c1.2-2.6 4.1-3.8 6-2.5-.4 2.3-2.6 4-5.2 3.8l-.8-1.3Z" fill="#16A34A" stroke="#14532D" strokeWidth="0.8" />
+          <circle cx="14.5" cy="16.3" r="1.05" fill="#FEF08A" stroke="#713F12" strokeWidth="0.45" />
+          <circle cx="18.4" cy="13.8" r="1.05" fill="#FEF08A" stroke="#713F12" strokeWidth="0.45" />
+          <circle cx="21.5" cy="17.8" r="1.05" fill="#FEF08A" stroke="#713F12" strokeWidth="0.45" />
+        </g>
+      )}
+      {variant === "garam" && (
+        <g>
+          <rect x="21" y="7.5" width="7.2" height="2.6" rx="1.2" transform="rotate(28 21 7.5)" fill="#78350F" stroke="#451A03" strokeWidth="0.8" />
+          <circle cx="15.2" cy="15.5" r="1.15" fill="#FDE68A" opacity="0.85" />
+          <circle cx="19.8" cy="16.8" r="1.05" fill="#451A03" opacity="0.7" />
+        </g>
+      )}
+      {(variant === "panchPhoron" || variant === "mustard") && (
+        <g>
+          <circle cx="15" cy="15.5" r="1.15" fill="#1E293B" />
+          <circle cx="18.2" cy="13.4" r="1.15" fill="#15803D" />
+          <circle cx="21" cy="16.5" r="1.15" fill="#FACC15" />
+          <circle cx="13" cy="18.4" r="1.1" fill="#78350F" />
+          <circle cx="18.4" cy="18.1" r="1.1" fill="#B45309" />
+        </g>
+      )}
+      {/* Ceramic bowl */}
+      <ellipse cx="18" cy="20.4" rx="12.2" ry="2.7" fill={theme.bowlRim} stroke={theme.bowlStroke} strokeWidth="1.1" />
+      <path d="M5.8 20.4c.8 6.4 5.4 10.6 12.2 10.6s11.4-4.2 12.2-10.6c-3.4 1.5-7.6 2.1-12.2 2.1s-8.8-.6-12.2-2.1Z" fill={theme.bowlFill} stroke={theme.bowlStroke} strokeWidth="1.15" strokeLinejoin="round" />
+      <rect x="12.8" y="30.2" width="10.4" height="2.1" rx="1" fill={theme.bowlStroke} opacity="0.85" />
+    </svg>
+  );
+};
+
 const BAZAR_COMMON_ITEMS = [
   { id: "chal", name: "চাল", emoji: "🍚", defaultUnit: "kg", hint: "চালের দাম ও পরিমান লিখুন" },
   { id: "dal", name: "ডাল", emoji: "🥣", defaultUnit: "kg", hint: "ডালের দাম ও পরিমান লিখুন" },
@@ -780,6 +1039,8 @@ function renderBazarItemIcon(itemName, size = 18) {
     if (telPreset?.iconUrl) return renderCommonBazarIcon(telPreset, size);
     return <OilBottleIcon size={size} />;
   }
+  const spiceVariant = getSpiceIconVariant(clean);
+  if (spiceVariant) return <SpiceBazarIcon variant={spiceVariant} size={size} />;
   const catalogItem = findBazarFoodCatalogItem(clean);
   if (catalogItem?.emoji) return catalogItem.emoji;
   const presets = [...latestCommonBazarItems]
@@ -831,6 +1092,8 @@ function renderBazarReportIcon(itemName, size = 18) {
     if (telPreset?.iconUrl) return renderCommonBazarIcon(telPreset, size);
     return <OilBottleIcon size={size} />;
   }
+  const spiceVariant = getSpiceIconVariant(clean);
+  if (spiceVariant) return <SpiceBazarIcon variant={spiceVariant} size={size} />;
   return renderBazarItemIcon(itemName, size);
 }
 
@@ -8081,6 +8344,89 @@ function App() {
           </section>
         </div>
       )}
+      {page === "bazar-report" && bazarUsageDetailsItem && (
+        <div
+          className="modal-backdrop bazar-usage-details-backdrop"
+          role="presentation"
+          onClick={() => setBazarUsageDetailsItem(null)}
+        >
+          <section
+            className="modal panel bazar-usage-details-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bazar-usage-details-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="bazar-usage-details-close-icon"
+              aria-label="Close item details"
+              onClick={() => setBazarUsageDetailsItem(null)}
+            >
+              <X size={19} />
+            </button>
+            <div className="bazar-usage-details-head">
+              <span className="bazar-usage-details-icon" aria-hidden="true">
+                {renderBazarReportIcon(bazarUsageDetailsItem.name, 58)}
+              </span>
+              <div>
+                <small>Monthly bazar item</small>
+                <h3 id="bazar-usage-details-title">{bazarUsageDetailsItem.name}</h3>
+                <p>
+                  {bazarUsageDetailsItem.count}× bought
+                  {bazarUsageDetailsItem.qtySummary
+                    ? ` • ${bazarUsageDetailsItem.qtySummary}`
+                    : ""}
+                </p>
+              </div>
+            </div>
+            <div className="bazar-usage-details-summary">
+              <div>
+                <span>Total amount</span>
+                <strong>{money(bazarUsageDetailsItem.totalSpent)}</strong>
+              </div>
+              <div>
+                <span>Total quantity</span>
+                <strong>{bazarUsageDetailsItem.qtySummary || "—"}</strong>
+              </div>
+            </div>
+            {Array.isArray(bazarUsageDetailsItem.subItems) &&
+            bazarUsageDetailsItem.subItems.length > 0 ? (
+              <div className="bazar-usage-details-list">
+                {bazarUsageDetailsItem.subItems.map((sub) => (
+                  <article className="bazar-usage-details-row" key={sub.key}>
+                    <span className="bazar-usage-details-row-icon" aria-hidden="true">
+                      {renderBazarItemIcon(
+                        `${bazarUsageDetailsItem.name} - ${sub.name}`,
+                        28,
+                      )}
+                    </span>
+                    <div>
+                      <strong>{sub.name}</strong>
+                      <small>
+                        {sub.count}× bought
+                        {sub.qtySummary ? ` • ${sub.qtySummary}` : ""}
+                      </small>
+                    </div>
+                    <b>{money(sub.totalSpent)}</b>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="bazar-usage-details-empty">
+                No separate sub-item breakdown was recorded for this item.
+              </p>
+            )}
+            <button
+              type="button"
+              className="secondary full bazar-usage-details-close"
+              onClick={() => setBazarUsageDetailsItem(null)}
+            >
+              Close
+            </button>
+          </section>
+        </div>
+      )}
       <main className={page === "overview" ? "main overview-page" : page === "my-account" ? "main my-account-page" : page === "settlements" ? "main settlement-page" : page === "contacts" ? "main contacts-page" : page === "inbox" ? "main inbox-page" : page === "pay-rent" ? "main pay-rent-app-page" : page === "bazar" ? "main bazar-page" : page === "bazar-report" ? "main bazar-report-page" : page === "payments" ? "main payments-page" : "main"}>
         <header className={`app-page-header ${page === "my-account" ? "account-header " : ""}${page === "overview" ? "overview-page-header" : ""}${page === "settlements" ? "settlement-page-header" : ""}`}>
           <button
@@ -11452,8 +11798,13 @@ function App() {
                                 id="bazar-add-moshla-type"
                                 ariaLabel="মসলার ধরন"
                                 menuLabel="SELECT SPICE"
+                                leadingIcon={renderBazarItemIcon(bazarItemPicker.moshlaType, 18)}
                                 value={bazarItemPicker.moshlaType}
-                                options={BAZAR_MOSHLA_OPTIONS}
+                                options={BAZAR_MOSHLA_OPTIONS.map((opt) => ({
+                                  value: opt,
+                                  label: opt,
+                                  icon: renderBazarItemIcon(opt, 18),
+                                }))}
                                 onChange={(nextVal) => {
                                   setBazarPickerError("");
                                   setBazarItemPicker((prev) => ({ ...prev, moshlaType: nextVal }));
@@ -13366,89 +13717,6 @@ function App() {
                       </div>
                     )}
                   </section>
-                  {bazarUsageDetailsItem && (
-                    <div
-                      className="modal-backdrop bazar-usage-details-backdrop"
-                      role="presentation"
-                      onClick={() => setBazarUsageDetailsItem(null)}
-                    >
-                      <section
-                        className="modal panel bazar-usage-details-modal"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="bazar-usage-details-title"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          className="bazar-usage-details-close-icon"
-                          aria-label="Close item details"
-                          onClick={() => setBazarUsageDetailsItem(null)}
-                        >
-                          <X size={19} />
-                        </button>
-                        <div className="bazar-usage-details-head">
-                          <span className="bazar-usage-details-icon" aria-hidden="true">
-                            {renderBazarReportIcon(bazarUsageDetailsItem.name, 58)}
-                          </span>
-                          <div>
-                            <small>Monthly bazar item</small>
-                            <h3 id="bazar-usage-details-title">{bazarUsageDetailsItem.name}</h3>
-                            <p>
-                              {bazarUsageDetailsItem.count}× bought
-                              {bazarUsageDetailsItem.qtySummary
-                                ? ` • ${bazarUsageDetailsItem.qtySummary}`
-                                : ""}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="bazar-usage-details-summary">
-                          <div>
-                            <span>Total amount</span>
-                            <strong>{money(bazarUsageDetailsItem.totalSpent)}</strong>
-                          </div>
-                          <div>
-                            <span>Total quantity</span>
-                            <strong>{bazarUsageDetailsItem.qtySummary || "—"}</strong>
-                          </div>
-                        </div>
-                        {Array.isArray(bazarUsageDetailsItem.subItems) &&
-                        bazarUsageDetailsItem.subItems.length > 0 ? (
-                          <div className="bazar-usage-details-list">
-                            {bazarUsageDetailsItem.subItems.map((sub) => (
-                              <article className="bazar-usage-details-row" key={sub.key}>
-                                <span className="bazar-usage-details-row-icon" aria-hidden="true">
-                                  {renderBazarItemIcon(
-                                    `${bazarUsageDetailsItem.name} - ${sub.name}`,
-                                    28,
-                                  )}
-                                </span>
-                                <div>
-                                  <strong>{sub.name}</strong>
-                                  <small>
-                                    {sub.count}× bought
-                                    {sub.qtySummary ? ` • ${sub.qtySummary}` : ""}
-                                  </small>
-                                </div>
-                                <b>{money(sub.totalSpent)}</b>
-                              </article>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="bazar-usage-details-empty">
-                            No separate sub-item breakdown was recorded for this item.
-                          </p>
-                        )}
-                        <button
-                          type="button"
-                          className="secondary full bazar-usage-details-close"
-                          onClick={() => setBazarUsageDetailsItem(null)}
-                        >
-                          Close
-                        </button>
-                      </section>
-                    </div>
-                  )}
                 </>
               ) : (
                 <section className="panel bazar-report-chart-card">

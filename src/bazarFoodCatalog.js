@@ -297,7 +297,7 @@ export function findBazarFoodCatalogItem(value) {
   const normalized = normalizeBazarFoodSearch(value);
   if (!normalized) return null;
   const withoutCategory = normalized
-    .replace(/^(সবজি|মাছ|মাংস|মসলা)\s+/, "")
+    .replace(/^(সবজি|মাছ|মাংস|মসলা|মশলা)\s*[-–:]?\s*/, "")
     .trim();
   return BAZAR_FOOD_CATALOG.find((item) => {
     const terms = [item.name, ...(item.aliases || [])].map(normalizeBazarFoodSearch);
