@@ -528,7 +528,7 @@ const BAZAR_COMMON_ITEMS = [
   { id: "peyaj", name: "পেঁয়াজ", emoji: "🧅", defaultUnit: "kg", hint: "পেঁয়াজের দাম ও পরিমান লিখুন" },
   { id: "morich", name: "মরিচ", emoji: "🌶️", defaultUnit: "gram", hint: "মরিচের দাম ও পরিমান লিখুন" },
   { id: "rosun", name: "রসুন", emoji: "🧄", defaultUnit: "gram", hint: "রসুনের দাম ও পরিমান লিখুন" },
-  { id: "others", name: "অন্যান্য", emoji: "•••", defaultUnit: "pc", hint: "আইটেমের নাম, দাম ও পরিমান লিখুন", isCustom: true },
+  { id: "others", name: "অন্যান্য", emoji: "•••", defaultUnit: "pcs", hint: "আইটেমের নাম, দাম ও পরিমান লিখুন", isCustom: true },
 ];
 
 let latestCommonBazarItems = BAZAR_COMMON_ITEMS;
@@ -540,7 +540,6 @@ const BAZAR_UNIT_OPTIONS = [
   { value: "pcs", label: "pcs" },
   { value: "pack", label: "pack" },
   { value: "tray", label: "tray" },
-  { value: "pc", label: "pc" },
 ];
 
 const COMMON_UNIT_OPTIONS = BAZAR_UNIT_OPTIONS.filter((opt) => opt.value !== "tray");
@@ -2978,6 +2977,7 @@ function App() {
       .map((d) => ({
         ...d,
         label: d.date.slice(5),
+        dayLabel: d.date.slice(8, 10),
       }));
     const maxDaily = dailyTrend.reduce((m, d) => Math.max(m, d.amount), 0);
     const payerTotalSum = Array.from(payerMap.values()).reduce((s, p) => s + p.amount, 0);
@@ -6738,123 +6738,123 @@ function App() {
         *{box-sizing:border-box}
         :root{color-scheme:light}
         @page{size:A4 portrait;margin:0}
-        html{min-width:0;background:#dce7e4}
-        body{margin:0;padding:24px;display:flex;justify-content:center;min-height:100vh;background:radial-gradient(circle at 50% 0,#eef6f3 0,#dde9e5 65%,#d2e0dc 100%);color:#10221f;font-family:"Manrope","Hind Siliguri",system-ui,-apple-system,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        html{min-width:0;background:#e3f1ea}
+        body{margin:0;padding:24px;display:flex;justify-content:center;min-height:100vh;background:radial-gradient(circle at 50% 0,#f4fbf7 0,#e3f1ea 65%,#d6e9df 100%);color:#102a20;font-family:"Manrope","Hind Siliguri",system-ui,-apple-system,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
         /* Floating Export Toolbar */
-        body>.toolbar{position:fixed;z-index:1000;top:16px;right:16px;display:flex;gap:8px;padding:7px;border:1px solid rgba(15,79,71,.16);border-radius:15px;background:rgba(255,255,255,.94);box-shadow:0 12px 32px rgba(10,55,49,.16);backdrop-filter:blur(12px)}
-        body>.toolbar button{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:40px;padding:0 14px;border:1px solid #0f564d;border-radius:10px;background:linear-gradient(135deg,#16685d,#0c453e);color:#fff;font:700 13.5px/1 "Manrope","Hind Siliguri",sans-serif;white-space:nowrap;cursor:pointer;transition:transform .15s,opacity .15s,background .15s}
-        body>.toolbar button:hover{transform:translateY(-1px);background:linear-gradient(135deg,#1a786c,#0f524a)}
+        body>.toolbar{position:fixed;z-index:1000;top:16px;right:16px;display:flex;gap:8px;padding:7px;border:1px solid rgba(11,151,96,.2);border-radius:15px;background:rgba(255,255,255,.94);box-shadow:0 12px 32px rgba(8,78,52,.16);backdrop-filter:blur(12px)}
+        body>.toolbar button{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:40px;padding:0 14px;border:1px solid #08734f;border-radius:10px;background:linear-gradient(135deg,#14a36b,#076846);color:#fff;font:700 13.5px/1 "Manrope","Hind Siliguri",sans-serif;white-space:nowrap;cursor:pointer;transition:transform .15s,opacity .15s,background .15s}
+        body>.toolbar button:hover{transform:translateY(-1px);background:linear-gradient(135deg,#18b276,#087750)}
         body>.toolbar button:disabled{opacity:.65;cursor:wait;transform:none}
-        body>.toolbar button.btn-save-image{border-color:#c4dbd5;background:#fff;color:#113631}
-        body>.toolbar button.btn-save-image:hover{background:#f1f8f6}
+        body>.toolbar button.btn-save-image{border-color:#bfe0cf;background:#fff;color:#0c3b2a}
+        body>.toolbar button.btn-save-image:hover{background:#eff9f4}
         body>.toolbar button svg{width:17px;height:17px;flex:none}
         .toolbar-spinner{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.32);border-top-color:#fff;border-radius:50%;animation:tb-spin .7s linear infinite;flex:none}
-        body>.toolbar button.btn-save-image .toolbar-spinner{border-color:rgba(15,86,77,.25);border-top-color:#0f564d}
+        body>.toolbar button.btn-save-image .toolbar-spinner{border-color:rgba(11,151,96,.25);border-top-color:#08734f}
         @keyframes tb-spin{to{transform:rotate(360deg)}}
 
-        /* A4 Statement Sheet */
-        .sheet{position:relative;isolation:isolate;display:flex;flex-direction:column;width:min(100%,210mm);min-height:297mm;padding:24px 30px 20px;overflow:hidden;border:1px solid #cddfda;border-radius:22px;background:linear-gradient(160deg,#edf4f2 0%,#f5f9f8 46%,#e8f1ee 100%);box-shadow:0 28px 80px rgba(10,54,48,.16)}
-        .sheet-watermark{position:absolute;right:-10px;bottom:-10px;z-index:0;width:340px;height:390px;pointer-events:none;opacity:.08;color:#0e4f47}
+        /* A4 Statement Sheet — Website Background & Emerald Theme */
+        .sheet{position:relative;isolation:isolate;display:flex;flex-direction:column;width:min(100%,210mm);min-height:297mm;padding:24px 30px 20px;overflow:hidden;border:1px solid #c6e3d4;border-radius:22px;background:radial-gradient(ellipse at 82% -10%,rgba(117,211,151,.34) 0 22%,transparent 22.5%),radial-gradient(ellipse at 80% -10%,rgba(154,224,180,.26) 0 34%,transparent 34.5%),radial-gradient(ellipse at 78% -12%,rgba(204,239,217,.46) 0 46%,transparent 46.5%),linear-gradient(180deg,rgba(244,250,247,.93) 0%,rgba(247,251,249,.91) 70%,rgba(238,249,243,.68) 100%),url("/modern-green-bottom-wave.png") center bottom/100% auto no-repeat,#f4f8f6;box-shadow:0 28px 80px rgba(8,78,52,.16)}
+        .sheet-watermark{position:absolute;right:-10px;bottom:-10px;z-index:0;width:340px;height:390px;pointer-events:none;opacity:.065;color:#0b7a50}
         .sheet>*:not(.sheet-watermark){position:relative;z-index:1}
 
         /* Header */
         .doc-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
         .brand-wrap{display:flex;align-items:center;gap:14px;min-width:0}
-        .brand-logo{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;color:#0f574e}
+        .brand-logo{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;color:#0b875b}
         .brand-logo svg{width:46px;height:46px}
-        .brand-sep{width:1.5px;height:42px;flex:0 0 1.5px;background:#b9cdc7}
+        .brand-sep{width:1.5px;height:42px;flex:0 0 1.5px;background:#b7dccb}
         .brand-copy{min-width:0}
-        .brand-name{margin:0;color:#0c201d;font-size:25px;font-weight:800;letter-spacing:-.035em;line-height:1.08;white-space:nowrap}
-        .brand-address{display:flex;align-items:center;gap:6px;margin-top:4px;color:#556b66;font-size:12px;font-weight:550;line-height:1.2}
-        .brand-address svg{width:13px;height:13px;flex:none;color:#115a50}
-        .header-month{flex:0 0 auto;color:#0f2522;font-size:18px;font-weight:750;letter-spacing:-.02em;white-space:nowrap}
+        .brand-name{margin:0;color:#0b291e;font-size:25px;font-weight:800;letter-spacing:-.035em;line-height:1.08;white-space:nowrap}
+        .brand-address{display:flex;align-items:center;gap:6px;margin-top:4px;color:#4a6b5d;font-size:12px;font-weight:550;line-height:1.2}
+        .brand-address svg{width:13px;height:13px;flex:none;color:#0b875b}
+        .header-month{flex:0 0 auto;color:#0b3324;font-size:18px;font-weight:750;letter-spacing:-.02em;white-space:nowrap}
 
         /* Main Title */
-        .summary-title{margin:0 0 15px;color:#0b1f1c;font-size:24px;font-weight:750;letter-spacing:-.03em;line-height:1.2}
+        .summary-title{margin:0 0 15px;color:#08281c;font-size:24px;font-weight:750;letter-spacing:-.03em;line-height:1.2}
 
         /* Top Rent & Utilities + Member Pill Bar */
-        .member-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px 10px 16px;margin-bottom:13px;border:1px solid #d9e6e2;border-radius:16px;background:#ffffff;box-shadow:0 8px 22px rgba(13,62,54,.065)}
+        .member-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px 10px 16px;margin-bottom:13px;border:1px solid #cde5d8;border-radius:16px;background:rgba(255,255,255,.94);box-shadow:0 8px 22px rgba(11,105,70,.065)}
         .bar-left{display:flex;align-items:center;gap:12px;min-width:0}
-        .badge-icon{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#186159,#0d3f3a);color:#ffffff;box-shadow:0 4px 10px rgba(13,63,58,.2)}
+        .badge-icon{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#14a36b,#08734f);color:#ffffff;box-shadow:0 4px 10px rgba(8,115,79,.22)}
         .badge-icon svg{width:18px;height:18px}
-        .bar-title{color:#0f221f;font-size:17px;font-weight:750;letter-spacing:-.02em}
-        .member-pill{display:flex;align-items:center;gap:10px;min-width:184px;padding:7px 16px 7px 12px;border:1px solid #c3e2d6;border-radius:13px;background:linear-gradient(120deg,#f4fbf8 0%,#ddf1e8 100%)}
-        .member-pill svg{width:24px;height:24px;flex:none;color:#125950}
-        .member-pill-label{display:block;color:#526b65;font-size:11px;font-weight:600;line-height:1.1}
-        .member-pill-name{display:block;margin-top:2px;color:#0c201d;font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.15;white-space:nowrap}
+        .bar-title{color:#0b291e;font-size:17px;font-weight:750;letter-spacing:-.02em}
+        .member-pill{display:flex;align-items:center;gap:10px;min-width:184px;padding:7px 16px 7px 12px;border:1px solid #bce3cf;border-radius:13px;background:linear-gradient(120deg,#f2fbf6 0%,#d9f3e5 100%)}
+        .member-pill svg{width:24px;height:24px;flex:none;color:#097952}
+        .member-pill-label{display:block;color:#496a5c;font-size:11px;font-weight:600;line-height:1.1}
+        .member-pill-name{display:block;margin-top:2px;color:#0a291e;font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.15;white-space:nowrap}
 
         /* Shared Card Surface */
-        .card{margin-bottom:13px;padding:14px 16px 10px;border:1px solid #d9e6e2;border-radius:18px;background:#ffffff;box-shadow:0 8px 22px rgba(13,62,54,.065)}
+        .card{margin-bottom:13px;padding:14px 16px 10px;border:1px solid #cde5d8;border-radius:18px;background:rgba(255,255,255,.94);box-shadow:0 8px 22px rgba(11,105,70,.065)}
         .card-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-        .card-head h2{margin:0;color:#0e211e;font-size:16.5px;font-weight:750;letter-spacing:-.02em}
+        .card-head h2{margin:0;color:#0b291e;font-size:16.5px;font-weight:750;letter-spacing:-.02em}
 
         /* Detailed Breakdown Dual-Column Table */
         .breakdown-table{width:100%;border-collapse:collapse;table-layout:fixed}
-        .breakdown-table thead th{padding:8px 10px;background:#e4eeeb;color:#1b332f;font-size:12.5px;font-weight:750;text-align:left;line-height:1.2}
+        .breakdown-table thead th{padding:8px 10px;background:#e2f3ea;color:#0f3b2a;font-size:12.5px;font-weight:750;text-align:left;line-height:1.2}
         .breakdown-table thead th:first-child{border-radius:8px 0 0 8px}
         .breakdown-table thead th:last-child{border-radius:0 8px 8px 0;text-align:right}
         .breakdown-table thead th.col-num{text-align:right}
-        .breakdown-table tbody td{padding:8px 10px;border-bottom:1px solid #ebf1ef;color:#1c2e2b;font-size:13px;font-weight:550;line-height:1.25}
+        .breakdown-table tbody td{padding:8px 10px;border-bottom:1px solid #e7f2ec;color:#1b382d;font-size:13px;font-weight:550;line-height:1.25}
         .breakdown-table tbody tr:last-child td{border-bottom:0}
-        .breakdown-table tbody td.col-num{text-align:right;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap;color:#0f2320}
+        .breakdown-table tbody td.col-num{text-align:right;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap;color:#0c291f}
         .breakdown-table tbody td.col-split{padding-left:18px}
 
         /* Two-Column Middle Grid */
         .mid-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:13px}
         .mid-grid .card{margin-bottom:0;display:flex;flex-direction:column}
         .mini-table{width:100%;border-collapse:collapse}
-        .mini-table thead th{padding:8px 10px;background:#e4eeeb;color:#1b332f;font-size:12.5px;font-weight:750;text-align:left}
+        .mini-table thead th{padding:8px 10px;background:#e2f3ea;color:#0f3b2a;font-size:12.5px;font-weight:750;text-align:left}
         .mini-table thead th:first-child{border-radius:8px 0 0 8px}
         .mini-table thead th:last-child{border-radius:0 8px 8px 0;text-align:right}
-        .mini-table tbody td{padding:8px 10px;border-bottom:1px solid #ebf1ef;color:#223532;font-size:13px;font-weight:550;line-height:1.2}
-        .mini-table tbody td:last-child{text-align:right;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap;color:#0f2320}
-        .mini-table tbody tr.row-total td{border-bottom:0;padding-top:9px;font-weight:800;color:#0b1f1c}
+        .mini-table tbody td{padding:8px 10px;border-bottom:1px solid #e7f2ec;color:#1b382d;font-size:13px;font-weight:550;line-height:1.2}
+        .mini-table tbody td:last-child{text-align:right;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap;color:#0c291f}
+        .mini-table tbody tr.row-total td{border-bottom:0;padding-top:9px;font-weight:800;color:#08281c}
 
         /* Value Accent Colors */
-        .val-credit,.val-zero{color:#0f7c56!important}
-        .val-due{color:#0f2320!important}
-        .row-total .val-due{color:#b43a47!important}
-        .val-paid{color:#0f7c56!important}
+        .val-credit,.val-zero{color:#0b875b!important}
+        .val-due{color:#0c291f!important}
+        .row-total .val-due{color:#c93b4b!important}
+        .val-paid{color:#0b875b!important}
 
         /* Secure Payment Options Table */
         .pay-table{width:100%;border-collapse:collapse}
-        .pay-table thead th{padding:8px 10px;background:#e4eeeb;color:#1b332f;font-size:12.5px;font-weight:750;text-align:left}
+        .pay-table thead th{padding:8px 10px;background:#e2f3ea;color:#0f3b2a;font-size:12.5px;font-weight:750;text-align:left}
         .pay-table thead th:first-child{border-radius:8px 0 0 8px;width:30%}
         .pay-table thead th:nth-child(2){width:36%}
         .pay-table thead th:last-child{border-radius:0 8px 8px 0;width:34%}
-        .pay-table tbody td{padding:8px 10px;border-bottom:1px solid #ebf1ef;color:#203330;font-size:13px;font-weight:550;vertical-align:middle}
+        .pay-table tbody td{padding:8px 10px;border-bottom:1px solid #e7f2ec;color:#1b382d;font-size:13px;font-weight:550;vertical-align:middle}
         .pay-table tbody tr:last-child td{border-bottom:0}
         .pay-method-cell{display:flex;align-items:center;gap:10px}
         .pay-logo{width:32px;height:22px;flex:0 0 32px;object-fit:contain;border-radius:5px;background:#fff}
-        .pay-logo-fallback{width:26px;height:22px;flex:0 0 26px;display:grid;place-items:center;border-radius:6px;background:#e4f2ec;color:#0f5a4f;font-size:11.5px;font-weight:800}
-        .pay-method-name{color:#0d211e;font-weight:750}
-        .pay-instructions-cell{color:#354c48}
-        .pay-account-cell{color:#0c201d;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+        .pay-logo-fallback{width:26px;height:22px;flex:0 0 26px;display:grid;place-items:center;border-radius:6px;background:#e1f4ea;color:#08734f;font-size:11.5px;font-weight:800}
+        .pay-method-name{color:#0b291e;font-weight:750}
+        .pay-instructions-cell{color:#35594c}
+        .pay-account-cell{color:#0b291e;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:.01em}
 
         /* Signature Split Amount Due Banner */
-        .amount-banner{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 56%;align-items:stretch;min-height:60px;margin-top:auto;overflow:hidden;border:1px solid #c9dcd6;border-radius:16px;background:#eef5f3;box-shadow:0 8px 22px rgba(10,58,51,.12)}
-        .amount-banner-left{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#eef5f3}
-        .amount-banner-label{color:#0d221f;font-size:18px;font-weight:800;letter-spacing:-.02em}
-        .amount-banner-right{position:relative;display:flex;align-items:center;justify-content:flex-end;padding:10px 24px 10px 44px;background:linear-gradient(120deg,#185e56 0%,#0b3b36 100%);color:#ffffff}
+        .amount-banner{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 46%;align-items:stretch;min-height:60px;margin-top:auto;overflow:hidden;border:1px solid #bce0cf;border-radius:16px;background:#eff9f4;box-shadow:0 8px 22px rgba(8,102,67,.12)}
+        .amount-banner-left{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#eff9f4}
+        .amount-banner-label{color:#0b291e;font-size:18px;font-weight:800;letter-spacing:-.02em}
+        .amount-banner-right{position:relative;display:flex;align-items:center;justify-content:flex-end;padding:10px 24px 10px 44px;background:linear-gradient(125deg,#139a65 0%,#076846 100%);color:#ffffff}
         .amount-banner-curve{position:absolute;top:0;bottom:0;left:-1px;width:42px;height:100%;display:block;pointer-events:none}
         .amount-banner-value{position:relative;z-index:1;font-size:26px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
 
         /* Estimated Total Strip */
-        .estimate-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:9px;padding:9px 16px;border:1px dashed #9fc3b8;border-radius:13px;background:rgba(255,255,255,.78)}
+        .estimate-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:9px;padding:9px 16px;border:1px dashed #93ccb2;border-radius:13px;background:rgba(255,255,255,.88)}
         .estimate-left{display:flex;align-items:center;gap:9px;min-width:0}
-        .estimate-dot{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;border-radius:50%;background:#e0f1eb;color:#0f5c52;font-size:12px;font-weight:800}
+        .estimate-dot{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;border-radius:50%;background:#dcf3e7;color:#08734f;font-size:12px;font-weight:800}
         .estimate-copy{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px;min-width:0}
-        .estimate-copy strong{color:#0f2622;font-size:13.5px;font-weight:800}
-        .estimate-copy small{color:#526b65;font-size:12px;font-weight:600}
-        .estimate-value{flex:0 0 auto;color:#0e4f47;font-size:17px;font-weight:850;font-variant-numeric:tabular-nums;white-space:nowrap}
+        .estimate-copy strong{color:#0b291e;font-size:13.5px;font-weight:800}
+        .estimate-copy small{color:#496a5c;font-size:12px;font-weight:600}
+        .estimate-value{flex:0 0 auto;color:#076846;font-size:17px;font-weight:850;font-variant-numeric:tabular-nums;white-space:nowrap}
 
         /* Footer */
-        .doc-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:2px;color:#556b66;font-size:12.5px;font-weight:550}
-        .doc-footer strong{color:#0f2622;font-weight:800}
+        .doc-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:2px;color:#183f2f;text-shadow:0 1px 0 rgba(255,255,255,.75);font-size:12.5px;font-weight:600}
+        .doc-footer strong{color:#065f3e;font-weight:800}
 
         @media(max-width:650px){
-          body{padding:0;background:#edf4f2}
+          body{padding:0;background:#f4f8f6}
           body>.toolbar{top:auto;right:12px;bottom:12px;left:12px;justify-content:center}
           .sheet{width:100%;min-height:100svh;padding:18px 14px 76px;border:0;border-radius:0;box-shadow:none}
           .doc-header{margin-bottom:16px;gap:10px}
@@ -6887,7 +6887,7 @@ function App() {
         }
 
         @media print{
-          html,body{width:210mm;height:100%;margin:0!important;padding:0!important;background:#edf4f2}
+          html,body{width:210mm;height:100%;margin:0!important;padding:0!important;background:#f4f8f6}
           body{display:block;min-height:297mm}
           body>.toolbar{display:none!important}
           .sheet{width:210mm;min-height:297mm;margin:0;padding:10mm 10mm 9mm;border:0;border-radius:0;box-shadow:none}
@@ -7054,7 +7054,7 @@ function App() {
             </div>
             <div class="amount-banner-right">
               <svg class="amount-banner-curve" viewBox="0 0 44 76" preserveAspectRatio="none" aria-hidden="true">
-                <path d="M0 0 H44 C26 0 24 76 0 76 Z" fill="#eef5f3"/>
+                <path d="M0 0 H44 C26 0 24 76 0 76 Z" fill="#eff9f4"/>
               </svg>
               <span class="amount-banner-value">${signedMoney(finalBalance)}</span>
             </div>
@@ -7135,7 +7135,7 @@ function App() {
                 useCORS: true,
                 allowTaint: true,
                 logging: false,
-                backgroundColor: "#ffffff",
+                backgroundColor: "#f4f8f6",
                 ignoreElements: function(el) {
                   return Boolean(el && el.classList && el.classList.contains("toolbar"));
                 }
@@ -7167,7 +7167,7 @@ function App() {
                   pageCanvas.width = canvas.width;
                   pageCanvas.height = sliceHeight;
                   var pageContext = pageCanvas.getContext("2d");
-                  pageContext.fillStyle = "#ffffff";
+                  pageContext.fillStyle = "#f4f8f6";
                   pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
                   pageContext.drawImage(canvas, 0, sourceY, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
 
@@ -7213,7 +7213,7 @@ function App() {
                 useCORS: true,
                 allowTaint: true,
                 logging: false,
-                backgroundColor: "#ffffff",
+                backgroundColor: "#f4f8f6",
                 ignoreElements: function(el) {
                   return Boolean(el && el.classList && el.classList.contains("toolbar"));
                 }
@@ -13163,10 +13163,14 @@ function App() {
 
           // Build Expense Trend series for 7D / 30D / 3M / 6M
           const monthShort = String(month || "").split(" ")[0].slice(0, 3) || "Mo";
-          const dailyPoints = (bazarItemUsageReport.dailyTrend || []).map((d) => ({
-            label: `${monthShort} ${Number(d.dayLabel)}`,
-            amount: Number(d.amount || 0),
-          }));
+          const dailyPoints = (bazarItemUsageReport.dailyTrend || []).map((d) => {
+            const parsedDay = Number(d.dayLabel ?? String(d.date || d.label || "").split("-").pop());
+            const dayPart = Number.isFinite(parsedDay) && parsedDay > 0 ? parsedDay : String(d.label || "").trim();
+            return {
+              label: dayPart ? `${monthShort} ${dayPart}` : monthShort,
+              amount: Number(d.amount || 0),
+            };
+          });
           const monthPoints = monthlySeries.map((m) => {
             const parts = String(m.label || "").split(" ");
             return {
@@ -13371,23 +13375,77 @@ function App() {
                           <ArrowRight size={14} />
                         </button>
                       </div>
-                      <div className="bazar-top-items-grid is-two-column">
-                        {donutItems.map((item) => (
-                          <div
-                            className="bazar-top-item-tile bazar-top-item-wide"
-                            style={{ "--spending-color": chartColors[item.colorIndex] }}
-                            key={item.key}
-                          >
-                            <span className="bazar-top-item-emoji is-large" aria-hidden="true">
-                              {renderBazarReportIcon(item.name, 38)}
-                            </span>
-                            <span className="bazar-top-item-copy">
-                              <strong className="bazar-top-item-name">{item.name}</strong>
-                              <small className="bazar-top-item-pct">{item.sharePct.toFixed(1)}% of spending</small>
-                            </span>
-                            <strong className="bazar-top-item-amount">{money(item.totalSpent)}</strong>
+                      <div className="bazar-top-items-chart">
+                        <div className="bazar-top-donut-wrap">
+                          <svg viewBox="0 0 144 144" className="bazar-top-donut-svg" role="img" aria-label="Top items spending share donut chart">
+                            <circle
+                              cx="72"
+                              cy="72"
+                              r={donutRadius}
+                              fill="none"
+                              strokeWidth="20"
+                              className="bazar-top-donut-track"
+                            />
+                            {(() => {
+                              let topDonutOffset = 0;
+                              return donutItems.map((item) => {
+                                const pct = Math.max(0, item.sharePct) / 100;
+                                const segLen = pct * donutCircumference;
+                                const dashArray = `${segLen} ${donutCircumference - segLen}`;
+                                const dashOffset = -topDonutOffset;
+                                topDonutOffset += segLen;
+                                return (
+                                  <circle
+                                    key={item.key}
+                                    cx="72"
+                                    cy="72"
+                                    r={donutRadius}
+                                    fill="none"
+                                    stroke={chartColors[item.colorIndex]}
+                                    strokeWidth="20"
+                                    strokeDasharray={dashArray}
+                                    strokeDashoffset={dashOffset}
+                                    transform="rotate(-90 72 72)"
+                                  />
+                                );
+                              });
+                            })()}
+                          </svg>
+                          <div className="bazar-top-donut-center">
+                            <small>Top {donutItems.length}</small>
+                            <strong>{money(bazarItemUsageReport.totalSpent)}</strong>
                           </div>
-                        ))}
+                        </div>
+                        <div className="bazar-top-chart-bars">
+                          {donutItems.map((item) => {
+                            const wPct = bazarItemUsageReport.maxSpent > 0
+                              ? Math.max(8, Math.round((item.totalSpent / bazarItemUsageReport.maxSpent) * 100))
+                              : 8;
+                            return (
+                              <div className="bazar-top-bar-row" key={item.key}>
+                                <div className="bazar-top-bar-meta">
+                                  <span className="bazar-top-bar-item">
+                                    <i className="bazar-top-bar-dot" style={{ background: chartColors[item.colorIndex] }} aria-hidden="true" />
+                                    <span className="bazar-top-bar-icon" aria-hidden="true">
+                                      {renderBazarReportIcon(item.name, 18)}
+                                    </span>
+                                    <strong className="bazar-top-bar-name">{item.name}</strong>
+                                  </span>
+                                  <span className="bazar-top-bar-values">
+                                    <strong className="bazar-top-bar-amount">{money(item.totalSpent)}</strong>
+                                    <small className="bazar-top-bar-pct">{item.sharePct.toFixed(1)}%</small>
+                                  </span>
+                                </div>
+                                <div className="bazar-top-bar-track">
+                                  <span
+                                    className="bazar-top-bar-fill"
+                                    style={{ width: `${wPct}%`, background: chartColors[item.colorIndex] }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </section>
 
