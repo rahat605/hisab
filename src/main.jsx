@@ -1153,6 +1153,12 @@ const getBazarItemSummary = (raw) => {
     ? entries.map(getName).filter(Boolean).join(", ")
     : String(raw || "");
 };
+const formatBazarTableItemSummary = (raw) =>
+  getBazarItemSummary(raw)
+    .split(",")
+    .map((part) => part.trim().replace(/^(?:সবজি|shobji|sobji|vegetables?)\s*[-–—:]\s*/i, "").trim())
+    .filter(Boolean)
+    .join(", ");
 const getBazarCombineMeta = (b) => {
   if (!b) return null;
   const items = Array.isArray(b.items) ? b.items : [];
@@ -11039,19 +11045,24 @@ function App() {
                                   className="bazar-combined-amount-box"
                                   title={`Combined total: ${money(b.totalAmount)}`}
                                 >
-                                  <span className="bazar-combined-amount-line cash">
-                                    <small>Cash in Hand</small>
-                                    <strong>{money(b.cashAmount)}</strong>
+                                  <span className="bazar-amount-value bazar-combined-total-pill">
+                                    {money(b.totalAmount)}
                                   </span>
-                                  <span className="bazar-combined-amount-line member">
-                                    <small>{db.users.find((u) => u.id === b.memberId)?.name || "Member"}</small>
-                                    <strong>{money(b.memberAmount)}</strong>
-                                  </span>
+                                  <div className="bazar-combined-split-pills">
+                                    <span className="bazar-combined-amount-line cash">
+                                      <small>Cash</small>
+                                      <strong>{money(b.cashAmount)}</strong>
+                                    </span>
+                                    <span className="bazar-combined-amount-line member">
+                                      <small>{db.users.find((u) => u.id === b.memberId)?.name || "Member"}</small>
+                                      <strong>{money(b.memberAmount)}</strong>
+                                    </span>
+                                  </div>
                                 </div>
                               </td>
                               <td className="bazar-items-cell">
                                 <span className="bazar-item-summary">
-                                  {getBazarItemSummary(b.items)}
+                                  {formatBazarTableItemSummary(b.items)}
                                 </span>
                               </td>
                               <td className="bazar-paid-cell bazar-combined-paid-cell">
@@ -11177,7 +11188,7 @@ function App() {
                             </td>
                             <td className="bazar-items-cell">
                               <span className="bazar-item-summary">
-                                {getBazarItemSummary(b.items)}
+                                {formatBazarTableItemSummary(b.items)}
                               </span>
                             </td>
                             <td className="bazar-paid-cell">
