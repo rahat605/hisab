@@ -67,6 +67,7 @@ import {
   Pencil,
   Moon,
   Sun,
+  Languages,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -78,6 +79,7 @@ import "./theme.css";
 import "./theme-tail.css";
 import { supabase, supabaseConfigured } from "./supabase";
 import { openOverviewReport } from "./overviewReport";
+import { installUiLanguage } from "./uiLanguage";
 import {
   findBazarFoodCatalogItem,
   getBazarFoodSearchScore,
@@ -93,6 +95,15 @@ const getInitialColorMode = () => {
     if (saved === "dark" || saved === "light") return saved;
   } catch {}
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+};
+
+const getInitialLanguage = () => {
+  if (typeof window === "undefined") return "en";
+  try {
+    return localStorage.getItem("bh-language") === "bn" ? "bn" : "en";
+  } catch {
+    return "en";
+  }
 };
 
 if (typeof window !== "undefined") {
@@ -1112,7 +1123,52 @@ const FLAT_RENT_NAME = "Flat rent";
 const isFlatRentName = (value) =>
   String(value || "").trim().toLowerCase() === FLAT_RENT_NAME.toLowerCase();
 const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
+const ceilMoneyValue = (value) => Math.ceil(Number(value) || 0);
+const normalizeNearZeroAmount = (value) => {
+  const rounded = roundMoney(value);
+  return Math.abs(rounded) <= 1 ? 0 : rounded;
+};
+const normalizeDueAmount = (value) => {
+  const normalized = normalizeNearZeroAmount(value);
+  return normalized === 0 ? 0 : ceilMoneyValue(normalized);
+};
+const progressPercent = (value, total) => {
+  const amount = Number(value) || 0;
+  const maximum = Number(total) || 0;
+  if (maximum <= 0) return amount > 0 ? 100 : 0;
+  return Math.min(100, Math.max(0, (amount / maximum) * 100));
+};
 const hasMoney = (value) => Math.abs(roundMoney(value)) >= 0.01;
+const shiftMonthLabel = (value, offset = 0) => {
+  const match = String(value || "").trim().match(/^([A-Za-z]+)\s+(\d{4})$/);
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+  if (!match) return "";
+  const monthNumber = monthNames.findIndex(
+    (name) => name.toLowerCase() === match[1].toLowerCase(),
+  );
+  if (monthNumber < 0) return "";
+  const shifted = Number(match[2]) * 12 + monthNumber + Number(offset || 0);
+  const shiftedYear = Math.floor(shifted / 12);
+  const shiftedMonth = ((shifted % 12) + 12) % 12;
+  return `${monthNames[shiftedMonth]} ${shiftedYear}`;
+};
+const allocateMoneyShares = (total, memberIds = []) => {
+  const ids = [...new Set((memberIds || []).filter(Boolean))];
+  const shares = new Map();
+  if (!ids.length) return shares;
+  const totalCents = Math.round((Number(total) || 0) * 100);
+  const baseCents = Math.floor(totalCents / ids.length);
+  let remainderCents = totalCents - baseCents * ids.length;
+  ids.forEach((id) => {
+    const cents = baseCents + (remainderCents > 0 ? 1 : 0);
+    if (remainderCents > 0) remainderCents -= 1;
+    shares.set(id, cents / 100);
+  });
+  return shares;
+};
 const settlementPaidValue = (settlement) =>
   roundMoney(
     settlement?.paidAmount ??
@@ -1131,8 +1187,8 @@ const isMissingSettlementTableError = (error) =>
   ["42P01", "PGRST205"].includes(error?.code) ||
   /member_settlements|schema cache/i.test(String(error?.message || ""));
 const money = (n) => {
-  const num = Number(n || 0);
-  const formatted = Math.abs(num).toLocaleString("en-BD", { maximumFractionDigits: 2 });
+  const num = ceilMoneyValue(n);
+  const formatted = Math.abs(num).toLocaleString("en-BD", { maximumFractionDigits: 0 });
   return num < 0 ? `-৳${formatted}` : `৳${formatted}`;
 };
 const getBazarItemSummary = (raw) => {
@@ -1544,6 +1600,7 @@ class AppErrorBoundary extends React.Component {
 function App() {
   const [db, setDb] = useState(starter);
   const [colorMode, setColorMode] = useState(getInitialColorMode);
+  const [language, setLanguage] = useState(getInitialLanguage);
   const [session, setSession] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem("bh-user"));
@@ -1592,6 +1649,13 @@ function App() {
     } catch {}
   }, [colorMode]);
   const toggleColorMode = () => setColorMode((current) => current === "dark" ? "light" : "dark");
+  useEffect(() => {
+    try {
+      localStorage.setItem("bh-language", language);
+    } catch {}
+    return installUiLanguage(language);
+  }, [language]);
+  const toggleLanguage = () => setLanguage((current) => current === "bn" ? "en" : "bn");
   const todayDateObj = new Date();
   const todayWeekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(todayDateObj);
   const todayFormattedDate = new Intl.DateTimeFormat("en-US", {
@@ -1757,6 +1821,7 @@ function App() {
     date: todayForDateInput(),
     amount: "",
     paidBy: "",
+    cashSourceUserId: "",
     items: "",
     combinedCashAmount: "",
     combinedMemberAmount: "",
@@ -2475,17 +2540,21 @@ function App() {
           const sharedTotal=utilities.filter(c=>c.shared&&!isFlatRentName(c.name)).reduce((sum,c)=>sum+Number(c.amount||0),0);
           const utilityShare=sharedTotal / Math.max(1, Number(utilityMemberCount||4));
           const bazarTotal=(baz.data||[]).reduce((sum,b)=>sum+Number(b.amount||0),0);
+          const mealShares=allocateMoneyShares(bazarTotal,Array.isArray(mealIds)?mealIds:[]);
           for (const member of (db.users || [])) {
-            const mealCost=Array.isArray(mealIds)&&mealIds.includes(member.id) ? Math.ceil(bazarTotal/Math.max(1,mealIds.length)) : 0;
+            const mealCost=mealShares.get(member.id)||0;
             const payments=(pay.data||[]).filter(x=>x.user_id===member.id).reduce((sum,x)=>sum+Number(x.amount||0),0);
             const mealCredits=(baz.data||[]).filter(b=>!b.paid_from_cash&&b.paid_by===member.id).reduce((sum,b)=>sum+Number(b.amount||0),0);
-            const cashCredits=(cash.data||[]).filter(c=>c.paid_by===member.id).reduce((sum,c)=>sum+Number(c.amount||0),0);
-            const directSettled=(completedPastSettlements||[]).filter(entry=>entry.source_type==="direct"&&entry.from_user_id===member.id).reduce((sum,entry)=>sum+settlementPaidValue(entry),0);
+            const previousDueCashUsed=(completedPastSettlements||[]).filter(entry=>entry.source_type==="previous_due"&&entry.from_user_id===member.id).reduce((sum,entry)=>sum+settlementPaidValue(entry),0);
+            const cashCredits=(cash.data||[]).filter(c=>c.paid_by===member.id).reduce((sum,c)=>sum+Number(c.amount||0),0)-previousDueCashUsed;
+            const directSettled=(completedPastSettlements||[]).filter(entry=>["direct","previous_due"].includes(entry.source_type)&&entry.from_user_id===member.id).reduce((sum,entry)=>sum+settlementPaidValue(entry),0);
             const refundsReceived=(completedPastSettlements||[]).filter(entry=>entry.to_user_id===member.id).reduce((sum,entry)=>sum+settlementPaidValue(entry),0);
             balances[member.id] += Number(member.rent||0) + utilityShare + mealCost - payments - mealCredits - cashCredits - directSettled + refundsReceived;
           }
         }
-        const rounded = Object.fromEntries(Object.entries(balances).map(([id, amount]) => [id, Math.ceil(amount)]));
+        const rounded = Object.fromEntries(
+          Object.entries(balances).map(([id, amount]) => [id, normalizeDueAmount(amount)]),
+        );
         if (!cancelled) { setPreviousDueByUser(rounded); setPreviousDue(rounded[user.id] || 0); }
       } catch (error) {
         console.warn("Could not calculate previous due:", error?.message);
@@ -2746,9 +2815,61 @@ function App() {
             : settlementPaidValue(settlement)),
         0,
       );
+  const previousDueSettlementPaidBy = (uid, includePending = false) =>
+    monthSettlements
+      .filter(
+        (settlement) =>
+          settlement.fromUserId === uid &&
+          settlement.sourceType === "previous_due" &&
+          !settlement.appliesToDueMonth,
+      )
+      .reduce(
+        (sum, settlement) =>
+          sum +
+          (includePending
+            ? Number(settlement.amount || 0)
+            : settlementPaidValue(settlement)),
+        0,
+      );
+  const previousDueSettlementReceivedBy = (uid, includePending = false) =>
+    monthSettlements
+      .filter(
+        (settlement) =>
+          settlement.toUserId === uid &&
+          settlement.sourceType === "previous_due" &&
+          !settlement.appliesToDueMonth,
+      )
+      .reduce(
+        (sum, settlement) =>
+          sum +
+          (includePending
+            ? Number(settlement.amount || 0)
+            : settlementPaidValue(settlement)),
+        0,
+      );
+  const dueMonthPreviousPaymentBy = (uid, includePending = false) =>
+    monthSettlements
+      .filter(
+        (settlement) =>
+          settlement.fromUserId === uid &&
+          settlement.sourceType === "previous_due" &&
+          settlement.appliesToDueMonth,
+      )
+      .reduce(
+        (sum, settlement) =>
+          sum +
+          (includePending
+            ? Number(settlement.amount || 0)
+            : settlementPaidValue(settlement)),
+        0,
+      );
   const settlementReceivedBy = (uid, includePending = false) =>
     monthSettlements
-      .filter((settlement) => settlement.toUserId === uid)
+      .filter(
+        (settlement) =>
+          settlement.toUserId === uid &&
+          (settlement.sourceType !== "previous_due" || settlement.appliesToDueMonth),
+      )
       .reduce(
         (sum, settlement) =>
           sum +
@@ -3050,7 +3171,8 @@ function App() {
   );
   const utilitiesPerMember = utilityMemberCount > 0 ? sharedUtilitiesTotal / utilityMemberCount : 0;
   const bazarMemberCount = mealActiveIds.length;
-  const individualMealCost = bazarMemberCount > 0 ? Math.ceil(bazarTotal / bazarMemberCount) : 0;
+  const mealShareByUserId = allocateMoneyShares(bazarTotal, mealActiveIds);
+  const mealShareForUserId = (uid) => mealShareByUserId.get(uid) || 0;
   const sharedTotal =
     db.categories
       .filter(
@@ -3074,7 +3196,9 @@ function App() {
       .filter((c) => c.month === month && c.paidBy === uid)
       .reduce((s, c) => s + Number(c.amount || 0), 0) +
     directSettlementPaidBy(uid) -
-    settlementReceivedBy(uid);
+    settlementReceivedBy(uid) +
+    dueMonthPreviousPaymentBy(uid) -
+    previousDueSettlementPaidBy(uid);
   const cashContributionsTotal = (db.contributions || [])
     .filter((contribution) => contribution.month === month)
     .reduce((sum, contribution) => sum + Number(contribution.amount || 0), 0);
@@ -3082,12 +3206,20 @@ function App() {
     .filter((entry) => entry.paidFromCash)
     .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const completedCashSettlementTotal = monthSettlements
-    .filter((settlement) => settlement.sourceType === "cash_contribution")
+    .filter(
+      (settlement) =>
+        ["cash_contribution", "previous_due"].includes(settlement.sourceType) &&
+        !settlement.appliesToDueMonth,
+    )
     .reduce((sum, settlement) => sum + settlementPaidValue(settlement), 0);
   const pendingCashSettlementTotal = monthSettlements
-    .filter((settlement) => settlement.sourceType === "cash_contribution")
+    .filter(
+      (settlement) =>
+        ["cash_contribution", "previous_due"].includes(settlement.sourceType) &&
+        !settlement.appliesToDueMonth,
+    )
     .reduce((sum, settlement) => sum + settlementRemainingValue(settlement), 0);
-  const cashInHand = roundMoney(
+  const cashInHand = normalizeNearZeroAmount(
     cashContributionsTotal - cashBazarSpent - completedCashSettlementTotal,
   );
   const expensesPaidTotal =
@@ -3131,27 +3263,50 @@ function App() {
         timelineType: "bazar",
       })),
     ...monthSettlements
-      .filter((s) => s.sourceType === "direct" && s.fromUserId === user?.id && settlementPaidValue(s) > 0)
-      .map((s) => ({
-        id: s.id,
-        amount: settlementPaidValue(s),
-        date: s.date,
-        month: s.month,
-        note: s.note || `Settled meal due to ${db.users.find((u) => u.id === s.toUserId)?.name || "member"}`,
-        timelineId: `settlement-paid-${s.id}`,
-        timelineType: "settlement-paid",
-      })),
+      .filter((s) => ["direct", "previous_due"].includes(s.sourceType) && s.fromUserId === user?.id && settlementPaidValue(s) > 0)
+      .map((s) => {
+        const receiverName = db.users.find((u) => u.id === s.toUserId)?.name || "member";
+        const isPreviousMonth = s.sourceType === "previous_due";
+        const settlementMonth = isPreviousMonth
+          ? shiftMonthLabel(s.recordedMonth || s.month, -1)
+          : s.recordedMonth || s.month;
+        return {
+          id: s.id,
+          amount: settlementPaidValue(s),
+          date: s.date,
+          month: s.month,
+          settlementPeriod: isPreviousMonth ? "previous" : "current",
+          settlementMonth,
+          timelineDetail: isPreviousMonth
+            ? `${settlementMonth} · Cash in Hand paid ${receiverName} using your contribution`
+            : `${settlementMonth} · Paid to ${receiverName}`,
+          timelineId: `settlement-paid-${s.id}`,
+          timelineType: "settlement-paid",
+        };
+      }),
     ...monthSettlements
       .filter((s) => s.toUserId === user?.id && settlementPaidValue(s) > 0)
-      .map((s) => ({
-        id: s.id,
-        amount: settlementPaidValue(s),
-        date: s.date,
-        month: s.month,
-        note: s.note || `Received meal refund from ${s.sourceType === "cash_contribution" ? "House Cash" : (db.users.find((u) => u.id === s.fromUserId)?.name || "member")}`,
-        timelineId: `settlement-received-${s.id}`,
-        timelineType: "settlement-received",
-      })),
+      .map((s) => {
+        const contributorName = db.users.find((u) => u.id === s.fromUserId)?.name || "member";
+        const isPreviousMonth = s.sourceType === "previous_due";
+        const isHouseCash = ["cash_contribution", "previous_due"].includes(s.sourceType);
+        const settlementMonth = isPreviousMonth
+          ? shiftMonthLabel(s.recordedMonth || s.month, -1)
+          : s.recordedMonth || s.month;
+        return {
+          id: s.id,
+          amount: settlementPaidValue(s),
+          date: s.date,
+          month: s.month,
+          settlementPeriod: isPreviousMonth ? "previous" : "current",
+          settlementMonth,
+          timelineDetail: isHouseCash
+            ? `${settlementMonth} · Received from Cash in Hand · contribution by ${contributorName}`
+            : `${settlementMonth} · Received from ${contributorName}`,
+          timelineId: `settlement-received-${s.id}`,
+          timelineType: "settlement-received",
+        };
+      }),
   ]
     .sort((a, b) => {
       const dateOrder = String(b.date || "").localeCompare(String(a.date || ""));
@@ -3163,7 +3318,9 @@ function App() {
   );
   // Member due is room rent plus their share of utilities and bazar, less credits/payments.
   const ownTotalRent = ownRent + utilitiesPerMember;
-  const ownDue = Math.ceil(ownTotalRent + (mealActiveIds.includes(user?.id) ? individualMealCost : 0) - ownPayments);
+  const ownDue = normalizeDueAmount(
+    ownTotalRent + mealShareForUserId(user?.id) - ownPayments,
+  );
   const allDue = db.users
     .filter((u) => u.active)
     .map((u) => ({
@@ -3197,18 +3354,46 @@ function App() {
   // Meal charges apply only to members explicitly active in the meal roster.
   // Being selected for the rent/overview table does not make a member a meal member.
   const memberMealShare = (u) =>
-    mealActiveIds.includes(u.id) ? individualMealCost : 0;
+    mealShareForUserId(u.id);
   const memberDue = (u) =>
-    memberRentShare(u) + memberMealShare(u) - memberRentPaid(u.id) - memberMealPaid(u.id);
+    normalizeDueAmount(
+      memberRentShare(u) +
+        memberMealShare(u) -
+        memberRentPaid(u.id) -
+        memberMealPaid(u.id),
+    );
+  const memberPreviousDueBalance = (uid, includePending = false) => {
+    const previousBalance = Number(
+      previousDueByUser[uid] ?? (uid === user?.id ? previousDue : 0),
+    );
+    const adjustedBalance = roundMoney(
+      previousBalance -
+        previousDueSettlementPaidBy(uid, includePending) +
+        previousDueSettlementReceivedBy(uid, includePending),
+    );
+    return normalizeDueAmount(adjustedBalance);
+  };
   const memberMealBalance = (member, includePending = false) => {
-    const prevDue = Number(previousDueByUser[member?.id] ?? (member?.id === user?.id ? previousDue : 0));
+    const prevDue = memberPreviousDueBalance(member?.id, includePending);
     const completedBalance = memberMealShare(member) - memberMealPaid(member?.id) + prevDue;
-    if (!includePending) return roundMoney(completedBalance);
+    if (!includePending) return normalizeDueAmount(completedBalance);
+    const pendingPreviousDueCashUsed =
+      previousDueSettlementPaidBy(member?.id, true) -
+      previousDueSettlementPaidBy(member?.id);
     const pendingDirectPaid =
       directSettlementPaidBy(member?.id, true) - directSettlementPaidBy(member?.id);
+    const pendingDueMonthPaid =
+      dueMonthPreviousPaymentBy(member?.id, true) -
+      dueMonthPreviousPaymentBy(member?.id);
     const pendingReceived =
       settlementReceivedBy(member?.id, true) - settlementReceivedBy(member?.id);
-    return roundMoney(completedBalance - pendingDirectPaid + pendingReceived);
+    return normalizeDueAmount(
+      completedBalance +
+        pendingPreviousDueCashUsed -
+        pendingDirectPaid -
+        pendingDueMonthPaid +
+        pendingReceived,
+    );
   };
   const memberCashContribution = (uid) =>
     (db.contributions || [])
@@ -3222,7 +3407,8 @@ function App() {
       .filter(
         (settlement) =>
           settlement.fromUserId === uid &&
-          settlement.sourceType === "cash_contribution",
+          ["cash_contribution", "previous_due"].includes(settlement.sourceType) &&
+          !settlement.appliesToDueMonth,
       )
       .reduce(
         (sum, settlement) =>
@@ -3232,20 +3418,148 @@ function App() {
             : settlementPaidValue(settlement)),
         0,
       );
+  const cashSourceUserIdForEntry = (entry) => {
+    if (!entry?.paidFromCash) return "";
+    if (memberCashContribution(entry.paidBy) > 0.009) return entry.paidBy;
+    return (
+      (db.contributions || [])
+        .filter(
+          (contribution) =>
+            contribution.month === month &&
+            (!entry.date || !contribution.date || contribution.date <= entry.date) &&
+            (!entry.createdAt ||
+              !contribution.createdAt ||
+              contribution.createdAt <= entry.createdAt),
+        )
+        .sort((a, b) => {
+          const dateOrder = String(b.date || "").localeCompare(String(a.date || ""));
+          return dateOrder || String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+        })[0]
+        ?.paidBy || entry.paidBy || ""
+    );
+  };
+  const cashContributorOrder = Array.from(
+    new Set(
+      (db.contributions || [])
+        .filter((contribution) => contribution.month === month && Number(contribution.amount || 0) > 0)
+        .sort((a, b) => {
+          const dateOrder = String(a.date || "").localeCompare(String(b.date || ""));
+          return dateOrder || String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+        })
+        .map((contribution) => contribution.paidBy)
+        .filter(Boolean),
+    ),
+  );
+  const cashBazarAllocation = (() => {
+    const remainingByUser = new Map();
+    const usedByUser = new Map();
+    cashContributorOrder.forEach((uid) => {
+      remainingByUser.set(
+        uid,
+        Math.max(
+          0,
+          roundMoney(memberCashContribution(uid) - cashSettlementAllocatedBy(uid)),
+        ),
+      );
+      usedByUser.set(uid, 0);
+    });
+
+    let unassigned = 0;
+    const cashEntries = monthBazar
+      .filter((entry) => entry.paidFromCash && Number(entry.amount || 0) > 0)
+      .slice()
+      .sort((a, b) => {
+        const dateOrder = String(a.date || "").localeCompare(String(b.date || ""));
+        return dateOrder || String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+      });
+
+    cashEntries.forEach((entry) => {
+      let amountLeft = roundMoney(Number(entry.amount || 0));
+      const preferredUserId = cashSourceUserIdForEntry(entry);
+      const allocationOrder = [
+        preferredUserId,
+        ...cashContributorOrder.filter((uid) => uid !== preferredUserId),
+      ].filter(Boolean);
+
+      allocationOrder.forEach((uid) => {
+        if (amountLeft <= 0.009) return;
+        const available = Math.max(0, roundMoney(remainingByUser.get(uid) || 0));
+        if (available <= 0.009) return;
+        const allocated = roundMoney(Math.min(amountLeft, available));
+        usedByUser.set(uid, roundMoney((usedByUser.get(uid) || 0) + allocated));
+        remainingByUser.set(uid, roundMoney(available - allocated));
+        amountLeft = roundMoney(amountLeft - allocated);
+      });
+
+      if (amountLeft > 0.009) unassigned = roundMoney(unassigned + amountLeft);
+    });
+
+    return { usedByUser, unassigned };
+  })();
+  const cashBazarSpentBy = (uid) => roundMoney(cashBazarAllocation.usedByUser.get(uid) || 0);
+  const cashBazarUnassignedTotal = normalizeNearZeroAmount(cashBazarAllocation.unassigned);
   const availableContributionForSettlement = (uid) =>
     Math.max(
       0,
-      roundMoney(memberCashContribution(uid) - cashSettlementAllocatedBy(uid)),
+      roundMoney(
+        memberCashContribution(uid) -
+          cashBazarSpentBy(uid) -
+          cashSettlementAllocatedBy(uid),
+      ),
     );
-  const settlementBalanceRows = allActiveUsers.map((member) => {
-    const prevDue = Number(previousDueByUser[member?.id] ?? (member?.id === user?.id ? previousDue : 0));
+  const availablePreviousDueForSettlement = (uid) => {
+    return Math.max(0, roundMoney(-Math.min(0, memberPreviousDueBalance(uid, true))));
+  };
+  const payablePreviousDueForSettlement = (uid) =>
+    Math.max(0, memberPreviousDueBalance(uid, true));
+  const defaultCashSourceUserId =
+    allActiveUsers.find((member) => availableContributionForSettlement(member.id) > 0.009)
+      ?.id || "";
+  const mealRoundingOverage =
+    bazarMemberCount > 0
+      ? Math.max(
+          0,
+          roundMoney(
+            mealActiveIds.reduce(
+              (sum, memberId) => sum + mealShareForUserId(memberId),
+              0,
+            ) - bazarTotal,
+          ),
+        )
+      : 0;
+  const rawSettlementBalanceRows = allActiveUsers.map((member) => {
+    const remainingPreviousDue = memberPreviousDueBalance(member.id);
     return {
       member,
       mealCost: memberMealShare(member),
       mealPaid: memberMealPaid(member.id),
-      previousDue: prevDue,
+      previousDue: remainingPreviousDue,
       balance: memberMealBalance(member),
       projectedBalance: memberMealBalance(member, true),
+    };
+  });
+  const totalSettlementPayable = roundMoney(
+    rawSettlementBalanceRows.reduce((s, r) => s + (r.balance > 0.009 ? r.balance : 0), 0),
+  );
+  const totalSettlementReceivable = roundMoney(
+    rawSettlementBalanceRows.reduce((s, r) => s + (r.balance < -0.009 ? Math.abs(r.balance) : 0), 0),
+  );
+  let remainingRoundingExcess =
+    mealRoundingOverage > 0 &&
+    totalSettlementPayable > totalSettlementReceivable &&
+    roundMoney(totalSettlementPayable - totalSettlementReceivable) <= mealRoundingOverage + 0.009
+      ? roundMoney(totalSettlementPayable - totalSettlementReceivable)
+      : 0;
+  const settlementBalanceRows = rawSettlementBalanceRows.map((row) => {
+    if (remainingRoundingExcess <= 0.009 || row.balance <= 0.009) return row;
+    const mealGap = Math.max(0, roundMoney(row.mealCost - row.mealPaid));
+    const deduct = Math.min(remainingRoundingExcess, row.balance, mealGap);
+    if (deduct <= 0.009) return row;
+    remainingRoundingExcess = roundMoney(remainingRoundingExcess - deduct);
+    return {
+      ...row,
+      balance: roundMoney(row.balance - deduct),
+      projectedBalance: roundMoney(row.projectedBalance - deduct),
     };
   });
   const buildAutoSettlementSuggestions = () => {
@@ -3331,6 +3645,105 @@ function App() {
   const allOwed = allDue.reduce(
     (s, x) => s + Number(x.u.rent || 0) + x.shared - x.paid,
     0,
+  );
+  const overviewAvailableCash = Math.max(
+    0,
+    roundMoney(cashInHand - pendingCashSettlementTotal),
+  );
+  const overviewCashOwnershipRows = allActiveUsers
+    .map((member) => {
+      const contributed = memberCashContribution(member.id);
+      const bazarUsed = cashBazarSpentBy(member.id);
+      const settlementUsed = cashSettlementAllocatedBy(member.id);
+      const remaining = availableContributionForSettlement(member.id);
+      return {
+        member,
+        contributed,
+        used: roundMoney(bazarUsed + settlementUsed),
+        remaining,
+      };
+    })
+    .filter((row) => row.remaining > 1)
+    .sort((a, b) => b.remaining - a.remaining || b.contributed - a.contributed);
+  const overviewCashOwnershipTotal = roundMoney(
+    overviewCashOwnershipRows.reduce((sum, row) => sum + row.remaining, 0),
+  );
+  const overviewCashDifference = normalizeNearZeroAmount(
+    overviewAvailableCash - overviewCashOwnershipTotal,
+  );
+  const overviewUnpaidUtilities = utilityCategories
+    .map((category) => {
+      const statusKey = isFlatRentName(category.name) ? FLAT_RENT_NAME : category.name;
+      const total = Math.max(0, Number(category.amount || 0));
+      const paid = getUtilityPaidAmount(statusKey, total);
+      return { category, total, paid, remaining: roundMoney(total - paid) };
+    })
+    .filter((entry) => entry.remaining > 1);
+  const overviewCurrentMealDueRows = allActiveUsers.filter(
+    (member) =>
+      Math.abs(normalizeDueAmount(memberMealShare(member) - memberMealPaid(member.id))) > 1,
+  );
+  const overviewPreviousDueRows = previousDueLoading
+    ? []
+    : allActiveUsers.filter(
+        (member) => Math.abs(memberPreviousDueBalance(member.id)) > 1,
+      );
+  const overviewPendingSettlements = monthSettlements.filter(
+    (settlement) => settlementRemainingValue(settlement) > 1,
+  );
+  const overviewClosingChecks = [
+    {
+      key: "utilities",
+      label: "Utilities fully paid",
+      detail: overviewUnpaidUtilities.length
+        ? `${overviewUnpaidUtilities.length} bill${overviewUnpaidUtilities.length === 1 ? "" : "s"} remaining`
+        : "All utility bills are cleared",
+      done: overviewUnpaidUtilities.length === 0,
+    },
+    {
+      key: "meal",
+      label: "Current meal balances settled",
+      detail: overviewCurrentMealDueRows.length
+        ? `${overviewCurrentMealDueRows.length} member${overviewCurrentMealDueRows.length === 1 ? "" : "s"} still unsettled`
+        : "Current month meal balances are clear",
+      done: overviewCurrentMealDueRows.length === 0,
+    },
+    {
+      key: "previous",
+      label: "Previous dues cleared",
+      detail: previousDueLoading
+        ? "Previous dues are loading"
+        : overviewPreviousDueRows.length
+          ? `${overviewPreviousDueRows.length} member${overviewPreviousDueRows.length === 1 ? "" : "s"} have previous dues`
+          : "No previous due remains",
+      done: !previousDueLoading && overviewPreviousDueRows.length === 0,
+    },
+    {
+      key: "cash",
+      label: "Cash ledger reconciled",
+      detail:
+        cashBazarUnassignedTotal > 1
+          ? `${money(cashBazarUnassignedTotal)} cash usage needs a contributor`
+          : Math.abs(overviewCashDifference) > 1
+          ? `${money(Math.abs(overviewCashDifference))} difference found`
+          : "Cash balance matches member ownership",
+      done:
+        cashBazarUnassignedTotal <= 1 &&
+        Math.abs(overviewCashDifference) <= 1 &&
+        cashInHand >= -1,
+    },
+    {
+      key: "settlements",
+      label: "Pending settlements completed",
+      detail: overviewPendingSettlements.length
+        ? `${overviewPendingSettlements.length} settlement${overviewPendingSettlements.length === 1 ? "" : "s"} pending`
+        : "No pending settlement remains",
+      done: overviewPendingSettlements.length === 0,
+    },
+  ];
+  const overviewClosingCompleted = overviewClosingChecks.filter((check) => check.done).length;
+  const overviewClosingProgress = Math.round(
+    (overviewClosingCompleted / Math.max(1, overviewClosingChecks.length)) * 100,
   );
   async function ensureCloudMonth(label, createIfMissing = true) {
     if (!supabase) throw new Error("Supabase is not configured.");
@@ -4203,18 +4616,18 @@ function App() {
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     }[character]));
-    const rows = utilityCategories.filter((category) => category.shared && !isFlatRentName(category.name)).map((category) => `<tr><td><span class="utility-mark" aria-hidden="true">⌁</span>${escapeHtml(category.name)}</td><td>${money(category.amount)}</td><td>${money(utilityMemberCount > 0 ? Math.ceil(Number(category.amount || 0) / utilityMemberCount) : 0)}</td></tr>`).join("");
+    const rows = utilityCategories.filter((category) => category.shared && !isFlatRentName(category.name)).map((category) => `<tr><td><span class="utility-mark" aria-hidden="true">⌁</span>${escapeHtml(category.name)}</td><td>${money(category.amount)}</td><td>${money(utilityMemberCount > 0 ? roundMoney(Number(category.amount || 0) / utilityMemberCount) : 0)}</td></tr>`).join("");
     const reportMember = reportUser;
     const ownTotalRent = Number(reportUser.rent || 0) + utilitiesPerMember;
-    const mealCost = mealActiveIds.includes(reportUser.id) ? individualMealCost : 0;
+    const mealCost = memberMealShare(reportUser);
     const ownPayments =
       (db.payments || [])
         .filter((payment) => payment.userId === reportUser.id && payment.month === month)
         .reduce((sum, payment) => sum + Number(payment.amount || 0), 0) +
       memberCredits(reportUser.id);
-    const currentDue = Math.ceil(ownTotalRent + mealCost - ownPayments);
-    const pastDue = previousDueByUser[reportUser.id] ?? (reportUser.id === signedInUserId ? previousDue : 0);
-    const totalDue = currentDue + pastDue;
+    const currentDue = normalizeDueAmount(ownTotalRent + mealCost - ownPayments);
+    const pastDue = memberPreviousDueBalance(reportUser.id);
+    const totalDue = normalizeDueAmount(currentDue + pastDue);
     const icons = {
       home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V21h13V9.5M9.5 21v-7h5v7"/></svg>',
       meal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v7m-3-7v4a3 3 0 0 0 6 0V3m-3 7v11M17 3v18m0-18c3 2 3 7 0 9"/></svg>',
@@ -4381,6 +4794,15 @@ function App() {
       // Restore the signed-in member's persisted photo whenever cloud profile data loads.
       setProfilePhoto(activeProfile.photo_url || "");
       if (!monthRow) throw new Error("Could not load monthly setup.");
+      const nextMonthLabel = shiftMonthLabel(label, 1);
+      const { data: nextMonthRow, error: nextMonthError } = nextMonthLabel
+        ? await supabase
+            .from("months")
+            .select("id,label")
+            .eq("label", nextMonthLabel)
+            .maybeSingle()
+        : { data: null, error: null };
+      if (nextMonthError) throw nextMonthError;
       let savedMealIds = [];
       try { savedMealIds = JSON.parse(mealSetting?.value || "[]"); } catch { savedMealIds = []; }
       if (Array.isArray(savedMealIds)) setMealActiveIds(savedMealIds);
@@ -4427,7 +4849,7 @@ function App() {
       setShowBazarNeededLoginPopup(
         activeProfile.role === "member" && savedBazarNeededItems.length > 0,
       );
-      const [catsRes, payRes, bazRes, cashRes, settlementRes, utilityPaidResult, lastLoginResult] = await Promise.all([
+      const [catsRes, payRes, bazRes, cashRes, settlementRes, dueMonthSettlementRes, utilityPaidResult, lastLoginResult] = await Promise.all([
         supabase
           .from("expense_categories")
           .select("*")
@@ -4452,6 +4874,14 @@ function App() {
           .select("*")
           .eq("month_id", monthRow.id)
           .order("settlement_date", { ascending: false }),
+        nextMonthRow
+          ? supabase
+              .from("member_settlements")
+              .select("*")
+              .eq("month_id", nextMonthRow.id)
+              .eq("source_type", "previous_due")
+              .order("settlement_date", { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
         supabase
           .from("app_settings")
           .select("value")
@@ -4463,12 +4893,13 @@ function App() {
       ]);
       for (const r of [catsRes, payRes, bazRes, cashRes, utilityPaidResult])
         if (r.error) throw r.error;
-      if (settlementRes.error) {
-        const migrationHint = isMissingSettlementTableError(settlementRes.error)
+      const settlementReadError = settlementRes.error || dueMonthSettlementRes.error;
+      if (settlementReadError) {
+        const migrationHint = isMissingSettlementTableError(settlementReadError)
           ? "Run supabase/migrations/20261105_member_settlements.sql in Supabase."
-          : settlementRes.error.message;
+          : settlementReadError.message;
         setSettlementLoadError(migrationHint);
-        console.warn("Meal settlement data is unavailable:", settlementRes.error.message);
+        console.warn("Meal settlement data is unavailable:", settlementReadError.message);
       } else {
         setSettlementLoadError("");
       }
@@ -4551,6 +4982,7 @@ function App() {
         paidBy: x.paid_by,
         paidFromCash: Boolean(x.paid_from_cash),
         createdBy: x.created_by,
+        createdAt: x.created_at,
         items: (() => {
           const raw = x.items;
           if (Array.isArray(raw)) return raw;
@@ -4568,9 +5000,9 @@ function App() {
         note: x.note,
         month: label,
         createdBy: x.created_by,
+        createdAt: x.created_at,
       }));
-      const settlements = (settlementRes.error ? [] : settlementRes.data || []).map(
-        (x) => ({
+      const mapSettlement = (x, appliesToDueMonth = false) => ({
           id: x.id,
           date: x.settlement_date,
           amount: Number(x.amount),
@@ -4586,8 +5018,17 @@ function App() {
           note: x.note || "Meal balance settlement",
           month: label,
           createdBy: x.created_by,
-        }),
-      );
+          appliesToDueMonth,
+          recordedMonth: appliesToDueMonth ? nextMonthLabel : label,
+        });
+      const settlements = [
+        ...(settlementRes.error ? [] : settlementRes.data || []).map((x) =>
+          mapSettlement(x, false),
+        ),
+        ...(dueMonthSettlementRes.error ? [] : dueMonthSettlementRes.data || []).map(
+          (x) => mapSettlement(x, true),
+        ),
+      ];
       setDb((d) => ({
         ...d,
         month: label,
@@ -4618,6 +5059,12 @@ function App() {
             ? f.paidBy
             : profileId
           : profileId,
+        cashSourceUserId: contributions.some(
+          (contribution) =>
+            contribution.paidBy === f.cashSourceUserId && contribution.amount > 0,
+        )
+          ? f.cashSourceUserId
+          : contributions[0]?.paidBy || "",
       }));
       setCashForm((f) => ({
         ...f,
@@ -5353,6 +5800,7 @@ function App() {
         const cashAmount = roundMoney(Number(bazarForm.combinedCashAmount) || 0);
         const memberAmount = roundMoney(Number(bazarForm.combinedMemberAmount) || 0);
         const memberId = admin ? (bazarForm.combinedMemberId || user.id) : user.id;
+        const cashSourceUserId = bazarForm.cashSourceUserId;
 
         if (cashAmount <= 0) throw new Error("Cash in Hand amount must be greater than 0.");
         if (memberAmount <= 0) throw new Error("Member amount must be greater than 0.");
@@ -5362,6 +5810,14 @@ function App() {
         const cashBalance = roundMoney(cashInHand - pendingCashSettlementTotal);
         if (cashAmount > cashBalance) {
           throw new Error(`Not enough cash in hand. Available balance: ${money(Math.max(0, cashBalance))}.`);
+        }
+        if (!cashSourceUserId || !allActiveUsers.some((u) => u.id === cashSourceUserId)) {
+          throw new Error("Please select whose cash contribution is being used.");
+        }
+        const contributorAvailable = availableContributionForSettlement(cashSourceUserId);
+        if (cashAmount > contributorAvailable + 0.009) {
+          const contributorName = db.users.find((u) => u.id === cashSourceUserId)?.name || "This member";
+          throw new Error(`${contributorName} has only ${money(contributorAvailable)} available in Cash in Hand.`);
         }
         if (!memberId || !allActiveUsers.some((u) => u.id === memberId && u.active)) {
           throw new Error("Please select an active member in Member paying the balance.");
@@ -5394,7 +5850,7 @@ function App() {
             month_id: mid,
             entry_date: bazarForm.date,
             amount: cashAmount,
-            paid_by: user.id,
+            paid_by: cashSourceUserId,
             paid_from_cash: true,
             items: JSON.stringify(cashItems),
             created_by: user.id,
@@ -5433,6 +5889,7 @@ function App() {
           items: "",
           date: todayForDateInput(),
           paidBy: user.id,
+          cashSourceUserId: "",
           combinedCashAmount: "",
           combinedMemberAmount: "",
           combinedMemberId: user.id,
@@ -5445,7 +5902,11 @@ function App() {
       }
 
       const paidFromCash = admin && bazarForm.paidBy === "cash-in-hand";
-      const paidBy = paidFromCash ? user.id : admin ? bazarForm.paidBy : user.id;
+      const paidBy = paidFromCash
+        ? bazarForm.cashSourceUserId
+        : admin
+          ? bazarForm.paidBy
+          : user.id;
       if (!paidBy || !allActiveUsers.some((u) => u.id === paidBy && u.active)) {
         throw new Error("Please select an active user in Paid by.");
       }
@@ -5453,6 +5914,11 @@ function App() {
         const cashBalance = roundMoney(cashInHand - pendingCashSettlementTotal);
         if (Number(bazarForm.amount) > cashBalance) {
           throw new Error(`Not enough cash in hand. Available balance: ${money(Math.max(0, cashBalance))}.`);
+        }
+        const contributorAvailable = availableContributionForSettlement(paidBy);
+        if (itemTotal > contributorAvailable + 0.009) {
+          const contributorName = db.users.find((u) => u.id === paidBy)?.name || "This member";
+          throw new Error(`${contributorName} has only ${money(contributorAvailable)} available in Cash in Hand.`);
         }
       }
       const mid = await monthIdFor();
@@ -5489,6 +5955,7 @@ function App() {
         items: "",
         date: todayForDateInput(),
         paidBy: f.paidBy || user.id,
+        cashSourceUserId: "",
         combinedCashAmount: "",
         combinedMemberAmount: "",
         combinedMemberId: user.id,
@@ -5531,6 +5998,7 @@ function App() {
         combinedCashAmount: String(b.cashAmount || ""),
         combinedMemberAmount: String(b.memberAmount || ""),
         combinedMemberId: b.memberId || user?.id,
+        cashSourceUserId: cashSourceUserIdForEntry(b.cashEntry) || "",
       });
       return;
     }
@@ -5552,6 +6020,7 @@ function App() {
       combinedCashAmount: String(defaultCash > 0 ? defaultCash : ""),
       combinedMemberAmount: String(defaultMember > 0 ? defaultMember : ""),
       combinedMemberId: isCashInHand ? (b.createdBy || user?.id) : (b.paidBy || user?.id),
+      cashSourceUserId: isCashInHand ? cashSourceUserIdForEntry(b) : "",
     });
   }
 
@@ -5571,6 +6040,7 @@ function App() {
         const cashAmount = roundMoney(Number(bazarEditEntry.combinedCashAmount) || 0);
         const memberAmount = roundMoney(Number(bazarEditEntry.combinedMemberAmount) || 0);
         const memberId = admin ? (bazarEditEntry.combinedMemberId || user?.id) : user?.id;
+        const cashSourceUserId = bazarEditEntry.cashSourceUserId;
 
         if (cashAmount <= 0) throw new Error("Cash in Hand amount must be greater than 0.");
         if (memberAmount <= 0) throw new Error("Member amount must be greater than 0.");
@@ -5585,6 +6055,22 @@ function App() {
         const availableCash = roundMoney(cashInHand - pendingCashSettlementTotal + oldCash);
         if (cashAmount > availableCash) {
           throw new Error(`Not enough cash in hand. Available balance: ${money(Math.max(0, availableCash))}.`);
+        }
+        if (!cashSourceUserId || !allActiveUsers.some((u) => u.id === cashSourceUserId)) {
+          throw new Error("Please select whose cash contribution is being used.");
+        }
+        const oldCashSourceId = bazarEditEntry.isCombined
+          ? cashSourceUserIdForEntry(bazarEditEntry.cashEntry)
+          : bazarEditEntry.paidFromCash
+            ? cashSourceUserIdForEntry(bazarEditEntry)
+            : null;
+        const contributorAvailable = roundMoney(
+          availableContributionForSettlement(cashSourceUserId) +
+            (oldCashSourceId === cashSourceUserId ? oldCash : 0),
+        );
+        if (cashAmount > contributorAvailable + 0.009) {
+          const contributorName = db.users.find((u) => u.id === cashSourceUserId)?.name || "This member";
+          throw new Error(`${contributorName} has only ${money(contributorAvailable)} available in Cash in Hand.`);
         }
         if (!memberId || !allActiveUsers.some((u) => u.id === memberId && u.active)) {
           throw new Error("Please select an active member in Member paying balance.");
@@ -5617,8 +6103,8 @@ function App() {
           const { error: err1 } = await supabase.from("bazar_entries").update({
             entry_date: bazarEditEntry.editDate,
             amount: cashAmount,
-            paid_by: user.id,
             paid_from_cash: true,
+            paid_by: cashSourceUserId,
             items: JSON.stringify(cashItems),
             updated_at: new Date().toISOString(),
           }).eq("id", cashEntryId);
@@ -5637,6 +6123,8 @@ function App() {
           const { error: err1 } = await supabase.from("bazar_entries").update({
             entry_date: bazarEditEntry.editDate,
             amount: cashAmount,
+            paid_by: cashSourceUserId,
+            paid_from_cash: true,
             items: JSON.stringify(cashItems),
             updated_at: new Date().toISOString(),
           }).eq("id", cashEntryId);
@@ -5668,7 +6156,7 @@ function App() {
             month_id: mid,
             entry_date: bazarEditEntry.editDate,
             amount: cashAmount,
-            paid_by: user.id,
+            paid_by: cashSourceUserId,
             paid_from_cash: true,
             items: JSON.stringify(cashItems),
             created_by: bazarEditEntry.createdBy || user.id,
@@ -5689,17 +6177,14 @@ function App() {
         const rawPaidBy = String(bazarEditEntry.editPaidBy || "").trim();
         const isCash = rawPaidBy.toLowerCase() === "cash-in-hand" || rawPaidBy.toLowerCase() === "cash in hand";
         const validUsers = db.users || [];
-        const isUuid = (val) => typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
-
         let paidBy = user?.id;
         if (isCash) {
-          // Cash in Hand bazar must store a valid user UUID in paid_by (the creator or current admin), never string literal "Cash in Hand"
-          const creatorId = bazarEditEntry.createdBy;
-          if (creatorId && isUuid(creatorId) && validUsers.some((u) => u.id === creatorId)) {
-            paidBy = creatorId;
-          } else {
-            paidBy = user?.id;
+          // Cash in Hand rows store the contributor whose money funded the purchase.
+          const cashSourceUserId = bazarEditEntry.cashSourceUserId;
+          if (!cashSourceUserId || !validUsers.some((u) => u.id === cashSourceUserId)) {
+            throw new Error("Please select whose cash contribution is being used.");
           }
+          paidBy = cashSourceUserId;
           const oldCash = bazarEditEntry.isCombined
           ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0)
           : bazarEditEntry.paidFromCash
@@ -5708,6 +6193,17 @@ function App() {
           const availableCash = roundMoney(cashInHand - pendingCashSettlementTotal + oldCash);
           if (amount > availableCash) {
             throw new Error(`Not enough cash in hand. Available balance: ${money(Math.max(0, availableCash))}.`);
+          }
+          const oldCashSourceId = bazarEditEntry.paidFromCash
+            ? cashSourceUserIdForEntry(bazarEditEntry)
+            : null;
+          const contributorAvailable = roundMoney(
+            availableContributionForSettlement(cashSourceUserId) +
+              (oldCashSourceId === cashSourceUserId ? oldCash : 0),
+          );
+          if (amount > contributorAvailable + 0.009) {
+            const contributorName = db.users.find((u) => u.id === cashSourceUserId)?.name || "This member";
+            throw new Error(`${contributorName} has only ${money(contributorAvailable)} available in Cash in Hand.`);
           }
         } else {
           if (!rawPaidBy || !validUsers.some((u) => u.id === rawPaidBy)) {
@@ -5803,12 +6299,14 @@ function App() {
               : 0) +
             (cashForm.paidBy === memberId ? nextAmount : 0),
         );
-        const allocated = cashSettlementAllocatedBy(memberId);
+        const allocated = roundMoney(
+          cashBazarSpentBy(memberId) + cashSettlementAllocatedBy(memberId),
+        );
         if (nextMemberContribution + 0.009 < allocated) {
           const memberName =
             db.users.find((member) => member.id === memberId)?.name || "This member";
           throw new Error(
-            `${memberName} already has ${money(allocated)} assigned to settlement plans. Delete or complete those entries before reducing or moving this contribution.`,
+            `${memberName} already has ${money(allocated)} spent or assigned from this contribution. Update those bazar or settlement entries before reducing or moving it.`,
           );
         }
       }
@@ -5881,10 +6379,12 @@ function App() {
     const remainingMemberContribution = roundMoney(
       memberCashContribution(c.paidBy) - Number(c.amount || 0),
     );
-    const allocated = cashSettlementAllocatedBy(c.paidBy);
+    const allocated = roundMoney(
+      cashBazarSpentBy(c.paidBy) + cashSettlementAllocatedBy(c.paidBy),
+    );
     if (remainingMemberContribution + 0.009 < allocated) {
       alert(
-        `${money(allocated)} from this member is assigned to settlement entries. Delete those settlements before deleting the contribution.`,
+        `${money(allocated)} from this member is already spent or assigned. Update those bazar or settlement entries before deleting the contribution.`,
       );
       return;
     }
@@ -5937,6 +6437,13 @@ function App() {
     setShowSettlementModal(true);
   }
   function settlementWriteError(error) {
+    if (
+      /source_type|member_settlements_source_type_check/i.test(
+        String(error?.message || ""),
+      )
+    ) {
+      return "Previous-due settlements are not installed. Run supabase/migrations/20261120_cash_source_and_previous_due.sql in Supabase.";
+    }
     if (
       /confirm_settlement_payment|paid_amount|partially_paid|member_settlement_payments/i.test(
         String(error?.message || ""),
@@ -5991,6 +6498,36 @@ function App() {
       if (amount > refundableBalance + 0.009) {
         alert(
           `${toMember.name} can currently receive at most ${money(refundableBalance)}.`,
+        );
+        return;
+      }
+    } else if (settlementForm.sourceType === "previous_due") {
+      const memberAvailable = availableContributionForSettlement(fromMember.id);
+      const cashAvailable = Math.max(
+        0,
+        roundMoney(cashInHand - pendingCashSettlementTotal),
+      );
+      const previousDuePayable = payablePreviousDueForSettlement(fromMember.id);
+      const previousDueReceivable = availablePreviousDueForSettlement(toMember.id);
+      if (amount > memberAvailable + 0.009) {
+        alert(
+          `${fromMember.name} has ${money(memberAvailable)} of unallocated cash contributions available.`,
+        );
+        return;
+      }
+      if (amount > cashAvailable + 0.009) {
+        alert(`Only ${money(cashAvailable)} cash is currently available for this payment.`);
+        return;
+      }
+      if (amount > previousDuePayable + 0.009) {
+        alert(
+          `${fromMember.name} has ${money(previousDuePayable)} of previous due available to pay.`,
+        );
+        return;
+      }
+      if (amount > previousDueReceivable + 0.009) {
+        alert(
+          `${toMember.name} has ${money(previousDueReceivable)} of previous due available to receive.`,
         );
         return;
       }
@@ -6686,7 +7223,7 @@ function App() {
     const mealPaid = memberMealPaid(member.id);
     const totalPaid = rentPaid + mealPaid;
     const currentCharges = rentAndUtilities + mealCost;
-    const previousBalance = previousDueByUser[member.id] || 0;
+    const previousBalance = memberPreviousDueBalance(member.id);
     const rentUtilitiesDue = rentAndUtilities - rentPaid;
     const mealBalance = mealCost - mealPaid;
     const currentBalance = rentUtilitiesDue + mealBalance;
@@ -7466,16 +8003,15 @@ function App() {
             (sum, settlement) => sum + settlementPaidValue(settlement),
             0,
           );
-      const mealCost = mealMemberIds.includes(member.id)
-        ? Math.ceil(
-            bazars.reduce((sum, bazar) => sum + Number(bazar.amount || 0), 0) /
-              Math.max(1, mealMemberIds.length),
-          )
-        : 0;
+      const reportMealShares = allocateMoneyShares(
+        bazars.reduce((sum, bazar) => sum + Number(bazar.amount || 0), 0),
+        mealMemberIds,
+      );
+      const mealCost = reportMealShares.get(member.id) || 0;
       const totalMonthlyBill =
         Number(member.rent || 0) + utilitiesShare + mealCost;
       const mealPaid = mealPayments + mealCredits;
-      const balanceDue = Math.ceil(
+      const balanceDue = normalizeDueAmount(
         totalMonthlyBill - rentPayments - mealPaid,
       );
       const escapeHtml = (value) =>
@@ -7714,10 +8250,10 @@ function App() {
         const mealCharge = roundMoney(memberMealShare(member));
         const rentPayment = roundMoney(memberRentPaid(member.id));
         const mealPayment = roundMoney(memberMealPaid(member.id));
-        const previousBalance = roundMoney(previousDueByUser[member.id] || 0);
+        const previousBalance = memberPreviousDueBalance(member.id);
         const charge = roundMoney(rentCharge + mealCharge);
         const covered = roundMoney(rentPayment + mealPayment);
-        const currentBalance = roundMoney(charge - covered);
+        const currentBalance = normalizeDueAmount(charge - covered);
         return {
           id: member.id,
           name: member.name || "Member",
@@ -7732,7 +8268,7 @@ function App() {
           charge,
           covered,
           currentBalance,
-          balance: roundMoney(currentBalance + previousBalance),
+          balance: normalizeDueAmount(currentBalance + previousBalance),
         };
       });
     const totalCharges = roundMoney(
@@ -7883,7 +8419,12 @@ function App() {
       .map((settlement) => ({
         date: settlement.date || "",
         member: `${memberName(settlement.fromUserId)} → ${memberName(settlement.toUserId)}`,
-        type: settlement.sourceType === "cash_contribution" ? "Cash refund" : "Direct settlement",
+        type:
+          settlement.sourceType === "cash_contribution"
+            ? "Cash refund"
+            : settlement.sourceType === "previous_due"
+              ? "Previous due payment"
+              : "Direct settlement",
         note: settlement.note || "Balance settlement",
         amount: roundMoney(settlement.amount),
         paid: roundMoney(settlementPaidValue(settlement)),
@@ -7943,6 +8484,17 @@ function App() {
   if (!session || !user)
     return (
       <div className="login-wrap">
+        <button
+          type="button"
+          className="language-toggle login-language-toggle"
+          onClick={toggleLanguage}
+          aria-label={language === "bn" ? "Switch to English" : "বাংলা ভাষায় দেখুন"}
+          title={language === "bn" ? "English" : "বাংলা"}
+          data-no-translate
+        >
+          <Languages size={16} aria-hidden="true" />
+          <span>{language === "bn" ? "EN" : "বাংলা"}</span>
+        </button>
         <button
           type="button"
           className="theme-toggle login-theme-toggle"
@@ -8310,6 +8862,17 @@ function App() {
           <div className="header-actions">
             <button
               type="button"
+              className="icon-btn header-language-toggle"
+              onClick={toggleLanguage}
+              aria-label={language === "bn" ? "Switch to English" : "বাংলা ভাষায় দেখুন"}
+              title={language === "bn" ? "English" : "বাংলা"}
+              data-no-translate
+            >
+              <Languages size={15} aria-hidden="true" />
+              <span>{language === "bn" ? "EN" : isPhoneView ? "বাং" : "বাংলা"}</span>
+            </button>
+            <button
+              type="button"
               className="icon-btn header-theme-toggle"
               onClick={toggleColorMode}
               aria-label={colorMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -8655,6 +9218,7 @@ function App() {
                 watermarkIcon={Home}
                 tone="purple"
                 hint="Rent + utilities"
+                progress={progressPercent(rentPaid, totalRent + utilitiesTotal)}
                 className="summary-stat summary-indigo"
                 showAction
               />
@@ -8665,6 +9229,7 @@ function App() {
                 watermarkIcon={CheckCircle2}
                 tone="green"
                 hint="Utilities paid"
+                progress={progressPercent(utilitiesPaidTotal, utilitiesTotal)}
                 className="summary-stat summary-cyan"
                 showAction
                 actionKind="check"
@@ -8676,6 +9241,7 @@ function App() {
                 watermarkIcon={Wallet}
                 tone="green"
                 hint="Available rent"
+                progress={progressPercent(rentInHand, rentPaid)}
                 className="summary-stat summary-green"
                 showAction
               />
@@ -8686,6 +9252,10 @@ function App() {
                 watermarkIcon={TriangleAlert}
                 tone="orange"
                 hint="Outstanding rent"
+                progress={progressPercent(
+                  Math.max(0, totalRent + utilitiesTotal - rentPaid),
+                  totalRent + utilitiesTotal,
+                )}
                 className="summary-stat summary-amber"
                 showAction
                 actionKind="alert"
@@ -8697,6 +9267,7 @@ function App() {
                 watermarkIcon={ShoppingBasket}
                 tone="blue"
                 hint="Monthly bazar"
+                progress={bazarTotal > 0 ? 100 : 0}
                 className="summary-stat summary-rose"
                 showAction
               />
@@ -8707,6 +9278,7 @@ function App() {
                 watermarkIcon={Wallet}
                 tone="purple"
                 hint="Available cash"
+                progress={progressPercent(cashInHand, cashContributionsTotal)}
                 className="summary-stat summary-violet"
                 showAction
               />
@@ -8754,7 +9326,11 @@ function App() {
                             </div>
                             <div className="mobile-balance-actions">
                               <span className="mobile-due">
-                                {money(memberDue(x.u) + (previousDueByUser[x.u.id] || 0))}
+                                {money(
+                                  normalizeDueAmount(
+                                    memberDue(x.u) + memberPreviousDueBalance(x.u.id),
+                                  ),
+                                )}
                               </span>
                               <button
                                 type="button"
@@ -8771,8 +9347,14 @@ function App() {
                           <td>{money(memberMealShare(x.u))}</td>
                           <td className="green-text">{money(memberRentPaid(x.u.id))}</td>
                           <td className="green-text">{money(memberMealPaid(x.u.id))}</td>
-                          <td>{previousDueLoading ? "Loading…" : money(previousDueByUser[x.u.id] || 0)}</td>
-                          <td className="due">{money(memberDue(x.u) + (previousDueByUser[x.u.id] || 0))}</td>
+                          <td>{previousDueLoading ? "Loading…" : money(memberPreviousDueBalance(x.u.id))}</td>
+                          <td className="due">
+                            {money(
+                              normalizeDueAmount(
+                                memberDue(x.u) + memberPreviousDueBalance(x.u.id),
+                              ),
+                            )}
+                          </td>
                           <td className="member-balance-report-cell">
                             <button
                               type="button"
@@ -8788,6 +9370,93 @@ function App() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+                <div className="overview-insights-grid overview-member-insights">
+                  <section className="overview-insight-card overview-cash-ownership-card">
+                    <div className="overview-insight-head">
+                      <span className="overview-insight-icon is-cash" aria-hidden="true">
+                        <Wallet size={19} />
+                      </span>
+                      <div className="overview-insight-heading">
+                        <h3>Cash Ownership</h3>
+                        <p>Available Cash in Hand by contributor</p>
+                      </div>
+                      <span className="overview-insight-value-badge">{money(overviewCashOwnershipTotal)}</span>
+                    </div>
+                    <div className="overview-cash-owner-list">
+                      {overviewCashOwnershipRows.length ? (
+                        overviewCashOwnershipRows.slice(0, 5).map((row) => {
+                          const remainingPct = row.contributed > 0
+                            ? Math.min(100, Math.max(0, (row.remaining / row.contributed) * 100))
+                            : 0;
+                          return (
+                            <div className="overview-cash-owner-row" key={row.member.id}>
+                              <div className="overview-cash-owner-person">
+                                {row.member.photo_url ? (
+                                  <img src={row.member.photo_url} alt="" />
+                                ) : (
+                                  <span>{row.member.name?.[0]?.toUpperCase() || "M"}</span>
+                                )}
+                                <div>
+                                  <b>{row.member.name}</b>
+                                  <small>{money(row.contributed)} contributed · {money(row.used)} used</small>
+                                </div>
+                              </div>
+                              <strong>{money(row.remaining)}</strong>
+                              <div className="overview-cash-owner-track" aria-hidden="true">
+                                <i style={{ width: `${remainingPct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="overview-insight-empty">
+                          <Wallet size={22} />
+                          <span>
+                            {cashContributionsTotal > 1
+                              ? "No contributor balance remains in Cash in Hand"
+                              : "No cash contribution recorded this month"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="overview-insight-foot">
+                      <span>Available after pending settlements</span>
+                      <b>{money(overviewAvailableCash)}</b>
+                    </div>
+                  </section>
+
+                  <section className="overview-insight-card overview-closing-card">
+                    <div className="overview-insight-head">
+                      <span className="overview-insight-icon is-closing" aria-hidden="true">
+                        <CheckCheck size={19} />
+                      </span>
+                      <div className="overview-insight-heading">
+                        <h3>Month Closing Status</h3>
+                        <p>{overviewClosingCompleted} of {overviewClosingChecks.length} checks completed</p>
+                      </div>
+                      <div
+                        className="overview-closing-ring"
+                        style={{ "--overview-closing-progress": `${overviewClosingProgress * 3.6}deg` }}
+                        aria-label={`${overviewClosingProgress}% complete`}
+                      >
+                        <span>{overviewClosingProgress}%</span>
+                      </div>
+                    </div>
+                    <div className="overview-closing-list">
+                      {overviewClosingChecks.map((check) => (
+                        <div className={`overview-closing-row${check.done ? " is-done" : " is-open"}`} key={check.key}>
+                          <span className="overview-closing-check" aria-hidden="true">
+                            {check.done ? <Check size={13} strokeWidth={3} /> : <Clock3 size={13} />}
+                          </span>
+                          <div>
+                            <b>{check.label}</b>
+                            <small>{check.detail}</small>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 </div>
               </section>
               <section className="panel overview-utilities-panel">
@@ -8836,7 +9505,7 @@ function App() {
                           className="utility-paid-input"
                           min="0"
                           max={Math.max(0, flatRentAmount)}
-                          step="any"
+                          step="1"
                           placeholder="0"
                           aria-label={`Paid amount for ${FLAT_RENT_NAME}`}
                           disabled={!admin || flatRentAmount <= 0}
@@ -8920,7 +9589,7 @@ function App() {
                           className="utility-paid-input"
                           min="0"
                           max={Math.max(0, catTotal)}
-                          step="any"
+                          step="1"
                           placeholder="0"
                           aria-label={`Paid amount for ${c.name}`}
                           disabled={!admin || catTotal <= 0}
@@ -9009,6 +9678,7 @@ function App() {
                 icon={Home}
                 tone="blue"
                 hint="Rent + utilities"
+                progress={progressPercent(memberRentPaid(user.id), ownTotalRent)}
                 className="summary-stat summary-indigo"
                 showAction
               />
@@ -9019,17 +9689,19 @@ function App() {
                 watermarkIcon={Wallet}
                 tone="green"
                 hint="Recorded payment"
+                progress={progressPercent(memberRentPaid(user.id), ownTotalRent)}
                 className="summary-stat summary-cyan"
                 showAction
                 actionKind="check"
               />
               <Stat
                 title="Meal Cost"
-                value={money(mealActiveIds.includes(user.id) ? individualMealCost : 0)}
+                value={money(memberMealShare(user))}
                 icon={Utensils}
                 watermarkIcon={Utensils}
                 tone="orange"
                 hint={`${bazarMemberCount} members`}
+                progress={progressPercent(memberMealPaid(user.id), memberMealShare(user))}
                 className="summary-stat summary-rose"
                 showAction
               />
@@ -9040,27 +9712,36 @@ function App() {
                 watermarkIcon={CheckCircle2}
                 tone="green"
                 hint="Payments + credits"
+                progress={progressPercent(memberMealPaid(user.id), memberMealShare(user))}
                 className="summary-stat summary-green"
                 showAction
                 actionKind="check"
               />
               <Stat
                 title="Previous Due"
-                value={previousDueLoading ? "Loading…" : money(previousDueByUser[user.id] ?? previousDue)}
+                value={previousDueLoading ? "Loading…" : money(memberPreviousDueBalance(user.id))}
                 icon={FileText}
                 watermarkIcon={Clock3}
                 tone="orange"
                 hint="Carried forward"
+                progress={progressPercent(
+                  Math.abs(memberPreviousDueBalance(user.id)),
+                  ownTotalRent + memberMealShare(user) + Math.abs(memberPreviousDueBalance(user.id)),
+                )}
                 className="summary-stat summary-violet"
                 showAction
               />
               <Stat
-                title="Due"
-                value={money(ownDue + (previousDueByUser[user.id] ?? previousDue))}
+                title="Current Due"
+                value={money(ownDue)}
                 icon={Wallet}
                 watermarkIcon={TriangleAlert}
                 tone="orange"
-                hint={`${money(previousDueByUser[user.id] ?? previousDue)} + ${money(ownDue)}`}
+                hint="This month balance"
+                progress={progressPercent(
+                  Math.max(0, ownDue),
+                  ownTotalRent + memberMealShare(user),
+                )}
                 className="summary-stat summary-amber"
                 showAction
                 actionKind="alert"
@@ -9141,6 +9822,9 @@ function App() {
                     const isBazar = payment.timelineType === "bazar";
                     const isSettlementPaid = payment.timelineType === "settlement-paid";
                     const isSettlementReceived = payment.timelineType === "settlement-received";
+                    const settlementPeriodLabel = payment.settlementPeriod === "previous"
+                      ? "Previous month"
+                      : "Current month";
                     const paymentLabel = isCashContribution
                       ? "Cash contribution"
                       : isMealPayment
@@ -9148,9 +9832,9 @@ function App() {
                         : isBazar
                           ? "Bazar purchase"
                           : isSettlementPaid
-                            ? "Meal settlement paid"
+                            ? `${settlementPeriodLabel} settlement paid`
                             : isSettlementReceived
-                              ? "Meal settlement received"
+                              ? `${settlementPeriodLabel} settlement received`
                               : "Rent payment";
                     const statusLabel = isBazar
                       ? "Bazar credit"
@@ -9194,7 +9878,7 @@ function App() {
                           <div className="account-payment-title-row">
                             <strong>{paymentLabel}</strong>
                           </div>
-                          <p>{payment.note || `${paymentLabel} recorded for ${month}`}</p>
+                          <p>{payment.timelineDetail || payment.note || `${paymentLabel} recorded for ${month}`}</p>
                           <small>
                             {validDate
                               ? paymentDate.toLocaleDateString("en-BD", {
@@ -9541,17 +10225,22 @@ function App() {
                         const fromName = fromMember?.name || "Member";
                         const toName = toMember?.name || "Member";
                         const isCashRefund = settlement.sourceType === "cash_contribution";
+                        const isPreviousDue = settlement.sourceType === "previous_due";
                         const paidAmount = settlementPaidValue(settlement);
                         const remainingAmount = settlementRemainingValue(settlement);
                         const canConfirmPayment =
                           settlement.status !== "completed" &&
                           (admin || settlement.toUserId === user?.id);
-                        const transferSentence = isCashRefund
+                        const transferSentence = isCashRefund || isPreviousDue
                           ? settlement.status === "completed"
-                             ? `Cash in Hand fully refunded ${toName} ${money(settlement.amount)} using ${fromName}'s contribution.`
+                             ? isPreviousDue
+                               ? `Cash in Hand paid ${money(settlement.amount)} of ${toName}'s previous due using ${fromName}'s contribution.`
+                               : `Cash in Hand fully refunded ${toName} ${money(settlement.amount)} using ${fromName}'s contribution.`
                              : paidAmount > 0
                                ? `${toName} confirmed ${money(paidAmount)} received; ${money(remainingAmount)} remains.`
-                               : `Cash in Hand owes ${toName} ${money(settlement.amount)} using ${fromName}'s contribution.`
+                               : isPreviousDue
+                                 ? `Cash in Hand will pay ${money(settlement.amount)} of ${toName}'s previous due using ${fromName}'s contribution.`
+                                 : `Cash in Hand owes ${toName} ${money(settlement.amount)} using ${fromName}'s contribution.`
                           : settlement.status === "completed"
                              ? `${fromName} fully paid ${toName} ${money(settlement.amount)}.`
                              : paidAmount > 0
@@ -9559,24 +10248,34 @@ function App() {
                                : `${fromName} owes ${toName} ${money(settlement.amount)}.`;
                         return (
                           <article
-                            className={`settlement-ledger-card ${settlement.status} ${isCashRefund ? "cash-refund" : "direct-transfer"}`}
+                            className={`settlement-ledger-card ${settlement.status} ${isCashRefund || isPreviousDue ? "cash-refund" : "direct-transfer"}`}
                             key={settlement.id}
                             aria-label={transferSentence}
                           >
                             <div className="settlement-ledger-top-box">
                               <div className="settlement-ledger-route">
                                 <div className="settlement-ledger-party payer">
-                                  <small>{isCashRefund ? "Contribution by" : "Paid by"}</small>
+                                  <small>{isCashRefund || isPreviousDue ? "Contribution by" : "Paid by"}</small>
                                   <div>
-                                    <span className="settlement-ledger-avatar payer">{fromName[0] || "M"}</span>
+                                    <span className="settlement-ledger-avatar payer">
+                                      {fromMember?.photo_url ? (
+                                        <img
+                                          className="settlement-ledger-avatar-image"
+                                          src={fromMember.photo_url}
+                                          alt=""
+                                        />
+                                      ) : (
+                                        fromName[0] || "M"
+                                      )}
+                                    </span>
                                     <span>
                                       <strong>{fromName}</strong>
-                                      <em>{isCashRefund ? "Cash source" : "Payer"}</em>
+                                      <em>{isCashRefund || isPreviousDue ? "Cash source" : "Payer"}</em>
                                     </span>
                                   </div>
                                 </div>
                                 <div className="settlement-ledger-transfer">
-                                  <small>{isCashRefund ? "Total refund due" : "Total due"}</small>
+                                  <small>{isCashRefund ? "Total refund due" : isPreviousDue ? "Previous due payment" : "Total due"}</small>
                                   <div>
                                     <span className="settlement-transfer-dash" aria-hidden="true">—</span>
                                     <strong>{money(settlement.amount)}</strong>
@@ -9590,7 +10289,17 @@ function App() {
                                       <strong>{toName}</strong>
                                       <em>Receiver</em>
                                     </span>
-                                    <span className="settlement-ledger-avatar receiver">{toName[0] || "M"}</span>
+                                    <span className="settlement-ledger-avatar receiver">
+                                      {toMember?.photo_url ? (
+                                        <img
+                                          className="settlement-ledger-avatar-image"
+                                          src={toMember.photo_url}
+                                          alt=""
+                                        />
+                                      ) : (
+                                        toName[0] || "M"
+                                      )}
+                                    </span>
                                   </div>
                                 </div>
                               </div>
@@ -9628,7 +10337,11 @@ function App() {
                                   {settlementStatusLabel(settlement.status)}
                                 </span>
                                 <span className="settlement-method-badge">
-                                  {isCashRefund ? "Cash contribution refund" : "Direct transfer"}
+                                    {isCashRefund
+                                      ? "Cash contribution refund"
+                                      : isPreviousDue
+                                        ? "Previous due payment"
+                                        : "Direct transfer"}
                                 </span>
                                 <small>{settlement.date}{settlement.note ? ` · ${settlement.note}` : ""}</small>
                               </div>
@@ -9709,6 +10422,7 @@ function App() {
                         options={[
                           { value: "cash_contribution", label: "Refund from cash contribution" },
                           { value: "direct", label: "Direct member transfer" },
+                          { value: "previous_due", label: "Pay last month's due" },
                         ]}
                         onChange={(nextType) =>
                           setSettlementForm({
@@ -9724,17 +10438,23 @@ function App() {
                       <label>
                         {settlementForm.sourceType === "cash_contribution"
                           ? "Contribution from"
-                          : "Paid by"}
+                          : settlementForm.sourceType === "previous_due"
+                            ? "Contribution from"
+                            : "Paid by"}
                         <PremiumDropdown
                           ariaLabel={
                             settlementForm.sourceType === "cash_contribution"
                               ? "Contribution from"
-                              : "Paid by"
+                              : settlementForm.sourceType === "previous_due"
+                                ? "Contribution from"
+                                : "Paid by"
                           }
                           menuLabel={
                             settlementForm.sourceType === "cash_contribution"
                               ? "CONTRIBUTION FROM"
-                              : "PAID BY"
+                              : settlementForm.sourceType === "previous_due"
+                                ? "CONTRIBUTION FROM"
+                                : "PAID BY"
                           }
                           value={settlementForm.fromUserId}
                           options={allActiveUsers.map((member) => ({
@@ -9742,7 +10462,9 @@ function App() {
                             label: `${member.name}${
                               settlementForm.sourceType === "cash_contribution"
                                 ? ` · ${money(availableContributionForSettlement(member.id))} available`
-                                : ` · balance ${money(memberMealBalance(member, true))}`
+                                : settlementForm.sourceType === "previous_due"
+                                  ? ` · ${money(availableContributionForSettlement(member.id))} cash · ${money(payablePreviousDueForSettlement(member.id))} due`
+                                  : ` · balance ${money(memberMealBalance(member, true))}`
                             }`,
                           }))}
                           onChange={(nextId) =>
@@ -9758,22 +10480,31 @@ function App() {
                       <label>
                         {settlementForm.sourceType === "cash_contribution"
                           ? "Refund to"
-                          : "Paid to"}
+                          : settlementForm.sourceType === "previous_due"
+                            ? "Previous due of"
+                            : "Paid to"}
                         <PremiumDropdown
                           ariaLabel={
                             settlementForm.sourceType === "cash_contribution"
                               ? "Refund to"
-                              : "Paid to"
+                              : settlementForm.sourceType === "previous_due"
+                                ? "Previous due of"
+                                : "Paid to"
                           }
                           menuLabel={
                             settlementForm.sourceType === "cash_contribution"
                               ? "REFUND TO"
-                              : "PAID TO"
+                              : settlementForm.sourceType === "previous_due"
+                                ? "PREVIOUS DUE OF"
+                                : "PAID TO"
                           }
                           value={settlementForm.toUserId}
                           options={allActiveUsers.map((member) => ({
                             value: member.id,
-                            label: `${member.name} · balance ${money(memberMealBalance(member, true))}`,
+                            label:
+                              settlementForm.sourceType === "previous_due"
+                                ? `${member.name} · ${money(availablePreviousDueForSettlement(member.id))} receivable`
+                                : `${member.name} · balance ${money(memberMealBalance(member, true))}`,
                           }))}
                           onChange={(nextId) =>
                             setSettlementForm({
@@ -9791,8 +10522,8 @@ function App() {
                         Total due (৳)
                         <input
                           type="number"
-                          min="0.01"
-                          step="0.01"
+                          min="1"
+                          step="1"
                           value={settlementForm.amount}
                           onChange={(event) =>
                             setSettlementForm({ ...settlementForm, amount: event.target.value })
@@ -9825,7 +10556,9 @@ function App() {
                     <div className="settlement-form-note">
                       {settlementForm.sourceType === "cash_contribution"
                         ? "The receiver can confirm full or partial refunds. Confirmed amounts reduce cash in hand and the remaining balance automatically."
-                        : "The receiver can confirm full or partial payments. Status and remaining due update automatically after each confirmation."}
+                        : settlementForm.sourceType === "previous_due"
+                          ? "Confirmed amounts are paid from Cash in Hand, reduce the selected contribution, and clear both sides of the previous due."
+                          : "The receiver can confirm full or partial payments. Status and remaining due update automatically after each confirmation."}
                     </div>
                     <div className="settlement-modal-actions">
                       <button
@@ -9902,9 +10635,9 @@ function App() {
                       Amount received (৳)
                       <input
                         type="number"
-                        min="0.01"
+                        min="1"
                         max={settlementRemainingValue(settlementConfirmTarget)}
-                        step="0.01"
+                        step="1"
                         value={settlementConfirmAmount}
                         onChange={(event) => setSettlementConfirmAmount(event.target.value)}
                         autoFocus
@@ -10134,7 +10867,7 @@ function App() {
                     id="flat-rent-amount"
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="1"
                     value={flatRentInput}
                     onChange={(event) => setFlatRentInput(event.target.value)}
                     placeholder="Enter flat rent"
@@ -11529,8 +12262,8 @@ function App() {
                           id="bazar-simple-price"
                           type="number"
                           min="0"
-                          step="0.01"
-                          placeholder="0.00"
+                          step="1"
+                          placeholder="0"
                           value={bazarItemPicker.unitPrice}
                           onChange={(event) => {
                             setBazarPickerError("");
@@ -11588,7 +12321,7 @@ function App() {
                               className="bazar-tracked-price"
                               type="number"
                               min="0"
-                              step="0.01"
+                              step="1"
                               value={row.price}
                               onChange={(event) => updateBazarRow(index, "price", event.target.value)}
                             />
@@ -11791,8 +12524,8 @@ function App() {
                               id="bazar-picker-price"
                               type="number"
                               min="0"
-                              step="0.01"
-                              placeholder="0.00"
+                              step="1"
+                              placeholder="0"
                               value={bazarItemPicker.unitPrice}
                               onChange={(e) => {
                                 setBazarPickerError("");
@@ -11901,8 +12634,8 @@ function App() {
                               aria-label={`Price ${index + 1}`}
                               type="number"
                               min="0"
-                              step="0.01"
-                              placeholder="0.00"
+                              step="1"
+                              placeholder="0"
                               value={row.price}
                               onChange={(e) => updateBazarRow(index, "price", e.target.value)}
                             />
@@ -11955,12 +12688,20 @@ function App() {
                             setBazarForm((prev) => ({
                               ...prev,
                               paidBy: "combine",
+                              cashSourceUserId: prev.cashSourceUserId || defaultCashSourceUserId,
                               combinedCashAmount: defaultCash > 0 ? String(defaultCash) : "",
                               combinedMemberAmount: defaultMember > 0 ? String(defaultMember) : "",
                               combinedMemberId: prev.combinedMemberId || user.id,
                             }));
                           } else {
-                            setBazarForm((prev) => ({ ...prev, paidBy: val }));
+                            setBazarForm((prev) => ({
+                              ...prev,
+                              paidBy: val,
+                              cashSourceUserId:
+                                val === "cash-in-hand"
+                                  ? prev.cashSourceUserId || defaultCashSourceUserId
+                                  : prev.cashSourceUserId,
+                            }));
                           }
                         }}
                         minMenuWidth={240}
@@ -11985,6 +12726,7 @@ function App() {
                             setBazarForm((prev) => ({
                               ...prev,
                               paidBy: "combine",
+                              cashSourceUserId: prev.cashSourceUserId || defaultCashSourceUserId,
                               combinedCashAmount: defaultCash > 0 ? String(defaultCash) : "",
                               combinedMemberAmount: defaultMember > 0 ? String(defaultMember) : "",
                               combinedMemberId: user.id,
@@ -11995,6 +12737,32 @@ function App() {
                         }}
                       />
                       <span>Combine with Cash in Hand (Mess cash + your pocket)</span>
+                    </label>
+                  )}
+
+                  {(bazarForm.paidBy === "cash-in-hand" || bazarForm.paidBy === "combine") && (
+                    <label>
+                      Cash contribution source
+                      <PremiumDropdown
+                        ariaLabel="Cash contribution source"
+                        menuLabel="CASH CONTRIBUTION SOURCE"
+                        value={bazarForm.cashSourceUserId}
+                        options={allActiveUsers
+                          .filter(
+                            (member) =>
+                              memberCashContribution(member.id) > 0.009 ||
+                              member.id === bazarForm.cashSourceUserId,
+                          )
+                          .map((member) => ({
+                            value: member.id,
+                            label: `${member.name} · ${money(availableContributionForSettlement(member.id))} available`,
+                          }))}
+                        onChange={(nextId) =>
+                          setBazarForm((form) => ({ ...form, cashSourceUserId: nextId }))
+                        }
+                        minMenuWidth={240}
+                        align="left"
+                      />
                     </label>
                   )}
 
@@ -12036,8 +12804,8 @@ function App() {
                           <input
                             type="number"
                             min="0"
-                            step="0.01"
-                            placeholder="0.00"
+                            step="1"
+                            placeholder="0"
                             value={bazarForm.combinedCashAmount}
                             onChange={(e) => {
                               const val = e.target.value;
@@ -12058,8 +12826,8 @@ function App() {
                           <input
                             type="number"
                             min="0"
-                            step="0.01"
-                            placeholder="0.00"
+                            step="1"
+                            placeholder="0"
                             value={bazarForm.combinedMemberAmount}
                             onChange={(e) => {
                               const val = e.target.value;
@@ -12356,8 +13124,8 @@ function App() {
                             id="bazar-edit-simple-price"
                             type="number"
                             min="0"
-                            step="0.01"
-                            placeholder="0.00"
+                            step="1"
+                            placeholder="0"
                             value={bazarEditPicker.unitPrice}
                             onChange={(event) => {
                               setBazarEditPickerError("");
@@ -12419,7 +13187,7 @@ function App() {
                                 className="bazar-tracked-price"
                                 type="number"
                                 min="0"
-                                step="0.01"
+                                step="1"
                                 value={row.price}
                                 onChange={(event) => updateBazarEditItem(index, "price", event.target.value)}
                               />
@@ -12474,12 +13242,20 @@ function App() {
                               setBazarEditEntry((old) => ({
                                 ...old,
                                 editPaidBy: "combine",
+                                 cashSourceUserId: old.cashSourceUserId || defaultCashSourceUserId,
                                 combinedCashAmount: defaultCash > 0 ? String(defaultCash) : "",
                                 combinedMemberAmount: defaultMember > 0 ? String(defaultMember) : "",
                                 combinedMemberId: old.combinedMemberId || old.paidBy || user?.id,
                               }));
                             } else {
-                              setBazarEditEntry((old) => ({ ...old, editPaidBy: val }));
+                              setBazarEditEntry((old) => ({
+                                ...old,
+                                editPaidBy: val,
+                                cashSourceUserId:
+                                  val === "cash-in-hand"
+                                    ? old.cashSourceUserId || defaultCashSourceUserId
+                                    : old.cashSourceUserId,
+                              }));
                             }
                           }}
                           minMenuWidth={240}
@@ -12506,6 +13282,7 @@ function App() {
                                 setBazarEditEntry((old) => ({
                                   ...old,
                                   editPaidBy: "combine",
+                                   cashSourceUserId: old.cashSourceUserId || defaultCashSourceUserId,
                                   combinedCashAmount: defaultCash > 0 ? String(defaultCash) : "",
                                   combinedMemberAmount: defaultMember > 0 ? String(defaultMember) : "",
                                   combinedMemberId: user?.id,
@@ -12518,6 +13295,51 @@ function App() {
                           <span>Combine with Cash in Hand (Mess cash + your pocket)</span>
                         </label>
                       )
+                    )}
+
+                    {(bazarEditEntry.editPaidBy === "cash-in-hand" || bazarEditEntry.editPaidBy === "combine") && (
+                      <label>
+                        Cash contribution source
+                        <PremiumDropdown
+                          ariaLabel="Cash contribution source"
+                          menuLabel="CASH CONTRIBUTION SOURCE"
+                          value={bazarEditEntry.cashSourceUserId || ""}
+                          options={allActiveUsers
+                            .filter(
+                              (member) =>
+                                memberCashContribution(member.id) > 0.009 ||
+                                member.id === bazarEditEntry.cashSourceUserId,
+                            )
+                            .map((member) => {
+                              const oldCashAmount = bazarEditEntry.isCombined
+                                ? Number(bazarEditEntry.cashEntry?.amount ?? bazarEditEntry.cashAmount ?? 0)
+                                : bazarEditEntry.paidFromCash
+                                  ? Number(bazarEditEntry.amount || 0)
+                                  : 0;
+                              const oldCashSourceId = bazarEditEntry.isCombined
+                                ? cashSourceUserIdForEntry(bazarEditEntry.cashEntry)
+                                : bazarEditEntry.paidFromCash
+                                  ? cashSourceUserIdForEntry(bazarEditEntry)
+                                  : null;
+                              const available = roundMoney(
+                                availableContributionForSettlement(member.id) +
+                                  (oldCashSourceId === member.id ? oldCashAmount : 0),
+                              );
+                              return {
+                                value: member.id,
+                                label: `${member.name} · ${money(available)} available`,
+                              };
+                            })}
+                          onChange={(nextId) =>
+                            setBazarEditEntry((entry) => ({
+                              ...entry,
+                              cashSourceUserId: nextId,
+                            }))
+                          }
+                          minMenuWidth={240}
+                          align="left"
+                        />
+                      </label>
                     )}
 
                     {bazarEditEntry.editPaidBy === "combine" && (
@@ -12558,8 +13380,8 @@ function App() {
                             <input
                               type="number"
                               min="0"
-                              step="0.01"
-                              placeholder="0.00"
+                              step="1"
+                              placeholder="0"
                               value={bazarEditEntry.combinedCashAmount}
                               onChange={(e) => {
                                 const val = e.target.value;
@@ -12580,8 +13402,8 @@ function App() {
                             <input
                               type="number"
                               min="0"
-                              step="0.01"
-                              placeholder="0.00"
+                              step="1"
+                              placeholder="0"
                               value={bazarEditEntry.combinedMemberAmount}
                               onChange={(e) => {
                                 const val = e.target.value;
@@ -13156,8 +13978,25 @@ function App() {
           </>
         )}
         {page === "bazar-report" && (admin || user.role === "member") && (() => {
-          const chartColors = ["#0d6f49", "#10b981", "#0ea5e9", "#f59e0b", "#8b5cf6", "#ef4444"];
+          const chartColors = ["#0d6f49", "#10b981", "#0ea5e9", "#f59e0b", "#8b5cf6", "#ef4444", "#94a3b8"];
           const donutItems = bazarItemUsageReport.items.slice(0, 6);
+          const donutItemsTotal = donutItems.reduce((sum, item) => sum + Number(item.totalSpent || 0), 0);
+          const otherItemsTotal = Math.max(0, bazarItemUsageReport.totalSpent - donutItemsTotal);
+          const donutChartItems = otherItemsTotal > 0.009
+            ? [
+                ...donutItems,
+                {
+                  key: "other-items",
+                  name: "Other Items",
+                  totalSpent: otherItemsTotal,
+                  sharePct: bazarItemUsageReport.totalSpent > 0
+                    ? (otherItemsTotal / bazarItemUsageReport.totalSpent) * 100
+                    : 0,
+                  colorIndex: 6,
+                  isOther: true,
+                },
+              ]
+            : donutItems;
           const donutRadius = 52;
           const donutCircumference = 2 * Math.PI * donutRadius;
           let donutOffset = 0;
@@ -13247,6 +14086,40 @@ function App() {
             <div className="bazar-report-shell">
               {bazarItemUsageReport.items.length > 0 ? (
                 <>
+                  <section className="bazar-report-kpis" aria-label="Bazar report summary">
+                    <article className="bazar-report-kpi is-total">
+                      <span className="bazar-report-kpi-icon" aria-hidden="true"><Wallet size={21} /></span>
+                      <div>
+                        <small>Total Spent</small>
+                        <strong>{money(bazarTotal)}</strong>
+                        <span>{month}</span>
+                      </div>
+                    </article>
+                    <article className="bazar-report-kpi is-items">
+                      <span className="bazar-report-kpi-icon" aria-hidden="true"><ShoppingBasket size={21} /></span>
+                      <div>
+                        <small>Tracked Items</small>
+                        <strong>{bazarItemUsageReport.items.length}</strong>
+                        <span>{bazarItemUsageReport.items.reduce((sum, item) => sum + Number(item.count || 0), 0)} purchases</span>
+                      </div>
+                    </article>
+                    <article className="bazar-report-kpi is-top">
+                      <span className="bazar-report-kpi-icon" aria-hidden="true"><Star size={21} /></span>
+                      <div>
+                        <small>Top Item</small>
+                        <strong>{topItem?.name || "No item"}</strong>
+                        <span>{topItem ? money(topItem.totalSpent) : money(0)}</span>
+                      </div>
+                    </article>
+                    <article className="bazar-report-kpi is-average">
+                      <span className="bazar-report-kpi-icon" aria-hidden="true"><CalendarDays size={21} /></span>
+                      <div>
+                        <small>Average / Shopping Day</small>
+                        <strong>{money(bazarTotal / Math.max(1, bazarItemUsageReport.dailyTrend.length))}</strong>
+                        <span>{bazarItemUsageReport.dailyTrend.length} active days</span>
+                      </div>
+                    </article>
+                  </section>
                   <div className="bazar-report-charts-grid">
                     <section className="panel bazar-report-chart-card bazar-trend-card" aria-label="Expense Trend">
                       <div className="bazar-trend-head">
@@ -13399,7 +14272,7 @@ function App() {
                             />
                             {(() => {
                               let topDonutOffset = 0;
-                              return donutItems.map((item) => {
+                              return donutChartItems.map((item) => {
                                 const pct = Math.max(0, item.sharePct) / 100;
                                 const segLen = pct * donutCircumference;
                                 const dashArray = `${segLen} ${donutCircumference - segLen}`;
@@ -13428,17 +14301,15 @@ function App() {
                           </div>
                         </div>
                         <div className="bazar-top-chart-bars">
-                          {donutItems.map((item) => {
-                            const wPct = bazarItemUsageReport.maxSpent > 0
-                              ? Math.max(8, Math.round((item.totalSpent / bazarItemUsageReport.maxSpent) * 100))
-                              : 8;
+                          {donutChartItems.map((item) => {
+                            const wPct = Math.min(100, Math.max(0, item.sharePct));
                             return (
-                              <div className="bazar-top-bar-row" key={item.key}>
+                              <div className={`bazar-top-bar-row${item.isOther ? " is-other" : ""}`} key={item.key}>
                                 <div className="bazar-top-bar-meta">
                                   <span className="bazar-top-bar-item">
                                     <i className="bazar-top-bar-dot" style={{ background: chartColors[item.colorIndex] }} aria-hidden="true" />
                                     <span className="bazar-top-bar-icon" aria-hidden="true">
-                                      {renderBazarReportIcon(item.name, 18)}
+                                      {item.isOther ? <Layers3 size={17} /> : renderBazarReportIcon(item.name, 18)}
                                     </span>
                                     <strong className="bazar-top-bar-name">{item.name}</strong>
                                   </span>
@@ -13476,7 +14347,7 @@ function App() {
                               stroke="rgba(16, 185, 129, 0.12)"
                               strokeWidth="20"
                             />
-                            {donutItems.map((item) => {
+                            {donutChartItems.map((item) => {
                               const pct = Math.max(0, item.sharePct) / 100;
                               const segLen = pct * donutCircumference;
                               const dashArray = `${segLen} ${donutCircumference - segLen}`;
@@ -13504,10 +14375,8 @@ function App() {
                           </div>
                         </div>
                         <div className="bazar-cat-bars is-clear">
-                          {donutItems.map((item) => {
-                            const wPct = bazarItemUsageReport.maxSpent > 0
-                              ? Math.max(6, Math.round((item.totalSpent / bazarItemUsageReport.maxSpent) * 100))
-                              : 6;
+                          {donutChartItems.map((item) => {
+                            const wPct = Math.min(100, Math.max(0, item.sharePct));
                             return (
                               <div
                                 className="bazar-cat-bar-item"
@@ -13518,7 +14387,7 @@ function App() {
                                   <span className="bazar-cat-label-wrap">
                                     <i style={{ background: chartColors[item.colorIndex] }} aria-hidden="true" />
                                     <span className="bazar-cat-emoji" aria-hidden="true">
-                                      {renderBazarItemIcon(item.name, 14)}
+                                      {item.isOther ? <Layers3 size={14} /> : renderBazarItemIcon(item.name, 14)}
                                     </span>
                                     <b>{item.name}</b>
                                   </span>
@@ -14483,7 +15352,7 @@ function App() {
                               {String(index + 1).padStart(2, "0")}
                             </span>
                             <span className="bazar-needed-login-item-icon" aria-hidden="true">
-                              {renderBazarItemIcon(item.name, 20)}
+                              {renderBazarItemIcon(item.name, 52)}
                             </span>
                             <span className="bazar-needed-login-item-copy">
                               <strong>{item.name}</strong>
@@ -14655,21 +15524,34 @@ function App() {
     </div>
   );
 }
-function Stat({ title, value, icon: Icon, watermarkIcon: WatermarkIcon, tone, hint, className = "", showAction = false, actionKind = "arrow" }) {
+function Stat({ title, value, icon: Icon, tone, hint, progress = 0, className = "", showAction = false, actionKind = "arrow" }) {
+  const safeProgress = Math.min(100, Math.max(0, Number(progress) || 0));
   return (
     <div className={`stat${className ? ` ${className}` : ""}`}>
       <div className={"stat-icon " + tone}>
         <Icon size={19} />
       </div>
-      {showAction && (
-        <span className={`stat-action is-${actionKind}`} aria-hidden="true">
-          {actionKind === "check" ? <Check size={18} /> : actionKind === "alert" ? "!" : <ArrowRight size={17} />}
-        </span>
-      )}
-      {showAction && WatermarkIcon && <WatermarkIcon className="stat-watermark" aria-hidden="true" />}
-      <span>{title}</span>
+      <div className="stat-heading">
+        <span>{title}</span>
+        {hint && <small>{hint}</small>}
+      </div>
       <strong>{value}</strong>
-      {hint && <small>{hint}</small>}
+      <div
+        className="stat-progress"
+        role="progressbar"
+        aria-label={`${title} progress`}
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow={Math.round(safeProgress)}
+        style={{ "--stat-progress-angle": `${safeProgress * 3.6}deg` }}
+      >
+        <span className="stat-progress-core" />
+        {showAction && (
+          <span className={`stat-action is-${actionKind}`} aria-hidden="true">
+            {actionKind === "check" ? <Check size={18} /> : actionKind === "alert" ? "!" : <ArrowRight size={17} />}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

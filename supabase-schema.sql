@@ -77,7 +77,7 @@ create table if not exists public.member_settlements (
   from_user_id uuid not null references public.profiles(id),
   to_user_id uuid not null references public.profiles(id),
   amount numeric(12,2) not null check (amount > 0),
-  source_type text not null default 'direct' check (source_type in ('direct','cash_contribution')),
+  source_type text not null default 'direct' check (source_type in ('direct','cash_contribution','previous_due')),
   status text not null default 'pending' check (status in ('pending','completed')),
   settlement_date date not null default current_date,
   note text not null default 'Meal balance settlement',

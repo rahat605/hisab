@@ -15778,3 +15778,145 @@ th {
     flex-direction: column;
   }
 }
+
+/* Settlement ledger cards: readable at full desktop width and on narrow phones. */
+.settlement-page .settlement-dashboard-compact .settlement-history-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr));
+  gap: 12px;
+  padding: 12px;
+}
+.settlement-page .settlement-ledger-card {
+  width: 100%;
+  padding: 14px;
+  overflow: hidden;
+}
+.settlement-page .settlement-ledger-route {
+  grid-template-columns: minmax(130px, 1fr) minmax(155px, .82fr) minmax(130px, 1fr);
+  gap: 14px;
+}
+.settlement-page .settlement-ledger-party > small,
+.settlement-page .settlement-ledger-transfer > small {
+  overflow: hidden;
+  font-size: 13px;
+  letter-spacing: .035em;
+  text-overflow: ellipsis;
+}
+.settlement-page .settlement-ledger-party strong {
+  font-size: 16px;
+}
+.settlement-page .settlement-ledger-party em {
+  font-size: 13px;
+}
+.settlement-page .settlement-ledger-sentence {
+  align-items: flex-start;
+  padding: 8px 10px;
+}
+.settlement-page .settlement-ledger-sentence strong {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.35;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.settlement-page .settlement-ledger-footer {
+  align-items: flex-start;
+}
+.settlement-page .settlement-ledger-meta {
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+}
+.settlement-page .settlement-ledger-meta > small {
+  flex-basis: 100%;
+  white-space: normal;
+}
+.settlement-page .settlement-ledger-meta .settlement-method-badge {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .settlement-page .settlement-dashboard-compact .settlement-history-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px;
+  }
+  .settlement-page .settlement-ledger-card {
+    padding: 11px;
+    border-radius: 14px;
+  }
+  .settlement-page .settlement-ledger-route {
+    grid-template-areas:
+      "payer receiver"
+      "amount amount";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px 10px;
+  }
+  .settlement-page .settlement-ledger-party.payer {
+    grid-area: payer;
+  }
+  .settlement-page .settlement-ledger-party.receiver {
+    grid-area: receiver;
+  }
+  .settlement-page .settlement-ledger-transfer {
+    grid-area: amount;
+    padding: 8px 10px;
+    border: 1px solid rgba(201, 221, 212, .9);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .66);
+  }
+  .settlement-page .settlement-ledger-transfer > small {
+    margin-bottom: 4px;
+    white-space: normal;
+  }
+  .settlement-page .settlement-transfer-dash {
+    display: none;
+  }
+  .settlement-page .settlement-ledger-party > small {
+    white-space: normal;
+  }
+  .settlement-page .settlement-ledger-party strong,
+  .settlement-page .settlement-ledger-party em {
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .settlement-page .settlement-ledger-sentence strong {
+    -webkit-line-clamp: 3;
+  }
+  .settlement-page .settlement-payment-summary {
+    gap: 6px;
+  }
+  .settlement-page .settlement-payment-summary > span {
+    padding: 7px 5px;
+    text-align: center;
+  }
+  .settlement-page .settlement-payment-summary small {
+    min-height: 30px;
+    font-size: 11px;
+  }
+  .settlement-page .settlement-payment-summary strong {
+    font-size: 16px;
+  }
+  .settlement-page .settlement-ledger-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .settlement-page .settlement-ledger-meta {
+    gap: 6px;
+  }
+  .settlement-page .settlement-ledger-meta .settlement-method-badge {
+    display: inline-flex;
+    max-width: min(100%, 210px);
+    font-size: 12px;
+  }
+  .settlement-page .settlement-ledger-meta .settlement-status {
+    font-size: 12px;
+  }
+  .settlement-page .settlement-ledger-card .settlement-history-actions {
+    align-self: start;
+  }
+}
